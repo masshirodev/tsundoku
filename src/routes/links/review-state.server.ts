@@ -3,13 +3,13 @@ import { secondPart, seriesSeasons, type SeasonView } from '$lib/server/season-l
 import { idsLine, wrongKind } from '$lib/library/catalogue';
 
 /**
- * What `/links?series=N` draws of the season it is on (c240): the LINKED row
+ * What `/links?series=N` draws of the season it is on: the LINKED row
  * (`single`) and the season's own header and parts (`season`). The page's
- * load draws it once, LINK N SEASONS answers it again (c465, c644), and
+ * load draws it once, LINK N SEASONS answers it again, and
  * `/links/season` after that link's UNDO, so the page redraws the season as
  * it now stands rather than the review it opened on.
  *
- * `part` 2 is the season's second part by hand (c350, `&part=2`, opened by
+ * `part` 2 is the season's second part by hand (`&part=2`, opened by
  * `+ A SECOND PART`): the LINKED row is part 2's own link, the decisions act
  * on part 2, and `second` says where it starts. Null when the season has no
  * second part to link (`secondPart`'s refusal), so the caller draws part 1.
@@ -58,7 +58,7 @@ export function seasonReview(
 					part: part === 2 ? 2 : (at.link?.part ?? 1),
 					parts: at.parts.map((p) => ({ part: p.part, from: p.from, to: p.to, linked: !!p.link })),
 					/**
-					 * A second part by hand (c350): where it starts, part 1's entry, and
+					 * A second part by hand: where it starts, part 1's entry, and
 					 * whether one is linked. Null when the season can have none.
 					 */
 					second: two

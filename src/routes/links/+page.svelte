@@ -23,27 +23,26 @@
 	import type { RefusedPick, RelationOffer, SeasonUndoFacts } from '$lib/server/season-links';
 
 	/**
-	 * The link review (Link Review, Ranobe Review; doc/LINKS.md,
-	 * doc/RANOBE.md): one series at a time, the candidates a catalogue found
-	 * for it, none of them for certain. Nothing is preselected: a match under
-	 * another title is the owner's to judge, so a tap chooses one and LINK
-	 * makes it. Each decision is carried out at once; UNDO takes the last one
-	 * back.
+	 * The link review (doc/LINKS.md, doc/RANOBE.md): one series at a time, the
+	 * candidates a catalogue found for it, none of them for certain. Nothing is
+	 * preselected: a match under another title is the user's to judge, so a tap
+	 * chooses one and LINK makes it. Each decision is carried out at once; UNDO
+	 * takes the last one back.
 	 *
-	 * An item is AniList's, Ranobe's or TMDB's (a film or a show, c989). The
+	 * An item is AniList's, Ranobe's or TMDB's (a film or a show). The
 	 * two that are not AniList's arrive with THIS SERIES' rows and the searched
 	 * line already drawn (`rows`, `searchedLine`). A novel unsure on both comes up twice,
 	 * Ranobe first. Ranobe's LINK may offer the same work to the series with
-	 * the same title before a volume number (1b).
+	 * the same title before a volume number.
 	 *
 	 * `?series=` is one series only (FIND or CHANGE on its screen): deciding
-	 * goes back to it, but for LINK N SEASONS, which stays with its UNDO (c644).
+	 * goes back to it, but for LINK N SEASONS, which stays with its UNDO.
 	 */
 	let { data } = $props();
 
 	type Item = (typeof data.items)[number];
-	/** One season of an anime (c240), when FIND opened the page on one. */
-	// Any LINK N SEASONS redraws it from the workstation's answer (c465, c644),
+	/** One season of an anime, when FIND opened the page on one. */
+	// Any LINK N SEASONS redraws it from the workstation's answer,
 	// and its UNDO from a fresh read (`redrawSeason`).
 	// svelte-ignore state_referenced_locally
 	let season = $state(data.season);
@@ -54,13 +53,13 @@
 	let pickedSeasons = $state<number[]>(ticked(data.relations ?? []));
 	/**
 	 * Whether the offer on screen follows a LINK made on this page, rather than
-	 * coming with the page's load (EDIT on a linked season, round 3). Only then
+	 * coming with the page's load (EDIT on a linked season). Only then
 	 * is the season's decision made, so only then does NOT NOW leave.
 	 */
 	let offerFromLink = $state(false);
 	/**
 	 * The seasons the relations tick, each once: a split season's two parts
-	 * are both ticked and are one season (c418, round 2), so the count, the
+	 * are both ticked and are one season, so the count, the
 	 * button and the band never say two for it.
 	 */
 	function ticked(offers: RelationOffer[]): number[] {
@@ -77,7 +76,7 @@
 	const isAni = (c: Cand): c is ReviewCandidate => 'anilistId' in c;
 
 	/** An item's place in the queue: a novel can be in it once per catalogue. */
-	// An anime's item is one season's (c352), so its season is part of its place.
+	// An anime's item is one season's, so its season is part of its place.
 	const qk = (i: { service: Service; seriesId: number; season?: number }) =>
 		`${i.service}:${i.seriesId}${i.season !== undefined ? `:${i.season}` : ''}`;
 	/** "SEASON 2 · ", for a band about a decision on one season of an anime; '' otherwise. */
@@ -100,7 +99,7 @@
 	let done = $state(0);
 	let busy = $state(false);
 	let failed = $state<string | null>(null);
-	/** The workstation answered that the catalogue couldn't be reached (Link Review 1g). */
+	/** The workstation answered that the catalogue couldn't be reached. */
 	let nonet = $state<Service | null>(null);
 
 	type UndoKind = 'link' | 'none' | 'search' | 'many' | 'suggest' | 'seasons';
@@ -112,12 +111,12 @@
 			kind: UndoKind;
 			service: Service;
 			series: number;
-			/** An anime's season and part it acted on (c240): UNDO takes that one back. */
+			/** An anime's season and part it acted on: UNDO takes that one back. */
 			season?: number;
 			part?: number;
 			was?: QueuedFrom;
 			many?: number[];
-			/** LINK N SEASONS' UNDO: the seasons the post wrote, as they stood (c595). */
+			/** LINK N SEASONS' UNDO: the seasons the post wrote, as they stood. */
 			facts?: SeasonUndoFacts;
 		} | null;
 		before: { queue: string[]; done: number };
@@ -130,9 +129,9 @@
 
 	const item = $derived<Item | null>(queue.length ? (byKey.get(queue[0]) ?? null) : null);
 	/**
-	 * The season a decision is about (c240): the page's own on `?series=`, or
+	 * The season a decision is about: the page's own on `?series=`, or
 	 * the one the queue's item is for -- the queue holds an anime an item a
-	 * season (c352). Posted with LINK, NONE OF THESE, SKIP, SEARCH AGAIN and
+	 * season. Posted with LINK, NONE OF THESE, SKIP, SEARCH AGAIN and
 	 * their UNDO, so the workstation never falls back to a default season.
 	 */
 	const at = $derived<{ no: number; part: number } | null>(
@@ -143,10 +142,10 @@
 				: null
 	);
 	/**
-	 * The season the screen names (c240): the page's own on `?series=`, or a
+	 * The season the screen names: the page's own on `?series=`, or a
 	 * queue item's, from season 1 up. Season 0 is a flat list, the whole run,
-	 * so it names none, on the page's own season as on a queue item's (c423:
-	 * Ranma ½ (2024)'s LINK read `LINK A TO SEASON 0`); it still posts its
+	 * so it names none, on the page's own season as on a queue item's (or its
+	 * LINK would read `LINK A TO SEASON 0`); it still posts its
 	 * season (`at`), which is the whole show's row.
 	 */
 	const named = $derived<{ no: number } | null>(
@@ -156,12 +155,12 @@
 	 * Whether a season's LINK stays on the page for the rest of the show: only
 	 * when there is a rest. A show with one season (a flat list, or one
 	 * numbered season) has none to offer, so its LINK goes back to the series
-	 * as a comic's does, and the new link shows on the LINK row (c423: a LINK
-	 * that worked looked like it hadn't, the item still on screen).
+	 * as a comic's does, and the new link shows on the LINK row (staying, a LINK
+	 * that worked would look like it hadn't, the item still on screen).
 	 */
 	const staysForTheRest = $derived(!!season && season.of > 1);
 	/**
-	 * The season's second part by hand (c350, `&part=2`, opened by `+ A SECOND
+	 * The season's second part by hand (`&part=2`, opened by `+ A SECOND
 	 * PART`): where it starts and part 1's entry. Its LINK, UNLINK and their
 	 * UNDO act on part 2, and it goes back to the series.
 	 */
@@ -178,7 +177,7 @@
 			? `PART 2 STARTS WHERE PART 1’S ${second.after} EPISODES END · FROM EP. ${second.from}`
 			: null
 	);
-	/** `+ A SECOND PART` (c350): under a linked season whose part 1 leaves episodes over. */
+	/** `+ A SECOND PART`: under a linked season whose part 1 leaves episodes over. */
 	const addSecond = $derived(
 		!!season &&
 			season.part === 1 &&
@@ -200,10 +199,10 @@
 	let pasteText = $state('');
 	let pasted = $state<Cand | null>(null);
 	let pasteNote = $state<string | null>(null);
-	/** A pasted entry another season holds (c418): said so, and LINK stays dimmed. */
+	/** A pasted entry another season holds: said so, and LINK stays dimmed. */
 	let pastedHeld = $state<string | null>(null);
 
-	/** THE SAME WORK FOR THESE? (1b): after a Ranobe LINK, until decided. */
+	/** THE SAME WORK FOR THESE?: after a Ranobe LINK, until decided. */
 	let sibs = $state<{
 		work: string;
 		title: string;
@@ -234,7 +233,7 @@
 	}
 
 	const off = $derived(!offline.online);
-	/** Hidden series are never searched (Series Link 1s): only a pasted link. */
+	/** Hidden series are never searched: only a pasted link. */
 	const noSearch = $derived(!!single?.hidden);
 	const cands = $derived<Cand[]>(
 		pasted ? [pasted] : ((item?.candidates as Cand[] | undefined) ?? [])
@@ -272,7 +271,7 @@
 				? `${SERVICE_NAME[service]} REFUSED IT · ${what}`
 				: r?.status === 409
 					? // Not this season's to take: another season of the show holds the
-						// entry, or it is no longer among the candidates (wave 17, round 2).
+						// entry, or it is no longer among the candidates.
 						`NOT OFFERED FOR THIS ONE · ${what}`
 					: NO_ANSWER;
 
@@ -325,7 +324,7 @@
 				service: it.service,
 				series: it.seriesId,
 				// The season the decision was about: UNDO takes that one back, not
-				// whichever the page happens to open on (c240).
+				// whichever the page happens to open on.
 				...(on ? { season: on.no, part: on.part } : {}),
 				was: kind === 'search' ? ((answer.was as QueuedFrom) ?? null) : undefined
 			},
@@ -350,7 +349,7 @@
 			facts: u.undo.facts
 		});
 		if (!r?.ok) {
-			// A refusal says why (c592's part 2, c595's LINK N SEASONS): the band
+			// A refusal says why (LINK N SEASONS' too): the band
 			// keeps its UNDO, and nothing changed. No answer at all has no body.
 			const why = r
 				? ((await r.json().catch(() => ({}))) as { message?: string }).message
@@ -361,7 +360,7 @@
 		}
 		// The season under the band came from LINK N SEASONS' answer, which this
 		// UNDO has just taken back: its own other part may have been among the
-		// picks (c644). Still busy, so no decision can act on the old drawing.
+		// picks. Still busy, so no decision can act on the old drawing.
 		if (u.undo.kind === 'seasons' && single && season) {
 			await redrawSeason(u.undo.series, season.no);
 			void refreshToLink();
@@ -382,7 +381,7 @@
 
 	/**
 	 * The layout's TO LINK count, once the page stays after a write that moved
-	 * it (c644). `backToSeries` refreshed it with `invalidateAll`; ← SERIES is a
+	 * it. `backToSeries` refreshed it with `invalidateAll`; ← SERIES is a
 	 * plain link and would carry the old number. Only the layout's load depends
 	 * on this, so it does not repeat the page's AniList walk.
 	 */
@@ -413,9 +412,9 @@
 			return;
 		}
 		if (isAni(c) && season && staysForTheRest) {
-			// A season linked: the page turns to the rest of the show (c240), so it
+			// A season linked: the page turns to the rest of the show, so it
 			// stays rather than going back to the series. A one-season show has no
-			// rest, and takes the plain LINK below, back to its screen (c423).
+			// rest, and takes the plain LINK below, back to its screen.
 			busy = true;
 			failed = null;
 			const before = { queue: [...queue], done };
@@ -434,7 +433,7 @@
 			const a = (await r.json().catch(() => ({}))) as { relations?: RelationOffer[] };
 			// No rest to show (AniList unreachable, or no chain neighbour inside the
 			// show's seasons): staying would redraw the untouched review, so the LINK
-			// goes back to the series as a one-season show's does (c423, round 2).
+			// goes back to the series as a one-season show's does.
 			if (single && !a.relations?.length) {
 				await backToSeries(it.seriesId);
 				return;
@@ -444,7 +443,7 @@
 			offerFromLink = !!relations;
 			chosen = null;
 			undo = {
-				// Season 0 (a flat part of a longer list) names no season (c423).
+				// Season 0 (a flat part of a longer list) names no season.
 				title: named
 					? `LINKED · SEASON ${named.no} TO ${c.title.toUpperCase()}`
 					: `LINKED · ${c.title.toUpperCase()}`,
@@ -472,7 +471,7 @@
 		if (isAni(c)) {
 			decide(
 				{ link: c.anilistId, pasted: !!pasted },
-				// The queue's item names its season, and so does the band (c240).
+				// The queue's item names its season, and so does the band.
 				`LINKED · ${seasonWord(named)}${c.title.toUpperCase()}`,
 				`${c.ids} · ${it.hasCover ? 'COVER STAYS AS IT IS' : 'ITS COVER COMES FROM THE LINK'}`,
 				'link'
@@ -487,18 +486,18 @@
 			'link'
 		);
 		const rows = (answer?.siblings as Sibling[] | undefined) ?? [];
-		// The siblings as the review now draws them: the work first, chosen just now (1c).
+		// The siblings as the review now draws them: the work first, chosen just now.
 		for (const i of (answer?.items as Item[] | undefined) ?? []) byKey.set(qk(i), i);
 		if (rows.length) sibs = { work: c.work, title: c.title, series: it.seriesId, rows, picked: [] };
 	}
 
 	/**
 	 * LINK 3 SEASONS: the ticked entries written at once. The page stays, also
-	 * from `?series=` and also after a full success (c644: the one decision
-	 * c423's "deciding goes back to the series" gives way for), because a
-	 * multi-season write is the one that needs its UNDO. The band is the
-	 * workstation's answer, never the page's own ticks (c418): a pick another
-	 * season holds is refused there, and the band says which, with the true count.
+	 * from `?series=` and also after a full success (the one exception to
+	 * "deciding goes back to the series"), because a multi-season write is the
+	 * one that needs its UNDO. The band is the workstation's answer, never the
+	 * page's own ticks: a pick another season holds is refused there, and the
+	 * band says which, with the true count.
 	 */
 	async function linkSeasonsNow() {
 		if (!item || busy || !relations || !pickedSeasons.length) return;
@@ -515,7 +514,7 @@
 			...(single && season ? { season: season.no } : {})
 		});
 		busy = false;
-		// `linked` and `of` are seasons, not parts: a pair is one (round 2).
+		// `linked` and `of` are seasons, not parts: a pair is one.
 		const a = (r ? await r.json().catch(() => ({})) : {}) as {
 			linked?: number;
 			of?: number;
@@ -533,9 +532,9 @@
 		const n = a.linked ?? 0;
 		relations = null;
 		offerFromLink = false;
-		// On one series the page stays (c644), so the season it is on is drawn as
+		// On one series the page stays, so the season it is on is drawn as
 		// it now stands -- linked, its LINK row naming the entry -- not as the
-		// review it opened on (c465). After a partial link the band names the
+		// review it opened on. After a partial link the band names the
 		// season still to do.
 		if (single && a.review) {
 			single = a.review.single;
@@ -556,7 +555,7 @@
 			detail: refused.length
 				? refusedLine(refused)
 				: 'EACH SENDS ITS OWN EPISODES FROM THE NEXT ONE WATCHED',
-			// The band takes back every season the post wrote, and only those (c595).
+			// The band takes back every season the post wrote, and only those.
 			undo: a.facts
 				? { kind: 'seasons', service: it.service, series: it.seriesId, facts: a.facts }
 				: null,
@@ -567,11 +566,11 @@
 	/**
 	 * NOT NOW on the rest of the show. After a LINK made here the season is
 	 * linked, so for one series the page goes back to it (its LINK row shows
-	 * the new link), never to the untouched review it came from (c423, round
-	 * 2). An offer that came with the page's load (EDIT on a linked season)
-	 * follows no decision: NOT NOW closes it and stays, so the season's own
-	 * tools (PASTE A LINK, UNLINK, LINK) are reachable (round 3). In the
-	 * queue, the offer closes and the band's UNDO stays.
+	 * the new link), never to the untouched review it came from. An offer that
+	 * came with the page's load (EDIT on a linked season) follows no decision:
+	 * NOT NOW closes it and stays, so the season's own tools (PASTE A LINK,
+	 * UNLINK, LINK) are reachable. In the queue, the offer closes and the
+	 * band's UNDO stays.
 	 */
 	async function notNow() {
 		const id = item?.seriesId;
@@ -584,7 +583,7 @@
 
 	/**
 	 * "SEASON 1 NOT LINKED · SEASON 3 HOLDS ITS ENTRY", for each season the
-	 * workstation refused. A split season is refused whole (c466), each of its
+	 * workstation refused. A split season is refused whole, each of its
 	 * parts carrying the season's one why, which is said once.
 	 */
 	const refusedLine = (refused: RefusedPick[]) =>
@@ -597,7 +596,7 @@
 			: [...pickedSeasons, n];
 	}
 
-	// ---- THE SAME WORK FOR THESE? (Ranobe Review 1b) ------------------------------------------
+	// ---- THE SAME WORK FOR THESE? ------------------------------------------
 	const sibAll = $derived(!!sibs && sibs.picked.length === sibs.rows.length);
 	function toggleSib(id: number) {
 		if (!sibs) return;
@@ -641,10 +640,9 @@
 	}
 
 	/**
-	 * SEARCH AGAIN, at once (the owner's call, 2026-09-24; the handoff queued it
-	 * for the next cover pass). A search the owner runs never links: its
-	 * candidates replace these, on the same series, even when there is only one,
-	 * and the owner presses LINK (c298). Out of reach, it waits for the pass
+	 * SEARCH AGAIN, at once, not queued for the next cover pass. A search the
+	 * user runs never links: its candidates replace these, on the same series,
+	 * even when there is only one, and the user presses LINK. Out of reach, it waits for the pass
 	 * after all, and says so.
 	 */
 	let searchingNow = $state(false);
@@ -678,7 +676,7 @@
 			kind: 'search' as const,
 			service: it.service,
 			series: it.seriesId,
-			// An anime's search is its season's: UNDO puts that season's back (c355).
+			// An anime's search is its season's: UNDO puts that season's back.
 			...(on ? { season: on.no, part: on.part } : {}),
 			was: a.was ?? undefined
 		};
@@ -716,8 +714,8 @@
 	}
 
 	/**
-	 * SUGGEST TO RANOBE (card c72): the EPUB's work and authors, sent through
-	 * the app account, waiting for the owner on Ranobe. Ranobe is searched
+	 * SUGGEST TO RANOBE: the EPUB's work and authors, sent through
+	 * the app account, to wait for review on Ranobe. Ranobe is searched
 	 * once more first: a work that arrived since comes back as candidates.
 	 */
 	async function suggestIt() {
@@ -773,7 +771,7 @@
 		void searchAgain();
 	});
 
-	// ---- a pasted link, read as one candidate (Link Review 1d, Ranobe Review 1e) --------------
+	// ---- a pasted link, read as one candidate --------------
 	let reading = 0;
 	async function readPaste(text: string) {
 		pasteText = text;
@@ -884,22 +882,22 @@
 		return [
 			{ label: 'SEARCH AGAIN', run: openSearch, dim: netDim || noSearch },
 			{ label: 'PASTE A LINK', run: openPaste, dim: netDim },
-			// A linked season's own UNLINK: gone, and no pass searches it again
-			// (c240). The series screen's EDIT on the season line comes here.
+			// A linked season's own UNLINK: gone, and no pass searches it again.
+			// The series screen's EDIT on the season line comes here.
 			...unlinkAct
 		];
 	});
 	/**
 	 * A linked season's own UNLINK, wherever the season's tools are drawn: in
 	 * the tool row beside its candidates, or among the actions when it has
-	 * none (a season linked by a pasted link was never searched, round 3).
+	 * none (a season linked by a pasted link was never searched).
 	 */
 	const unlinkAct = $derived<Act[]>(
 		season && single?.linked ? [{ label: 'UNLINK', run: unlinkSeason, dim: netDim }] : []
 	);
 
 	/**
-	 * LINK on a second part (c350): part 2 written through the same door as
+	 * LINK on a second part: part 2 written through the same action as
 	 * every season's LINK, with where it starts. A refusal (another season
 	 * holds the entry, or a start the schema cannot keep) says why, in the
 	 * workstation's words; the link goes back to the series, where its line
@@ -938,7 +936,7 @@
 		const it = item;
 		busy = true;
 		failed = null;
-		// A second part's UNLINK is part 2's alone (c350).
+		// A second part's UNLINK is part 2's alone.
 		const r = await post(it.service, {
 			series: it.seriesId,
 			unlink: true,
@@ -956,7 +954,7 @@
 		if (!item) return [];
 		const link: Act = selected
 			? {
-					// The season the LINK writes: the page's, or the queue item's own (c240).
+					// The season the LINK writes: the page's, or the queue item's own.
 					label: second
 						? named
 							? `LINK ${selectedLetter} TO SEASON ${named.no} PART 2`
@@ -974,7 +972,7 @@
 		// puts the caret in its field: the search is the form's own SEARCH, below
 		// it. Once this cell ran the search when open, so the second tap of a
 		// double tap, or the press that opened it on a slow render, searched the
-		// shown title nobody typed (c329).
+		// shown title nobody typed.
 		const search: Act = {
 			label: 'SEARCH AGAIN',
 			run: showSearch,
@@ -982,11 +980,11 @@
 			dim: netDim || noSearch
 		};
 		const paste: Act = { label: 'PASTE A LINK', run: openPaste, dim: netDim };
-		// Ranobe with nothing found (1d): NOT ON RANOBE settles it.
+		// Ranobe with nothing found: NOT ON RANOBE settles it.
 		if (!item.candidates.length && ranobe)
 			return [...(single ? [] : [{ label: 'NOT ON RANOBE', run: notOn, dim: off }]), search, paste];
-		// SKIP too with nothing found: the owner's addition to 1c, so a series
-		// with no answer yet doesn't block the queue.
+		// SKIP too with nothing found, so a series with no answer yet doesn't
+		// block the queue.
 		if (!item.candidates.length)
 			return [
 				search,
@@ -1037,8 +1035,8 @@
 			: { href: resolve('/'), label: '← LIBRARY' }
 	);
 	/**
-	 * A search the owner has just run says "JUST NOW"; anything older is
-	 * "EARLIER". `searched_at` is written by both the owner and the pass, so it
+	 * A search the user has just run says "JUST NOW"; anything older is
+	 * "EARLIER". `searched_at` is written by both the user and the pass, so it
 	 * cannot say who searched, and the band must not claim the pass ran it.
 	 */
 	const when = (at: number | null, now: number) =>
@@ -1061,13 +1059,13 @@
 			? 'THE TITLE ENDS IN “...”, SO MIHON PROBABLY CUT IT SHORT. SEARCH AGAIN WITH THE END TRIMMED OR COMPLETED, OR PASTE THE ENTRY’S LINK.'
 			: 'SEARCH AGAIN UNDER ANOTHER TITLE, OR PASTE THE ENTRY’S LINK.'
 	);
-	/** THIS SERIES' rows: Ranobe's four (1a), or AniList's. */
+	/** THIS SERIES' rows: Ranobe's four, or AniList's. */
 	const seriesRows = $derived.by((): { label: string; value: string }[] => {
 		if (!item) return [];
 		if ('rows' in item) return item.rows;
 		return [
 			// An Aniyomi source is the series' own; a manga's second name is the
-			// site its files came from. One name when they are the same (c298).
+			// site its files came from. One name when they are the same.
 			{
 				label: 'SOURCE',
 				value: [...new Set([item.sourceKind, item.source].filter(Boolean))].join(' · ')
@@ -1118,8 +1116,8 @@
 	</header>
 
 	{#if season && item}
-		<!-- FIND on a season asks the anime catalogue with that season's own title
-		     (c240): the header says what was asked and what is compared. -->
+		<!-- FIND on a season asks the anime catalogue with that season's own title:
+		     the header says what was asked and what is compared. -->
 		<div class="seasonbar">
 			<div class="sb-a">{item.title.toUpperCase()}</div>
 			<div class="sb-b">
@@ -1159,7 +1157,7 @@
 	{#if failed}
 		<div class="band" role="alert"><div class="bt"><div class="line">{failed}</div></div></div>
 	{/if}
-	<!-- A failure takes the place of a band with nothing to take back (SKIP's), never of an UNDO (c644). -->
+	<!-- A failure takes the place of a band with nothing to take back (SKIP's), never of an UNDO. -->
 	{#if undo && (undo.undo || !failed)}
 		<div class="band" role="status">
 			<div class="bt">
@@ -1268,7 +1266,7 @@
 							<div class="r"><span class="rl">{row.label}</span><span>{row.value}</span></div>
 						{/each}
 						{#if second}
-							<!-- The season's second part by hand (c350): part 1 as it stands,
+							<!-- The season's second part by hand: part 1 as it stands,
 							     and where part 2 starts, filled from part 1's count. -->
 							<div class="r">
 								<span class="rl">PART 1</span>
@@ -1298,7 +1296,7 @@
 							</div>
 						{/if}
 						{#if addSecond}
-							<!-- The design's BY HAND (c350): a season a catalogue splits at an
+							<!-- The design's BY HAND: a season a catalogue splits at an
 							     episode its relations do not show. A full load, so the page
 							     opens on part 2's own search. -->
 							<div class="r">
@@ -1517,8 +1515,8 @@
 		{/key}
 
 		{#if relations && relations.length}
-			<!-- 02 — THE REST OF THE SERIES ON ANILIST (Track Calls, "Linking four
-			     seasons without four searches"; c240). Matched by order along the
+			<!-- THE REST OF THE SERIES ON ANILIST: four seasons linked without four
+			     searches. Matched by order along the
 			     entry's own prequel and sequel chain, then checked by episode count;
 			     ticked where it agrees, and a pair that adds up is one season in two
 			     parts. A movie or a special is outside the numbering and never ticked. -->
@@ -1543,7 +1541,7 @@
 				<div class="rellist">
 					{#each relations as o (`${o.season}:${o.part}:${o.anilistId}`)}
 						<!-- A ✓ only on an offer that can be ticked: never one outside the
-					     numbering (c351), nor one another season holds (c418), even when
+					     numbering, nor one another season holds, even when
 					     its season is ticked through another entry. -->
 						{@const on = pickedSeasons.includes(o.season) && o.ticked && !o.outside}
 						<div class="rel" class:on class:outside={o.outside}>
@@ -1622,8 +1620,8 @@
 
 <style>
 	/*
-	 * Link Review, transcribed: the mock's spacing is hand-set, not a ladder
-	 * (as Pair Review's), so the literals are the decisions. Colours are tokens.
+	 * The review's spacing is hand-set, not a ladder (as the pair review's),
+	 * so the literals are the decisions. Colours are tokens.
 	 */
 	.review {
 		--pad: 24px;
@@ -1792,7 +1790,7 @@
 		text-decoration: none;
 	}
 
-	/* The body: the series above its candidates, or beside them on desktop (1j). */
+	/* The body: the series above its candidates, or beside them on desktop. */
 	.body {
 		flex: 1;
 		min-height: 0;
@@ -1917,7 +1915,7 @@
 	.relink:disabled {
 		opacity: 0.35;
 	}
-	/* FROM EP. (c350): the season's episode part 2 starts at, in its row. */
+	/* FROM EP.: the season's episode part 2 starts at, in its row. */
 	.fromcell {
 		display: flex;
 		align-items: center;
@@ -1946,7 +1944,7 @@
 		text-wrap: pretty;
 	}
 
-	/* ---- the season (c240) ------------------------------------------------- */
+	/* ---- the season ------------------------------------------------- */
 	.seasonbar {
 		display: flex;
 		flex-wrap: wrap;
@@ -2084,7 +2082,7 @@
 		min-width: 0;
 	}
 	@media (min-width: 1200px) {
-		/* ---- the season (c240) ------------------------------------------------- */
+		/* ---- the season ------------------------------------------------- */
 		.seasonbar {
 			display: flex;
 			flex-wrap: wrap;
@@ -2292,7 +2290,7 @@
 		color: var(--on-accent);
 		white-space: nowrap;
 	}
-	/* An equal title is marked, never preselected: the owner still presses LINK (c298). */
+	/* An equal title is marked, never preselected: the user still presses LINK. */
 	.chip.exact {
 		background: transparent;
 		color: var(--text-2);
@@ -2479,7 +2477,7 @@
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
-	/* Ranobe Review: the cover a candidate can't show (1a), and nothing found (1d). */
+	/* Ranobe: the cover a candidate can't show, and nothing found. */
 	.ccover.noted {
 		background: var(--surface-page);
 		border: 1px solid var(--line-2);
@@ -2517,7 +2515,7 @@
 		font: 500 13px var(--font-mono);
 		letter-spacing: 0.04em;
 	}
-	/* Live once the app account's token is there (card c72): the dimmed row, switched on. */
+	/* Live once the app account's token is there: the dimmed row, switched on. */
 	.suggest.live {
 		opacity: 1;
 	}
@@ -2537,7 +2535,7 @@
 		background: var(--surface-panel);
 	}
 
-	/* THE SAME WORK FOR THESE? (Ranobe Review 1b), transcribed as the rest. */
+	/* THE SAME WORK FOR THESE?, spaced as the rest. */
 	.sibs {
 		flex: 1;
 		min-height: 0;

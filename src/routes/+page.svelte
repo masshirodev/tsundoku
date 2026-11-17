@@ -111,13 +111,13 @@
 
 	/**
 	 * A TV lays CONTINUE's cards three across, so ↓ from the first ▶ names the
-	 * shelf tabs; everywhere else the rows stack and ↓ is the next row (c841).
+	 * shelf tabs; everywhere else the rows stack and ↓ is the next row.
 	 */
 	const tvScreen = new MediaQuery(TV, false);
 	/**
 	 * GET STARTED on the empty library asks for itself again, so a phone
-	 * pairing or a download ticks its step without a reload (c722;
-	 * doc/ONBOARDING.md). Exactly while the list is drawn: the condition is
+	 * pairing or a download ticks its step without a reload
+	 * (doc/ONBOARDING.md). Exactly while the list is drawn: the condition is
 	 * the markup's own (`data.empty`, then a start view not finished), so the
 	 * poll stops when the library fills or the list finishes (the effect
 	 * re-runs and hands back the stop), and when the page is left (the
@@ -146,7 +146,7 @@
 	);
 
 	/**
-	 * The update modal on entry (doc/UPDATES.md, "Told on entry"; card c208):
+	 * The update modal on entry (doc/UPDATES.md, "Told on entry"):
 	 * on the computer, unless LATER snoozed this version within the day. The
 	 * band above stays as it was; a hidden UPDATE takes its place and counts.
 	 */
@@ -180,7 +180,7 @@
 		}
 	}
 	/**
-	 * The same modal for tsundoku's Android app (c614), told after the computer's
+	 * The same modal for tsundoku's Android app, told after the computer's
 	 * if both are out: its own LATER, since the two are different releases to wait on.
 	 */
 	const appOffer = $derived(appUpdater.offer);
@@ -221,7 +221,7 @@
 	const scanning = $derived(data.scan !== null && data.scan.finishedAt === null);
 
 	/**
-	 * The SERIES TO LINK band's ✕ (c430; doc/LINKS.md, "Putting the band
+	 * The SERIES TO LINK band's ✕ (doc/LINKS.md, "Putting the band
 	 * away"): put away on this device, remembered with the counts it was put
 	 * away at, as the update band's "seen" is. It comes back only when a count
 	 * grows past that: a new series to link, not the same ones again.
@@ -233,8 +233,8 @@
 	 * again raises it back: measured against `pub`, neither is news. A stored
 	 * count follows its own queue down (one reviewed elsewhere), so the next
 	 * new one is always news, but `all` is only ever lowered with reveal on,
-	 * the one state that counts it. Until c430's second half it was one
-	 * number, the shown one, which reveal off lowered and reveal on beat.
+	 * the one state that counts it. One number, the shown one, would be lowered
+	 * by reveal off and beaten by reveal on.
 	 */
 	const LINKS_PUT_AWAY = 'tsundoku.library.links-put-away';
 	type PutAway = { pub: number; all: number | null };
@@ -246,7 +246,7 @@
 			const raw = localStorage.getItem(LINKS_PUT_AWAY);
 			if (raw === null) return;
 			const parsed: unknown = JSON.parse(raw);
-			// Wave 19 stored the shown count alone, as a bare number.
+			// An older build stored the shown count alone, as a bare number.
 			if (typeof parsed === 'number') {
 				const n = count0(parsed);
 				linksPutAway = n === null ? null : { pub: n, all: null };
@@ -256,7 +256,7 @@
 				linksPutAway = pub === null ? null : { pub, all: count0(o.all) };
 			}
 		} catch {
-			// Storage refused (a private window) or unreadable: the band shows, as it always did.
+			// Storage refused (a private window) or unreadable: the band shows.
 		}
 	});
 	function rememberLinks(at: PutAway | null) {
@@ -288,7 +288,7 @@
 	);
 
 	/**
-	 * BACK TO TOP (c433): a corner cell once the grid is about a screen down,
+	 * BACK TO TOP: a corner cell once the grid is about a screen down,
 	 * gone again near the top. Not on a TV, where the focus layer moves the
 	 * page and BACK climbs to the top (doc/LIBRARY.md, "The top bar").
 	 */
@@ -323,15 +323,15 @@
 	// near. `more` is every page after the first.
 	let more = $state<LibraryCard[]>([]);
 	/**
-	 * The show facts of the pages drawn after the first (c283's meta line, round
-	 * 2): the load's `groupFacts` covers its own first page only, and GROUP's
-	 * sheet can hold a season from further down. Read through `/series/facts`,
-	 * the same ask a by-id selection makes; a hidden series outside reveal is not
-	 * answered, so nothing is read for one.
+	 * The show facts of the pages drawn after the first: the load's `groupFacts`
+	 * covers its own first page only, and GROUP's sheet can hold a season from
+	 * further down. Read through `/series/facts`, the same ask a by-id selection
+	 * makes; a hidden series outside reveal is not answered, so nothing is read
+	 * for one.
 	 */
 	let pageShowFacts = $state<Record<string, ShowFacts>>({});
 	/**
-	 * The show-fact asks still out, as one chain (round 3): GROUP's sheet takes
+	 * The show-fact asks still out, as one chain: GROUP's sheet takes
 	 * its rows once, on open, so it waits for the last of them before it reads
 	 * the selection.
 	 */
@@ -347,8 +347,8 @@
 	 * A tile in both is drawn once. A load's first page can change under pages
 	 * already drawn -- a Work made over two series it listed, a part hidden --
 	 * and the grid keys its blocks by `id`, so the same id twice stops the
-	 * whole render and the grid keeps what it had (c660, r2, the URL band's
-	 * UNDO with the pages loaded). The first page's copy wins: it is the one
+	 * whole render and the grid keeps what it had (the URL band's
+	 * UNDO with the pages loaded, for one). The first page's copy wins: it is the one
 	 * the load just said.
 	 */
 	const series = $derived.by(() => {
@@ -370,7 +370,7 @@
 	let shownKey = '';
 
 	/**
-	 * How long a page may take before it counts as lost, ending in RETRY (c858).
+	 * How long a page may take before it counts as lost, ending in RETRY.
 	 * Without one, a request that never answers leaves the loading flag on and
 	 * every later ask is refused until a reload: a silent stall. 30 s against a
 	 * measured 6,800-series library (doc/LIBRARY.md, "Pages").
@@ -400,20 +400,20 @@
 	}
 
 	/**
-	 * Note the show facts of the cards a page brought (c283's meta line, round
-	 * 2). The load's `groupFacts` already answers its own first page; a page
-	 * after it has none, so GROUP's sheet would draw the library's line for a
-	 * season past the first page. One ask for the ids neither map holds yet.
-	 * `refresh` re-reads the ids a write may have changed (a download's HERE
-	 * count) rather than only the new ones. A failed read leaves those rows with
-	 * the library's line rather than failing the page.
+	 * Note the show facts of the cards a page brought. The load's `groupFacts`
+	 * already answers its own first page; a page after it has none, so GROUP's
+	 * sheet would draw the library's line for a season past the first page. One
+	 * ask for the ids neither map holds yet. `refresh` re-reads the ids a write
+	 * may have changed (a download's HERE count) rather than only the new ones.
+	 * A failed read leaves those rows with the library's line rather than
+	 * failing the page.
 	 *
 	 * The ask is chained (`showFactsOut`), so a sheet opened while one is out can
 	 * wait for it, and an answer that lands after the list changed (a search, a
 	 * filter, a sort) is dropped rather than drawn on the new page's selection,
-	 * as `fetchPage`'s is (round 3). Each read is bounded (`readShowFacts`), so a
+	 * as `fetchPage`'s is. Each read is bounded (`readShowFacts`), so a
 	 * request that never answers settles `null` and the chain moves on rather
-	 * than holding every later ask for the life of the page (round 2).
+	 * than holding every later ask for the life of the page.
 	 */
 	async function noteShowFacts(cards: readonly LibraryCard[], refresh = false) {
 		// A plain record, not a `Set`: a component's `Set` is the lint's
@@ -445,15 +445,14 @@
 	 * Positions the shelf has handed back that drew nothing new, the ones a page
 	 * repeated because the shelf moved under it. The next page's offset is the
 	 * tiles drawn plus these, so a page of nothing but repeats moves on instead
-	 * of asking for itself for ever (c858).
+	 * of asking for itself for ever.
 	 */
 	let skipped = 0;
 	/**
 	 * Re-reads of the loaded pages queued or out. A check that fires during one
 	 * asks for nothing, because the re-read's own settle will look; a check on
-	 * every frame would otherwise add requests to a HIDE's or an UNDO's one read
-	 * of each page (wave 28's and c660's counts). The observer reporting a real
-	 * change still asks, as it always has (c615, r3 has a case on it).
+	 * every frame would otherwise add requests to a HIDE's or an UNDO's one
+	 * read of each page. The observer reporting a real change still asks.
 	 */
 	let rereads = 0;
 	/** Whether a check may ask, or look again: never while something is out or failed. */
@@ -488,7 +487,7 @@
 	/**
 	 * The observer only speaks when the end comes near, and only on a change:
 	 * it compares each sample with its last, so a reader who reaches the bottom
-	 * before a sample sees the row leave leaves it nothing to say (c858). So
+	 * before a sample sees the row leave leaves it nothing to say. So
 	 * whenever the list settles -- a page in, a refresh, a page dropped because
 	 * the list changed under it -- measure, and otherwise have the observer look
 	 * afresh: `observe` after `unobserve` always delivers a first callback
@@ -506,16 +505,16 @@
 
 	/**
 	 * The pages after the first, read again: queued one at a time, and a write
-	 * can await them (c615, round 2). `force` asks even when they were already
+	 * can await them. `force` asks even when they were already
 	 * read for this first page, which `reloadList` does only when that page came
-	 * back identical (c660, r2): nothing was queued for it, and a hide or UNDO
+	 * back identical: nothing was queued for it, and a hide or UNDO
 	 * past the first page still needs its answer.
 	 *
 	 * Why read them again at all: a write changed which tiles a loaded page
 	 * holds -- a Work hidden whole, one taken out of it -- and the load's
 	 * *first* page can come back identical, so SvelteKit keeps `data` and no
 	 * effect re-reads the rest. The page then still draws a tile the server has
-	 * stopped listing (W4's HIDE, and its UNDO). The pages are asked for again
+	 * stopped listing (a HIDE, and its UNDO). The pages are asked for again
 	 * by position, so the answer is the list as it is now and the grid keeps
 	 * its scroll.
 	 */
@@ -531,10 +530,10 @@
 			try {
 				// The list may have gone under it while it waited.
 				if (more.length === 0) return;
-				// The bump and the release go together, as the effect's own refill
-				// did before it was queued (base :355-356): the bump drops a page
-				// request already out, and one this refill's `keepGoing` starts must
-				// not be left holding the flag with its answer dropped (c615, r3).
+				// The bump and the release go together, as in the effect's own
+				// refill: the bump drops a page request already out, and one
+				// this refill's `keepGoing` starts must not be left holding the
+				// flag with its answer dropped.
 				const gen = ++generation;
 				loadingMore = false;
 				const offset = data.series.length;
@@ -562,9 +561,9 @@
 	/**
 	 * A write's reload: the load's first page, then the loaded pages after it,
 	 * so a tile anywhere in the grid reads what the server stored before the
-	 * turn settles (c615, round 2). One refill per write: `invalidateAll`
+	 * turn settles. One refill per write: `invalidateAll`
 	 * resolves after the effect has queued its own for the new `data.series`,
-	 * so this awaits that one rather than asking again (c615, r3). Only a first
+	 * so this awaits that one rather than asking again. Only a first
 	 * page that came back identical leaves nothing queued, and then the pages
 	 * past it are asked for here -- the one forced call, for the one case: a
 	 * hide or UNDO past the first page moves nothing that page shows, so all of
@@ -655,13 +654,13 @@
 			// all the same. SvelteKit's own is read once the next screen's data
 			// is in, and a load slow enough to outline the grid has moved the
 			// page by then (a shelf left from under the bar came back at the
-			// top, c589).
+			// top).
 			if (v.more.length === 0) {
 				settleScroll(v.y);
 				return;
 			}
 			// The bump drops a page already out, so the flag goes with it, as the
-			// refill's does: a dropped answer never clears it (c615, r3; c858).
+			// refill's does: a dropped answer never clears it.
 			generation += 1;
 			loadingMore = false;
 			shownKey = v.key;
@@ -713,7 +712,7 @@
 		/*
 		 * The observer's samples are the frames the page gets, and a big page or a
 		 * held ↓ takes those away, so the same measure runs on `scroll` too, once a
-		 * frame at most, whatever door brought the end near (`mayCheck`).
+		 * frame at most, whatever brought the end near (`mayCheck`).
 		 */
 		let frame = 0;
 		const onScroll = () => {
@@ -740,20 +739,20 @@
 	// ---- selection -------------------------------------------------------
 	let selecting = $state(false);
 	let moreOpen = $state(false);
-	/** What MORE opens on: its rows, or SERVERS straight from the bar's server cell (S1). */
+	/** What MORE opens on: its rows, or SERVERS straight from the bar's server cell. */
 	let moreAt = $state<'more' | 'servers'>('more');
 	const selected = new SvelteSet<number>();
 	/**
-	 * The facts of each selected series, noted while it was drawn (c698): the
+	 * The facts of each selected series, noted while it was drawn: the
 	 * selection outlives a shelf, a kind, a filter and a tag, so the bulk
 	 * actions read these rather than the cards on screen
 	 * (`src/lib/library/selection.ts`).
 	 */
 	const facts = new SvelteMap<number, Picked>();
-	/** SHOW (c698): the selection listed to review, and what it listed when it opened. */
+	/** SHOW: the selection listed to review, and what it listed when it opened. */
 	let reviewing = $state(false);
 	let shownIds = $state<number[]>([]);
-	/** SELECT ALL's series from pages never loaded, read by id (c737). */
+	/** SELECT ALL's series from pages never loaded, read by id. */
 	const unseen = new UnseenFacts();
 	const heldBySheet = () => new Set(reviewing ? shownIds : []);
 	/**
@@ -764,7 +763,7 @@
 	let selectingAll: Promise<void> | null = null;
 	/** Which selection this is: ✕ and a bulk action's success start the next. */
 	let selectionRun = 0;
-	/** The bar the two pages share (c838): it holds the taps still waiting on those reads. */
+	/** The bar the two pages share: it holds the taps still waiting on those reads. */
 	let bar = $state<SelectionBar | null>(null);
 	/**
 	 * Fill in what SELECT ALL took unseen, before SHOW lists it or a bulk
@@ -778,7 +777,7 @@
 		// HELD_READ_MS is the same rule). But a sheet waits only for a line it
 		// could draw: a selection of books has no show row (`showRowFacts` answers
 		// none for a kind whose medium is not video), so it opens at once however
-		// long the page's own ask is out (round 2).
+		// long the page's own ask is out.
 		const owed = pickedInOrder(selected, facts).some(
 			(p) => kindFacts(p.kind).medium === 'video' && p.show == null
 		);
@@ -789,7 +788,7 @@
 		]);
 	}
 	/**
-	 * A selection carried back from the search (c698; doc/LIBRARY.md, "What
+	 * A selection carried back from the search (doc/LIBRARY.md, "What
 	 * ends SELECT"): ←, a chip or a shelf there lands here still selecting,
 	 * the ticks made there and their facts included. Taken once, at the
 	 * page's start, so the first paint is already the selecting bar.
@@ -802,7 +801,7 @@
 			for (const p of back.facts) if (selected.has(p.id)) facts.set(p.id, p);
 		}
 	}
-	/** The search with SELECT on (c698): the ids and their facts go with it. */
+	/** The search with SELECT on: the ids and their facts go with it. */
 	beforeNavigate((nav) => {
 		if (!selecting || nav.to?.route.id !== '/search') return;
 		carrySelection({
@@ -812,15 +811,14 @@
 		});
 	});
 
-	// ---- the server in use (c261, S1; doc/ANDROID.md, "Servers") -------------
+	// ---- the server in use (doc/ANDROID.md, "Servers") -------------
 	/*
 	 * Inside the TV app with two or more servers, the bar says whose library this
 	 * is: ON LIVING ROOM beside the wordmark, OK opening SERVERS. The list is the
 	 * app's bridge's (PairingBridge.servers(), Servers.kt's toJson). Anything
 	 * else draws no cell: a page with no bridge (a phone, a computer, a browser
-	 * on the TV), an APK older than c261 (no `servers`), an answer that is not
-	 * a list of servers, and one server, which changes nothing (the designer's
-	 * first call).
+	 * on the TV), an older APK (no `servers`), an answer that is not
+	 * a list of servers, and one server, which changes nothing.
 	 */
 	type TvServer = { origin: string; shown: string; inUse: boolean };
 	let tvServers = $state<TvServer[] | null>(null);
@@ -898,7 +896,7 @@
 	/**
 	 * MORE closing: the list is read again, since FORGET inside it can leave
 	 * one server, and then the cell goes. Focus was going back to the cell
-	 * that opened SERVERS; with the cell gone it goes to MORE, the door that
+	 * that opened SERVERS; with the cell gone it goes to MORE, the cell that
 	 * still leads there, rather than to nothing.
 	 */
 	function closeMore() {
@@ -914,7 +912,7 @@
 				void tick().then(() => {
 					if (moreOpen) return;
 					const now = document.activeElement;
-					// A dialog still leaving is inert; any other holds the owner.
+					// A dialog still leaving is inert; any other holds the user's focus.
 					const held = now && now !== document.body && !now.closest('[role="dialog"][inert]');
 					if (held) return;
 					document.querySelector<HTMLElement>('[data-focus-id="library-more"]')?.focus();
@@ -947,7 +945,7 @@
 
 	/**
 	 * The `/` key while selecting opens the search with SELECT on, as the bar's
-	 * `/` cell does (c698; Bars-Desktop). Not while typing into a field or with
+	 * `/` cell does. Not while typing into a field or with
 	 * a sheet open, and not with a modifier, which is the browser's or the
 	 * system's.
 	 */
@@ -1012,7 +1010,7 @@
 				continue;
 			}
 			// The tile's own word on its Work: `workFeet` is the first page's, so
-			// a tile past it has none (c686).
+			// a tile past it has none.
 			const theWork = { id: c.tile.id, name: c.tile.name };
 			for (const p of c.tile.parts)
 				out.push(pickedOfPart(p, c.tile.name, theWork, showFactsOf(p.seriesId)));
@@ -1021,7 +1019,7 @@
 	});
 	// Note what is drawn of the selection, and forget what left it. The map is
 	// written outside the tracking, so writing it cannot re-run this. With
-	// nothing selected `drawnPicked` is not read, so it is never built (c740).
+	// nothing selected `drawnPicked` is not read, so it is never built.
 	$effect(() => {
 		const ids = new Set(selected);
 		const drawn = drawnToNote(selecting, ids, () => drawnPicked);
@@ -1033,13 +1031,13 @@
 		});
 	});
 	/**
-	 * A refusal stays where it was answered, and only until the owner moves on
-	 * (c469's round 2). `form` outlives both: SvelteKit keeps an action's answer
+	 * A refusal stays where it was answered, and only until the user moves on.
+	 * `form` outlives both: SvelteKit keeps an action's answer
 	 * until the next one, so a refusal from the bulk bar came back as a library
 	 * band after ✕, and a band's UNDO refusal moved into the next selection's
-	 * bar. So the page remembers which answer the owner has passed (SELECT, ✕,
+	 * bar. So the page remembers which answer the user has passed (SELECT, ✕,
 	 * or any other form sent since) and which one a band's UNDO brought: the
-	 * second is drawn as a band whatever SELECT is doing (c469's round 3: the
+	 * second is drawn as a band whatever SELECT is doing (the
 	 * bands stay up while selecting, so an UNDO pressed then refused there),
 	 * every other in `.fold-refused`.
 	 */
@@ -1056,7 +1054,7 @@
 	);
 	const foldMessage = $derived(form === undoAnswer ? '' : formMessage);
 	/**
-	 * The answer the band's ✕ cleared (c493): only that answer, so the next
+	 * The answer the band's ✕ cleared: only that answer, so the next
 	 * action's new `form` draws its own band.
 	 */
 	let droppedAnswer = $state.raw<typeof form>(null);
@@ -1064,7 +1062,7 @@
 	const dropAnswer = () => (droppedAnswer = form);
 	const undoMessage = $derived(form === undoAnswer && latest ? formMessage : '');
 	/**
-	 * REFRESH's answer over the selection (card c221). It is the library's own
+	 * REFRESH's answer over the selection. It is the library's own
 	 * band, above the bar that asked, and it is replaced by the next run's: a
 	 * bulk answer belongs where the selection is, not on a series screen.
 	 */
@@ -1077,7 +1075,7 @@
 		async ({ update }) => {
 			await update({ reset: false });
 		};
-	/** GROUP AS A WORK's own answer (W4): the Work it made, or what joined one. */
+	/** GROUP AS A WORK's own answer: the Work it made, or what joined one. */
 	const made = $derived(
 		latest && 'made' in latest
 			? (latest.made as { work: { name: string }; members: unknown[] })
@@ -1088,7 +1086,7 @@
 			? (latest.addedWork as { workId: number; name: string; facts: unknown[] })
 			: null
 	);
-	/** The HIDE answer's facts (W4): shown again, and taken out again, by UNDO. */
+	/** The HIDE answer's facts: shown again, and taken out again, by UNDO. */
 	const hideFacts = $derived(
 		latest && 'hideFacts' in latest
 			? (latest.hideFacts as {
@@ -1099,7 +1097,7 @@
 				})
 			: null
 	);
-	/** The UNHIDE answer's facts (W4): every part it showed, and UNDO to hide them. */
+	/** The UNHIDE answer's facts: every part it showed, and UNDO to hide them. */
 	const showFacts = $derived(
 		latest && 'showFacts' in latest
 			? (latest.showFacts as { shown: number[]; whole: number[]; works: number })
@@ -1116,13 +1114,13 @@
 			: null
 	);
 	/**
-	 * A HIDE band that hid no Work's part (c469): `?/hideAll` over loose series
+	 * A HIDE band that hid no Work's part: `?/hideAll` over loose series
 	 * beside a Work it only settled, or TAKE OUT, THEN HIDE. Its words are of
 	 * what the press did, each half only when it happened -- the series hidden
 	 * now, the ones taken out of their Works -- and what UNDO does to them: shown
 	 * again, or only put back when nothing was hidden by this press (a part
-	 * hidden already, taken out). Until c469 it always said TAKEN OUT OF THE
-	 * WORK, and could say HIDDEN · 0 SERIES.
+	 * hidden already, taken out). So it never says TAKEN OUT OF THE WORK for
+	 * series that were not, nor HIDDEN · 0 SERIES.
 	 */
 	const looseBand = $derived.by(() => {
 		if (!hideFacts) return null;
@@ -1150,7 +1148,7 @@
 	 * page holds change back, and the load's first page may not move, so the
 	 * pages are read again (see `refillPages`).
 	 *
-	 * One re-read, not two (c660): `reloadList` is the load's own, and the
+	 * One re-read, not two: `reloadList` is the load's own, and the
 	 * form's `update` is asked not to re-read on success so this is the only
 	 * one. Before that, every UNDO refreshed the first page twice and refilled
 	 * the loaded pages twice behind it.
@@ -1158,7 +1156,7 @@
 	 * A redirect is the exception `invalidateAll: false` does not govern:
 	 * `applyAction` sends it through `goto` with `invalidateAll: true`, so the
 	 * page is re-read there and its effect queues the one refill. Asking for
-	 * `reloadList` here would re-read and refill a second time (c660, r2).
+	 * `reloadList` here would re-read and refill a second time.
 	 */
 	const undoAfter: SubmitFunction =
 		() =>
@@ -1174,7 +1172,7 @@
 	 * themselves. A person's page draws a Work's series as their own tiles and a
 	 * shelf draws the Work as one card, so reading only the shelf's cards left
 	 * `every` over an empty list -- vacuously true -- and a person's page offered
-	 * UNHIDE for series that were plainly visible (W4's round 2).
+	 * UNHIDE for series that were plainly visible.
 	 */
 	const hiddenById = $derived.by(() => {
 		const out = new SvelteMap<number, boolean>();
@@ -1246,13 +1244,13 @@
 	}
 
 	// A shelf tab on its way past 1 s: the grid in outline, CONTINUE and the
-	// tabs kept as they are (Loading States 1c).
+	// tabs kept as they are.
 	const outlined = $derived(
 		(waiting.phase === 'outline' || waiting.phase === 'stalled') && waiting.to.kind === 'library'
 	);
 
 	/**
-	 * c612: while `outlined` the grid is drawn as `GridOutline` instead of the
+	 * While `outlined` the grid is drawn as `GridOutline` instead of the
 	 * tiles (`{#if outlined}` below), so a tile holding the mark is unmounted
 	 * and the mark falls to `<body>`. Note it before the outline draws, and give
 	 * it back once the grid is drawn again -- or the KIND band's chosen cell
@@ -1291,13 +1289,13 @@
 	const ratingNow = new SvelteMap<number, Rating>();
 
 	/**
-	 * Whether what the tile draws for this field is an owner's tap that is not
-	 * stored (c659, round 2). Read from the page, not from the store: a failure
-	 * outlives the page and the tap does not (c739). A value the page does not
+	 * Whether what the tile draws for this field is a tap that is not
+	 * stored. Read from the page, not from the store: a failure
+	 * outlives the page and the tap does not. A value the page does not
 	 * hold is the stored one -- a tile re-drawn after a trip away shows what the
 	 * server had, so it is not marked. A fresh tap still in flight is left
 	 * alone until its turn says which it is; a RETRY in flight keeps the mark,
-	 * because the value it sends is still not stored (wave 32).
+	 * because the value it sends is still not stored.
 	 */
 	function unsaved(field: 'fav' | 'rating', id: number, stored: boolean | Rating): boolean {
 		// Read for its signal alone: a failure raised after the tap has to redraw
@@ -1309,7 +1307,7 @@
 		// tile redrawn while a RETRY was out (another tile's tap landing, a
 		// scan's re-read) dropped the mark, and nothing redrew it when the RETRY
 		// failed, because a failed retry leaves `saves.failed` as it was and
-		// `pending()` signals nothing (wave 30's round-2 review, medium 2).
+		// `pending()` signals nothing.
 		const key = `${field}:${id}`;
 		if (seriesSaves.pending(key) && !retrying.has(key)) return false;
 		const now = field === 'fav' ? favNow.get(id) : ratingNow.get(id);
@@ -1325,8 +1323,8 @@
 	/**
 	 * One save in flight per series and field, the last tap winning, on the
 	 * series screen's queue (`seriesSaves`, doc/SERIES.md "FAV and the
-	 * rating", c566): the same keys, so a tile tap and a series screen tap on
-	 * one series wait for each other too (c615).
+	 * rating"): the same keys, so a tile tap and a series screen tap on
+	 * one series wait for each other too.
 	 */
 	async function write(
 		action: 'favourite' | 'rate',
@@ -1442,7 +1440,7 @@
 	/**
 	 * Offline, which rows' pages this device has kept. Going to one it has not
 	 * is not an error anyone sees: the worker answers with the library's copy
-	 * under the series' URL (measured, c841), so such a row goes nowhere. Only a
+	 * under the series' URL (measured), so such a row goes nowhere. Only a
 	 * screen's document can be kept: SvelteKit sends `__data.json` as no-store,
 	 * and the worker never stores that (`storable`).
 	 */
@@ -1481,7 +1479,7 @@
 		c.tile ? c.tile.parts.reduce((n, p) => n + cachedCount(p.seriesId), 0) : cachedCount(c.id);
 
 	/**
-	 * The TV focus line's second line (c238): the kind, the counts and where
+	 * The TV focus line's second line: the kind, the counts and where
 	 * you are, +N NEW, and FAV -- the same facts the cover's sheet opens with
 	 * (sheetMeta), so the line and the panel agree.
 	 */
@@ -1525,7 +1523,7 @@
 			? 'Cached'
 			: (data.shelves.find((s) => s.key === data.shelf)?.name ?? 'Shelves')
 	);
-	/** An empty shelf offers nothing to filter (3h): no FILTER cell, one line on filling it. */
+	/** An empty shelf offers nothing to filter: no FILTER cell, one line on filling it. */
 	const canFilter = $derived(
 		data.shelf !== 'people' && !data.tag && (nFilters > 0 || shelfSize > 0)
 	);
@@ -1534,7 +1532,7 @@
 			? [...new Set(cachedSeries.flatMap((s) => codesOf(s)).map((l) => l.toLowerCase()))].sort()
 			: data.languages
 	);
-	// ---- the KIND band (c436; doc/LIBRARY.md, "The KIND band") ---------------
+	// ---- the KIND band (doc/LIBRARY.md, "The KIND band") ---------------
 	/**
 	 * A kind's word on the band: the plural the kind shelves had (`nav_shelf_*`),
 	 * not `kindLabel`'s singular. Keyed by the registry's kinds, so a new kind
@@ -1582,7 +1580,7 @@
 	const kindHref = (k: FilterKind | null) => filterHref({ ...data.filters, kind: k });
 
 	/**
-	 * Pinned (c436, with c433): the band stops under the top bar as the grid
+	 * Pinned: the band stops under the top bar as the grid
 	 * scrolls and the tabs go up, and then gains a first cell naming the shelf,
 	 * `TO READ ▴`, which goes back to the tabs. Measured, not guessed: the
 	 * marker sits just above the band, so once the band is held while the page
@@ -1601,9 +1599,9 @@
 		bandPinned = bandEl.getBoundingClientRect().top - bandMark.getBoundingClientRect().bottom > 1;
 	});
 	/**
-	 * The chosen cell is kept in view as the band scrolls sideways (Kinds Calls
-	 * 2), the effect ShelfTabs runs for the active tab: choosing a kind far
-	 * along scrolls ALL off the left rather than leaving the choice cut off.
+	 * The chosen cell is kept in view as the band scrolls sideways, the effect
+	 * ShelfTabs runs for the active tab: choosing a kind far along scrolls ALL
+	 * off the left rather than leaving the choice cut off.
 	 */
 	function keepChosen(node: HTMLElement, kind: FilterKind | null) {
 		const show = () => {
@@ -1655,14 +1653,14 @@
 		if (reduced || Math.abs(Math.max(0, top) - scrollY) < 1)
 			requestAnimationFrame(() => requestAnimationFrame(settle));
 		else {
-			// Only this scroll's end: a later one of the owner's must never be corrected.
+			// Only this scroll's end: a later one of the user's must never be corrected.
 			addEventListener('scrollend', settle, { once: true });
 			setTimeout(() => removeEventListener('scrollend', settle), 2000);
 		}
 	}
 
 	/**
-	 * A kind chosen from the pinned band (c436, round 2): the cells keep the
+	 * A kind chosen from the pinned band: the cells keep the
 	 * scroll (noscroll) so the unpinned band never jumps, but mid-grid that
 	 * would open the new kind partway down its list. So once the navigation
 	 * has drawn the new grid, the page goes, instantly, to the band's own
@@ -1674,7 +1672,7 @@
 		// A click that opens a new tab or window navigates nothing here.
 		const elsewhere = e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
 		landKind = bandPinned && !elsewhere;
-		// The kind's own landing replaces any FILTER note (c557's round 2).
+		// The kind's own landing replaces any FILTER note.
 		landFilterFrom = null;
 		filterLeaving = false;
 	}
@@ -1691,7 +1689,7 @@
 	}
 
 	/**
-	 * A choice made in FILTER while the band is pinned (c557; FILTER at the
+	 * A choice made in FILTER while the band is pinned (FILTER at the
 	 * band's end, or the desktop's in the top bar): its links keep the scroll
 	 * as the band's cells do, so mid-grid the new results opened partway down
 	 * their list. It lands as a kind does. Noted with the page it was made on,
@@ -1701,7 +1699,7 @@
 	 * moves. The rating blocks' own links scroll to the top, and land the
 	 * same way.
 	 *
-	 * The note lives only as long as the press or key that made it (round 2):
+	 * The note lives only as long as the press or key that made it:
 	 * a press on the blocks that navigates nothing (a right-click, a key the
 	 * slider ignores, a cancelled drag) left it waiting for the next
 	 * navigation, and a kind cell clicked later from the unpinned band then
@@ -1765,7 +1763,7 @@
 		if (scanning) return 'Arriving';
 		if (isOffline) return 'On this device';
 		if (justImported && data.shelf === 'new') return 'Just imported';
-		// The shelf by name, and what narrows it (Library Filters 3b).
+		// The shelf by name, and what narrows it.
 		return shelfName;
 	});
 	const sectionExtra = $derived(
@@ -1807,7 +1805,7 @@
 
 	/**
 	 * Every page's ids, unit-aware so a Work's parts a kind shelf never picked
-	 * are selected too, then their facts (c737), so SHOW lists them and GROUP
+	 * are selected too, then their facts, so SHOW lists them and GROUP
 	 * counts them. `taken` is what was selected at the press: one of those no
 	 * longer selected was unticked while this was out, so it stays unticked.
 	 */
@@ -1827,7 +1825,7 @@
 
 	const gb = (bytes: number) => (bytes / 1e9).toFixed(1).replace(/\.0$/, '');
 
-	/** The SORT menu's choices, in `SORTS`' order (c432). */
+	/** The SORT menu's choices, in `SORTS`' order. */
 	const SORT_CHOICES = SORTS.map((s) => ({ value: s, label: SORT_NAME[s] }));
 
 	/** A sort from the SORT menu, in its own direction. */
@@ -1884,7 +1882,7 @@
 			{/snippet}
 			{#snippet middle()}
 				<div class="selected-count" aria-live="polite">{selected.size} SELECTED</div>
-				<!-- SHOW (c698): the selection outlives the shelf, so what it holds is not
+				<!-- SHOW: the selection outlives the shelf, so what it holds is not
 				     all on screen; this lists it to review or untick. -->
 				<button
 					type="button"
@@ -1893,7 +1891,7 @@
 					disabled={selected.size === 0}
 					onclick={openShow}>SHOW</button
 				>
-				<!-- The way to the search with SELECT on (c698; Bars-Phone, Bars-Tablet):
+				<!-- The way to the search with SELECT on:
 				     the bar's empty middle, drawn like the library's own search hint; on a
 				     phone `/` alone. -->
 				<a
@@ -1937,8 +1935,8 @@
 			{#snippet left()}
 				<!-- The app's name goes home: the library as it opens. -->
 				<!-- With the server cell, the wordmark is not an arrow stop: in the
-				     design's bar it is no control, and the cell is "the first cell ↑
-				     reaches from the library" (TV-Servers' calls). Tab still reaches it. -->
+				     design's bar it is no control, and the cell is the first one ↑
+				     reaches from the library. Tab still reaches it. -->
 				<a
 					class="brand"
 					href={resolve('/')}
@@ -1946,7 +1944,7 @@
 					data-focus-skip={onServer ? '' : undefined}><Wordmark /></a
 				>
 				{#if onServer}
-					<!-- S1 (TV-Servers.dc.html, `bar`): the server in use, with two or more. -->
+					<!-- The server in use, with two or more. -->
 					<button
 						type="button"
 						class="cell-btn server-cell"
@@ -1962,7 +1960,7 @@
 			{/snippet}
 			{#snippet middle()}
 				<!-- A library filtered to one kind hands it to the search, which hands it
-				     to SEARCH THE SOURCES (c699). -->
+				     to SEARCH THE SOURCES. -->
 				<!-- eslint-disable svelte/no-navigation-without-resolve -- resolve() builds it -->
 				<a
 					class="search-hint"
@@ -1979,13 +1977,13 @@
 			{/snippet}
 			{#snippet right()}
 				{#if page.data.browse}
-					<!-- BROWSE, a cell before QUEUE on the tablet (Index-Browse, barTablet); the
+					<!-- BROWSE, a cell before QUEUE on the tablet; the
 					     phone reaches it from the empty search, the desktop from the sidebar. -->
 					<a class="browse-cell" href={resolve('/browse')}>BROWSE</a>
 				{/if}
 				{#if data.queue && data.queue.queued > 0}
-					<!-- QUEUE over its count, a cell before SELECT, only while something is queued
-					     (Index Downloads 10). Offline or unanswered: the last count, dimmed. -->
+					<!-- QUEUE over its count, a cell before SELECT, only while something is queued.
+					     Offline or unanswered: the last count, dimmed. -->
 					<a
 						class="queue-cell"
 						class:stale={data.queue.stale || isOffline}
@@ -1997,7 +1995,7 @@
 					</a>
 				{/if}
 				{#if canFilter}
-					<!-- The desktop's FILTER, beside SELECT (3j); the tablet's sits on the tabs. -->
+					<!-- The desktop's FILTER, beside SELECT; the tablet's sits on the tabs. -->
 					<div class="filter-desk">
 						<FilterPanel
 							wide
@@ -2024,7 +2022,7 @@
 					onclick={startSelecting}
 					disabled={data.empty}>SELECT</button
 				>
-				<!-- MORE: the sidebar's foot as a sheet, on the tablet and phone (Reach; card c171). -->
+				<!-- MORE: the sidebar's foot as a sheet, on the tablet and phone. -->
 				<button
 					type="button"
 					class="cell-btn more-cell"
@@ -2040,10 +2038,10 @@
 	{#if data.gone}
 		{@const gone = data.gone}
 		<!-- A Work ended on its own screen: the band and its UNDO live here, on the
-		     library it went back to (Work-States 2; doc/NAVIGATION.md). HIDE ALL n
+		     library it went back to (doc/NAVIGATION.md). HIDE ALL n
 		     from a series screen with reveal off arrives the same way, and TAKE OUT
 		     says what it did -- one series hidden, on its own again -- rather than
-		     claiming the Work was hidden whole (W4). -->
+		     claiming the Work was hidden whole. -->
 		<Band
 			title={gone.kind === 'ended'
 				? `${gone.name.toUpperCase()} IS NO LONGER A WORK`
@@ -2082,8 +2080,8 @@
 		</Band>
 	{/if}
 	{#if made || addedWork}
-		<!-- W4's create and add answer here, where the sheet was opened: the Work's
-		     own screen would replace the library the owner was looking at. -->
+		<!-- A Work's create and add answer here, where the sheet was opened: the Work's
+		     own screen would replace the library being looked at. -->
 		<div class="lib-band">
 			<Band
 				title={made
@@ -2105,7 +2103,7 @@
 		</div>
 	{/if}
 	{#if hideFacts}
-		<!-- HIDE ALL n or TAKE OUT, THEN HIDE: the library's own band, with UNDO (W4). -->
+		<!-- HIDE ALL n or TAKE OUT, THEN HIDE: the library's own band, with UNDO. -->
 		<div class="lib-band">
 			<Band
 				title={(hiddenBand ?? looseBand)?.title ?? ''}
@@ -2122,8 +2120,8 @@
 		</div>
 	{/if}
 	{#if undoMessage}
-		<!-- A refusal of a band's UNDO (c469): an UNDO on one of the bands above
-		     refused, the library having moved on (c308). It is drawn whatever
+		<!-- A refusal of a band's UNDO: an UNDO on one of the bands above
+		     refused, the library having moved on. It is drawn whatever
 		     `selecting` is: the bands stay up while a selection is open, so an
 		     UNDO pressed then refused there too, and the bar's `.fold-refused`
 		     line is not where a band's own answer belongs. The band's own
@@ -2136,7 +2134,7 @@
 		</div>
 	{/if}
 	{#if showFacts}
-		<!-- UNHIDE on a part shows the Work whole (W4): the same band and UNDO as
+		<!-- UNHIDE on a part shows the Work whole: the same band and UNDO as
 		     HIDE, the other way round, because the same rule runs both ways. -->
 		<div class="lib-band">
 			<Band
@@ -2165,9 +2163,9 @@
 	/>
 
 	{#if data.scan && scanning && data.scan.sourceLabel === BACKUP_LABEL}
-		<!-- A backup importing (c438; Import-Progress, "on the library, meanwhile"):
+		<!-- A backup importing:
 		     the scan's band, named, counting series rather than bytes. LOG → opens
-		     the job's own entry in IMPORT LOG (c511), which the band knows by its
+		     the job's own entry in IMPORT LOG, which the band knows by its
 		     id (`?job=`). -->
 		<Banner
 			kind="progress"
@@ -2190,7 +2188,7 @@
 				: undefined}
 		/>
 	{:else if data.scan && justImported}
-		<!-- SEE LOG (c511) opens the job's entry, the same `?job=` the importing
+		<!-- SEE LOG opens the job's entry, the same `?job=` the importing
 		     band's LOG → uses. -->
 		<Banner
 			kind="action"
@@ -2205,7 +2203,7 @@
 					<input type="hidden" name="scan" value={data.scan?.id} />
 					<button type="submit">TIDY NEW →</button>
 				</form>
-				<!-- TIDY NEW also goes to the NEW shelf; this only clears the band (c493). -->
+				<!-- TIDY NEW also goes to the NEW shelf; this only clears the band. -->
 				<form method="POST" action="?/dismissScan" use:enhance>
 					<input type="hidden" name="scan" value={data.scan?.id} />
 					<input type="hidden" name="stay" value="1" />
@@ -2278,7 +2276,7 @@
 	{/if}
 
 	{#if linksBand}
-		<!-- Below duplicates, which are older and fewer (Catalogue Links 1a; doc/LINKS.md). -->
+		<!-- Below duplicates, which are older and fewer (doc/LINKS.md). -->
 		<Banner
 			kind="action"
 			title="{String(data.toLink).padStart(2, '0')} SERIES TO LINK"
@@ -2307,7 +2305,7 @@
 	{/if}
 
 	{#if data.empty}
-		<!-- GET STARTED (doc/ONBOARDING.md; card c208): until every step is done or
+		<!-- GET STARTED (doc/ONBOARDING.md): until every step is done or
 		     skipped the empty library is the list; then the first day's sources. -->
 		{#if data.start && !data.start.finished}
 			<section class="ob" aria-label={m.start_page_label()}>
@@ -2353,7 +2351,7 @@
 						{#if isOffline}
 							{contShown.filter((c) => cachedOn(c) > 0).length} OF {contShown.length} CACHED
 						{:else}
-							<!-- History is CONTINUE going further back (Index Addendum). -->
+							<!-- History is CONTINUE going further back. -->
 							<a class="to-history" href={resolve('/history')}
 								>{count(data.cont.total)} OPEN · HISTORY →</a
 							>
@@ -2400,8 +2398,8 @@
 				{:else}
 					<!-- A sort past 1 s outlines the grid: SORT stays drawn, dimmed, with
 					     LOADING beside it, so the cell holding focus never leaves the page
-					     (c560; until then LOADING took its place and the mark fell to the
-					     body for as long as the outline lasted). -->
+					     (LOADING in its place would drop the mark to the body for as long
+					     as the outline lasted). -->
 					{#if outlined}<span class="loading">LOADING</span>{/if}
 					<span class="sort" class:busy={outlined} aria-busy={outlined}>
 						<ChoiceMenu label="Sort" choices={SORT_CHOICES} value={data.sort} onpick={sortTo} />
@@ -2426,7 +2424,7 @@
 		</div>
 
 		{#if bandCounts}
-			<!-- The KIND band (c436; Kinds Calls 1-4): one row under the tabs and over
+			<!-- The KIND band: one row under the tabs and over
 			     the grid, which kind on whichever shelf shows. FILTER sits at its end
 			     on the phone and tablet; the desktop's stays in the top bar. It pins
 			     under the top bar where the tabs don't, and pinned names the shelf. -->
@@ -2450,7 +2448,7 @@
 					<div class="klabel">{upper(m.nav_kind_band())}</div>
 				{/if}
 				<!-- ↓ from any cell enters the grid at its first tile, not the one under
-				     the cell: a kind chosen opens at its start (round 2 of c436). -->
+				     the cell: a kind chosen opens at its start. -->
 				<div class="kscroll" use:keepChosen={data.filters.kind} data-focus-down=".grid .tile .open">
 					{#each bandCells as c (c.kind ?? 'all')}
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- filterHref resolves -->
@@ -2496,20 +2494,20 @@
 			</div>
 		{/if}
 
-		<!-- The TV's focus line, under the pinned tabs (c238; only a TV draws it). -->
+		<!-- The TV's focus line, under the pinned tabs (only a TV draws it). -->
 		<FocusLine />
 
 		{#if outlined}
 			<GridOutline />
 		{:else if data.shelf !== 'people'}
 			<!-- BACK from the grid climbs to what is pinned over it: the KIND band's
-			     chosen cell since c436 (the shelf tab's, pinned in its place, before).
+			     chosen cell.
 			     In full view, so BACK goes on to the screen's start (doc/FOCUS.md). -->
 			<div class="grid" data-back-climb=".kinds .kc.on">
 				{#each shown as s, i (s.id)}
 					{@const cached = cachedOn(s)}
 					{#if s.tile}
-						<!-- Browsing shows the run as one tile (Work-Library; doc/WORKS.md). -->
+						<!-- Browsing shows the run as one tile (doc/WORKS.md). -->
 						<WorkTile
 							tile={s.tile}
 							cached={isOffline && cached > 0 ? cached : null}
@@ -2592,8 +2590,8 @@
 				<p class="none">NO FAVOURITE PEOPLE · FAV ONE FROM THEIR PAGE</p>
 			{/if}
 		{:else if shown.length === 0 && data.shelf.startsWith('c:') && (shelfSize === 0 || nFilters === 0) && !outlined}
-			<!-- A new shelf (3h): empty until something is added, and says how. First,
-			     since a kind is carried across shelves (c436): an empty shelf with a
+			<!-- A new shelf: empty until something is added, and says how. First,
+			     since a kind is carried across shelves: an empty shelf with a
 			     kind or a filter on is still empty, not "no manga here". -->
 			<div class="empty-shelf">
 				<p class="empty-title">Nothing on {shelfName} yet.</p>
@@ -2603,7 +2601,7 @@
 				<button type="button" class="empty-select" onclick={startSelecting}>SELECT</button>
 			</div>
 		{:else if shown.length === 0 && kindAtZero && !outlined}
-			<!-- The kind chosen elsewhere, none of it here (Kinds Calls 4): the band
+			<!-- The kind chosen elsewhere, none of it here: the band
 			     keeps it at 0, and this says so with the way back to every kind. -->
 			{@const all = bandCounts?.all ?? 0}
 			<div class="empty-result">
@@ -2615,7 +2613,7 @@
 				>
 			</div>
 		{:else if shown.length === 0 && nFilters > 0 && !outlined}
-			<!-- Filters that leave nothing (3f): a narrow question about one shelf, not an empty library. -->
+			<!-- Filters that leave nothing: a narrow question about one shelf, not an empty library. -->
 			<div class="empty-result">
 				<p class="empty-title">Nothing on {shelfName} matches these filters.</p>
 				<p class="empty-sub">The shelf holds {shelfSize.toLocaleString('en-US')}.</p>
@@ -2654,7 +2652,7 @@
 	ongrouped={stopSelecting}
 	onhide={async () => {
 		stopSelecting();
-		// The sheet's `update` did not re-read (c660): this is the one reload,
+		// The sheet's `update` did not re-read: this is the one reload,
 		// and `reloadList` asks for the loaded pages once behind it.
 		await reloadList();
 	}}
@@ -2675,7 +2673,7 @@
 	onchange={() => invalidateAll()}
 />
 
-<!-- SHOW (c698): the selection, wherever it was ticked, in the order it was
+<!-- SHOW: the selection, wherever it was ticked, in the order it was
      ticked; the search draws the same sheet. -->
 <SelectionSheet
 	open={reviewing}
@@ -2713,7 +2711,7 @@
 		flex-direction: column;
 		flex: 1;
 	}
-	/* The top bar stays on a desktop too (c433): the sidebar stays, and so
+	/* The top bar stays on a desktop too: the sidebar stays, and so
 	   does the search beside it. TopBar pins it on a phone, the tablet and a
 	   TV already, and lets it go on a desktop. */
 	@media (min-width: 1024px) and (pointer: fine) {
@@ -2722,7 +2720,7 @@
 			z-index: 8;
 		}
 	}
-	/* BACK TO TOP (c433): a corner cell, ruled on its two inner sides, over
+	/* BACK TO TOP: a corner cell, ruled on its two inner sides, over
 	   the tiles and under the bulk bar and sheets, as the top bar is. The
 	   page keeps room under the last row for it. Not on a TV. */
 	.to-top {
@@ -2751,7 +2749,7 @@
 	   pinned bar's stacking context, so the cell, at the bar's z-index later in
 	   the page, was drawn lit above the dimmed screen. Read off the two
 	   components' own open states, the <details> and the cell's aria-expanded.
-	   Each FILTER counts only where it is drawn (c474): the top bar's on a
+	   Each FILTER counts only where it is drawn: the top bar's on a
 	   desktop, the KIND band's elsewhere. A <details> CSS has hidden stays
 	   open, so a FILTER left open at 1200px and the window narrowed to 900px
 	   hid BACK TO TOP for good. A person's page's FILTER is drawn everywhere. */
@@ -2775,7 +2773,7 @@
 		}
 		/* The room above is BACK TO TOP's, which a TV does not draw; it keeps
 		   its own safe margin instead, as the TV block below sets for every
-		   other case (c238). This rule outranks that one, so it says it again. */
+		   other case. This rule outranks that one, so it says it again. */
 		.library:not(.selecting) {
 			padding-bottom: var(--safe-y);
 		}
@@ -2784,15 +2782,15 @@
 	   (the tabs and the focus line) by its button's own edge, and the cover's
 	   ring is drawn 7px outside the cover, which is that edge: coming back up
 	   the grid, the focus line covered the ring by 7px. So the button reaches
-	   7px up into the tile's 10px padding, and the ring comes clear with it
-	   (c433). Nothing drawn moves; a TV has no pointer for the larger box. */
+	   7px up into the tile's 10px padding, and the ring comes clear with
+	   it. Nothing drawn moves; a TV has no pointer for the larger box. */
 	@media (pointer: none) and (min-width: 900px) {
 		.grid :global(.tile > .open) {
 			margin-top: -7px;
 			padding-top: 7px;
 		}
 	}
-	/* The SERIES TO LINK band's ✕ (c430): a plain cell after REVIEW, not a
+	/* The SERIES TO LINK band's ✕: a plain cell after REVIEW, not a
 	   second accent action. */
 	.link-acts {
 		align-self: stretch;
@@ -2811,7 +2809,7 @@
 	.library.selecting {
 		padding-bottom: 122px;
 	}
-	/* And the extra row REFRESH's band takes above it (c221). */
+	/* And the extra row REFRESH's band takes above it. */
 	.library.selecting.has-band {
 		padding-bottom: 182px;
 	}
@@ -2855,8 +2853,7 @@
 			display: inline;
 		}
 	}
-	/* The shelf tabs: the whole width since c436, FILTER having moved to the
-	   KIND band's end (Kinds Calls, "04 — THE SIDEBAR"). */
+	/* The shelf tabs: the whole width, FILTER being at the KIND band's end. */
 	.tabs {
 		position: relative;
 		z-index: 5;
@@ -2868,8 +2865,8 @@
 		position: relative;
 		background: var(--surface-page);
 	}
-	/* ---- the KIND band (c436; Kinds Calls 05, "SIZES": literals, not the
-	   ladder, and the tokens for colour). One 40px row, 13px mono against the
+	/* ---- the KIND band (literals for sizes, not the ladder, and the tokens
+	   for colour). One 40px row, 13px mono against the
 	   tabs' 46px and 14px, so the two never read as one double row. It pins
 	   under the top bar (z 7, the bar is 8) as the grid scrolls; the tabs
 	   don't. The marker above it is what says it has pinned. */
@@ -2912,7 +2909,7 @@
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
-	/* Scrolls sideways, never wraps: a cut-off cell is the cue (Kinds Calls 2).
+	/* Scrolls sideways, never wraps: a cut-off cell is the cue.
 	   Above FILTER's scrim, as the tabs were, so the band stays lit. */
 	.kscroll {
 		position: relative;
@@ -2957,7 +2954,7 @@
 		display: flex;
 		flex-shrink: 0;
 	}
-	/* An open menu is over everything in the page's flow (c590), and still
+	/* An open menu is over everything in the page's flow, and still
 	   under the top bar (8) and its sheets (20). SORT's list is 7 in the same
 	   stacking context as the band (no ancestor between them makes one: the
 	   section label and the SORT block are not stacked), so the band, at 7
@@ -2992,7 +2989,7 @@
 	}
 	/* SORT: one closed block of square cells, the menu (▾ says it opens) and
 	   the direction beside it, as the panel rows draw a sort ("cells plus
-	   ↓ / ↑"). The menu is the house's own (ChoiceMenu, c432); its list hangs
+	   ↓ / ↑"). The menu is the house's own (ChoiceMenu); its list hangs
 	   from the whole block, so the block is what is positioned. */
 	.sort {
 		position: relative;
@@ -3002,7 +2999,7 @@
 		border: 1px solid var(--line-2);
 		color: var(--text-1);
 	}
-	/* Loading (c560): still there and still the cell focus is on, dimmed. */
+	/* Loading: still there and still the cell focus is on, dimmed. */
 	.sort.busy {
 		opacity: 0.5;
 	}
@@ -3031,9 +3028,9 @@
 	.desk-count {
 		display: none;
 	}
-	/* Not positioned: its panel hangs from the top bar's right edge, 640 wide (3j).
+	/* Not positioned: its panel hangs from the top bar's right edge, 640 wide.
 	   FILTER's own left rule is the tabs' divider; here the cell before it
-	   draws that one, and FILTER draws the rule against SELECT (c431). */
+	   draws that one, and FILTER draws the rule against SELECT. */
 	.filter-desk {
 		align-self: stretch;
 		border-right: var(--hairline);
@@ -3042,7 +3039,7 @@
 		border-left: 0;
 	}
 	/* Desktop: the wordmark and the shelves move into the sidebar, FILTER into
-	   the top bar beside SELECT, and the count into the section label (3j). */
+	   the top bar beside SELECT, and the count into the section label. */
 	@media (min-width: 1024px) and (pointer: fine) {
 		.library :global(header .left:has(.brand)),
 		.tabs {
@@ -3055,7 +3052,7 @@
 			display: inline;
 		}
 	}
-	/* Filters that leave nothing (3f), and a shelf with nothing yet (3h). */
+	/* Filters that leave nothing, and a shelf with nothing yet. */
 	.empty-result,
 	.empty-shelf {
 		display: flex;
@@ -3142,7 +3139,7 @@
 			padding: 0 12px;
 		}
 	}
-	/* The top bar's rules (c431). The right-hand cell draws the first one, on
+	/* The top bar's rules. The right-hand cell draws the first one, on
 	   its left; every cell before SELECT draws the one after it, on its right
 	   (BROWSE, QUEUE, the desktop's FILTER); MORE draws its own on its left,
 	   so the rule goes with it where MORE is hidden. One rule per pair, never
@@ -3175,11 +3172,11 @@
 	.more-cell {
 		border-left: var(--hairline);
 	}
-	/* S1: the wordmark's cell, then ON <NAME> (TV-Servers.dc.html, `bar`). The
+	/* The server cell: the wordmark's cell, then ON <NAME>. The
 	   left cell draws the rule after it; this draws the one between it and the
-	   wordmark. The cell stops at 200 px and the padding is the design's 22 px
-	   (its tv.css `.cell`), not `.cell-btn`'s --pad: a TV's --pad is 48, which
-	   left a name 72 px and cut ARCHLINUX after four letters (c862). At 22 the
+	   wordmark. The cell stops at 200 px and the padding is the design's 22 px,
+	   not `.cell-btn`'s --pad: a TV's --pad is 48, which
+	   left a name 72 px and cut ARCHLINUX after four letters. At 22 the
 	   name has 124 px, eleven characters in the TV's type, and a longer one ends
 	   in an ellipsis; the 180 px on the name is the design's, and never the
 	   limit that binds. Only the TV app draws it, so it carries the TV's control
@@ -3209,13 +3206,13 @@
 	.server-cell.on .srv-on {
 		color: inherit;
 	}
-	/* The phone's bar cells are 14px a side (Reach, phoneMore). */
+	/* The phone's bar cells are 14px a side. */
 	@media (max-width: 599px) {
 		.more-cell {
 			padding: 0 14px;
 		}
 	}
-	/* A narrow phone's bar is the brand, /, SELECT and MORE (Reach, phoneMore): the word doesn't fit. */
+	/* A narrow phone's bar is the brand, /, SELECT and MORE: the word doesn't fit. */
 	@media (max-width: 419px) {
 		.search-hint .word {
 			display: none;
@@ -3242,13 +3239,13 @@
 	.x {
 		font: 500 18px var(--font-mono);
 	}
-	/* SHOW's sheet (c698): GROUP's sheet's head and rows, drawn the same way. */
+	/* SHOW's sheet: GROUP's sheet's head and rows, drawn the same way. */
 	.selected-count {
 		padding: 0 18px;
 		font: 500 17px var(--font-mono);
 	}
-	/* `/ SEARCH TO TICK` (c698; Bars-Tablet, Bars-Desktop): the bar's empty middle,
-	   the library's search hint in inverse. A phone has `/` alone (Bars-Phone),
+	/* `/ SEARCH TO TICK`: the bar's empty middle,
+	   the library's search hint in inverse. A phone has `/` alone,
 	   and the count takes the room instead. */
 	.to-tick {
 		flex: 1;
@@ -3306,8 +3303,8 @@
 		grid-template-columns: repeat(var(--grid-cols), minmax(0, 1fr));
 		gap: 1px;
 		background: var(--line-1);
-		/* Both rules, as the mock draws them: under the tabs this doubles the
-		   tabs' own bottom hairline, which is how Index Library.dc.html has it. */
+		/* Both rules, on purpose: under the tabs this doubles the tabs' own
+		   bottom hairline. */
 		border-top: var(--hairline);
 		border-bottom: var(--hairline);
 	}
@@ -3399,13 +3396,13 @@
 			font-size: 16px;
 		}
 	}
-	/* FOLD AS LANGUAGES: the accent cell, its languages under it (Editions 1f). */
-	/* ---- the TV (c238; TV-Library) ---------------------------------------- */
+	/* FOLD AS LANGUAGES: the accent cell, its languages under it. */
+	/* ---- the TV ---------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		.library {
 			padding-bottom: var(--safe-y);
 		}
-		/* Bulk tidying is not a couch job (TV Calls, "03 — SIDEBAR"). */
+		/* Bulk tidying is not a couch job. */
 		.select-cell {
 			display: none;
 		}
@@ -3414,7 +3411,7 @@
 			justify-content: flex-start;
 			padding: 0 22px;
 			font: 400 17px/1.2 var(--font-mono);
-			/* The handoff's computed 0.32px, transcribed as the extraction reads it. */
+			/* The design's computed 0.32px, as measured. */
 			letter-spacing: 0.32px;
 		}
 		/* CONTINUE: three cards across, 288x120, inside the safe margin. */
@@ -3430,9 +3427,8 @@
 		.cont > :global(:nth-child(n + 4)) {
 			display: none;
 		}
-		/* The shelf tabs, in the safe margin. They pinned under the safe top
-		   until c436 (state 3B); the KIND band does now, in their place, so the
-		   pinned rows are still 56 + 64px (Kinds Calls 3, "TV"). */
+		/* The shelf tabs, in the safe margin. The KIND band pins under the safe
+		   top in their place, so the pinned rows are 56 + 64px. */
 		.tabs {
 			height: var(--tv-tab-h);
 			margin: 0 var(--pad);
