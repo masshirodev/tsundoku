@@ -8,6 +8,8 @@ computer, keeps the files there, and serves them to the phones, tablets and TV
 in the house, which read it in the browser, as an installed PWA, or in its
 Android app.
 
+**Website and downloads: [tsundoku.masshiro.pro](https://tsundoku.masshiro.pro)**
+
 | Library (desktop)                                                    | Series (tablet)                                                | Reader (phone)                                                 |
 | -------------------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------- |
 | ![The library on a desktop](site/captures/library-desktop-dark.webp) | ![A series on a tablet](site/captures/series-tablet-dark.webp) | ![The reader on a phone](site/captures/reader-phone-dark.webp) |
