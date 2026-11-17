@@ -45,6 +45,11 @@ The hooks: `pre-commit` runs lint-staged. `pre-push` runs the hook-arming
 check, `check`, `lint` and the unit specs the push reaches (`--changed` against
 the upstream). The e2e suite stays manual because it builds the app.
 
+CI (`.github/workflows/ci.yml`) runs on a push to main and on every pull
+request: `check`, `lint` and the whole unit suite (with ffmpeg and chromaprint
+installed, so no spec skips), the tray's `go vet` and `go test -race`, and the
+Android apps' unit tests. It runs no e2e spec.
+
 **Generated tables in this file.** The e2e table and the fixtures' count below
 are written by `yarn run e2e:table`, never by hand ("E2E specs"). After adding,
 removing or moving an e2e file, run it, rewrite the new row's "Why" (it starts
