@@ -60,11 +60,10 @@ before the event fires, and a PWA can't block screenshots. The design says
 neither, and neither does the code.
 
 **Known gap:** closing the app outright (swiping it away) is an unload, and
-the shield never ended the modes on one. They're session cookies, so a real
+the shield does not end the modes on one. They're session cookies, so a real
 browser restart ends them, but an Android PWA may keep its session across a
-swipe. Reveal now ends on its own 12 hours after it was turned on, whatever
-the browser keeps (the signed value's expiry, above); incognito has no such
-end yet. If an app kept across swipes turns out to leave incognito on, the
+swipe. Reveal ends on its own 12 hours after it was turned on, whatever the
+browser keeps (the signed value's expiry, above); incognito has no such end. If an app kept across swipes turns out to leave incognito on, the
 fix is the same kind of server-side expiry on its cookie.
 
 ## The fingerprint gate for `/reveal`

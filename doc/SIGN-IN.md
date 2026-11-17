@@ -26,8 +26,8 @@ where it lives.
 Only `vite dev` lets every request in with no token (`authMode` in
 `src/lib/server/auth.ts`), and that is decided when the app is compiled
 (`dev` from `$app/environment`), never by `NODE_ENV` at run time: only
-`scripts/serve.ts` sets that, so `node build` started any other way would
-otherwise have served the whole library to anyone who reached it.
+`scripts/serve.ts` sets that, and a run-time check would let `node build`,
+started any other way, serve the whole library to anyone who reached it.
 `tests/auth-bypass.spec.ts` holds the rule, and `tests/auth.e2e.ts` starts the
 suite's own build bare, with no token and no `NODE_ENV`, and is refused.
 
