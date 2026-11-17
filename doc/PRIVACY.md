@@ -62,9 +62,10 @@ neither, and neither does the code.
 **Known gap:** closing the app outright (swiping it away) is an unload, and
 the shield never ended the modes on one. They're session cookies, so a real
 browser restart ends them, but an Android PWA may keep its session across a
-swipe — which, now that the background no longer ends them, is the only
-automatic end there is. If that turns out to happen on the tablet, the fix is
-a server-side idle expiry on both cookies.
+swipe. Reveal now ends on its own 12 hours after it was turned on, whatever
+the browser keeps (the signed value's expiry, above); incognito has no such
+end yet. If an app kept across swipes turns out to leave incognito on, the
+fix is the same kind of server-side expiry on its cookie.
 
 ## The fingerprint gate for `/reveal`
 
@@ -95,6 +96,20 @@ fpPrompt, fpFail and fpCancel states).
 - **The server enforces it,** not the page. While the gate is on, a plain POST
   of `/reveal` (a browser without JavaScript, a crafted request) does nothing:
   `runCommand` refuses it.
+- **Only the server can make the reveal cookie.** Its value is
+  `v1.<expiry>.<mac>`: an HMAC-SHA256 over the purpose, the expiry and a hash
+  of the session cookie beside it, with a key made on first use and kept in
+  the `settings` table (`reveal_key`, never one of SETTINGS' keys; `revealValue`
+  and `revealValid` in `src/lib/server/prefs.ts`). So a session holder who
+  writes `tsundoku_reveal` by hand, from a browser's devtools or a paired TV,
+  sees nothing hidden, and a value that isn't the server's, an old bare `1`
+  included, reads as reveal off. Bound to the session, it ends when this
+  browser signs in again (a rotated token, a changed password), and a value
+  taken from one browser is nothing to a device signed in another way. It
+  also carries an **expiry of 12 hours**, whatever the browser does with its
+  session cookies. `tests/reveal-cookie-db.spec.ts` holds the rules, and
+  `tests/unlock-gate.e2e.ts` writes a `1` by hand behind the gate and sees
+  nothing hidden.
 - **Ceremonies** are single-use, expire in two minutes, and are tied to the
   browser by an httpOnly, `SameSite=Strict` cookie. Credentials are the
   `unlock_credentials` table (rung 8).

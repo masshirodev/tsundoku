@@ -135,6 +135,16 @@ under a throwaway `TSUNDOKU_TOKEN`. Every test starts signed in with the session
 cookie that token derives, except `auth.e2e.ts`, which starts signed out on
 purpose.
 
+**A spec turns reveal on with `revealOn(context, base?)`** (`tests/helpers/reveal.ts`),
+which runs the `/reveal` command through the context's own request, so the
+server's signed cookie lands in the context ([`PRIVACY.md`](PRIVACY.md), "Only
+the server can make the reveal cookie"). Never `addCookies` with
+`tsundoku_reveal=1`: the server reads that as reveal off. A spec on a server of
+its own passes that server's origin, since each signs with the key in its own
+database. A unit spec that fakes a request's cookies answers with
+`revealValue(session)` from `$lib/server/prefs`, for the session cookie its fake
+answers with (`undefined` when it has none).
+
 The projects are the devices the design draws: `tablet-portrait` (800×1280),
 `tablet-landscape` (1280×800), `phone` (Pixel 7), `desktop` (1440×900) and `tv`
 (960×540, no pointer and no hover -- Chromium's Blink settings stand in for a

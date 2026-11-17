@@ -87,12 +87,48 @@ responses `cache-control: no-store` (`src/hooks.server.ts`), and the service
 worker never stores a `no-store` response. So the offline library can't show a
 hidden title, even when reveal was on the last time the library loaded.
 
+## Hiding takes it off the device
+
+"Never cached" covers what is written after a series is hidden, not what was
+kept before. The service worker serves page images and a novel's EPUB cache
+first, and the last copy of a screen whenever the workstation can't be
+reached, so a series hidden after it was read would still open from the
+tablet, offline, with reveal off.
+
+So the device sweeps (`src/lib/cache/sweep.ts`). It reads the series and
+entry ids off every key in `tsundoku-entries`, `tsundoku-episodes` and
+`tsundoku-screens` (markers, pages, manifests, text, reader pages, EPUBs,
+episode files and subtitles, `/series/<id>` copies) and posts them to
+`/api/cache/gone`, which answers those a viewer **without reveal** can't see:
+hidden directly or by the root, or deleted (`src/lib/server/device-cache.ts`).
+Reveal is ignored on purpose, since the cache never holds a hidden series
+whatever the mode, and hidden and deleted get the same answer, so the device
+learns nothing a 404 wouldn't tell it. Everything of what it names goes, a
+half-kept entry with no marker included, and so does the whole
+`tsundoku-screens` bucket: the library, CONTINUE, HISTORY and search copies
+name series too, and nothing in a copy says which. Those are only the offline
+fallback; the next screen opened online is kept again.
+
+The root layout runs it on opening, on coming back online, and after every
+screen change or reload of a screen's data, debounced to one ask per burst.
+Every HIDE ends in one of those (the series screen's sends the library, a
+SELECT's reloads its data), and so does opening the app on a device after the
+series was hidden from another one. Offline, nothing is asked and nothing
+goes: nothing can have been hidden from there. `tests/cache-sweep.spec.ts`
+and `tests/device-cache-db.spec.ts` hold the rules; `tests/offline-flow.e2e.ts`
+caches two chapters, hides the series and sees them go.
+
 ## Reading offline doesn't lose stats
 
 A progress event that can't reach the workstation is kept in this browser's
 `localStorage` (`tsundoku.pending`, up to 2000 events), with the time it
 happened. It's sent when the workstation answers again: after the reader's next
-successful event, or when the browser comes back online. `/api/reading` logs it
+successful event, or when the browser comes back online. An event is dropped
+only when the workstation refuses that event for good, a 4xx about it (an
+entry since removed, a series hidden again); a 5xx, no answer, a 401, 403,
+408 or 429 keeps the whole queue for the next try, since the first flush after
+a reconnection often meets a workstation still starting
+(`tests/pending-queue.spec.ts`). `/api/reading` logs it
 at its own time (clamped to the last 30 days, never in the future), so history
 puts it on the day it was read. Replayed events **never move progress
 backwards**: position and last-opened only advance in time, so an old event
@@ -171,6 +207,9 @@ kept online it is forgotten; one still waiting is left exactly as it is.
 
 - `tests/cache-policy.spec.ts`: the policy.
 - `tests/series-db.spec.ts`: the forward-only replay rule.
+- `tests/pending-queue.spec.ts`: which answers keep the reading queue.
+- `tests/cache-sweep.spec.ts`, `tests/device-cache-db.spec.ts`: hiding takes a
+  series off the device.
 - `tests/offline-flow.e2e.ts`: the production service worker end to end. It
   caches ahead, reads the next chapter with the network cut, queues the
   events, replays them when back online, and checks ↓ CACHE / REMOVE CACHE

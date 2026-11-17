@@ -19,8 +19,24 @@ never has a token, so nothing changes for them.
 
 Unchanged since the start: `TSUNDOKU_TOKEN`, typed once per browser at
 `/login`, and a session cookie derived from it (`src/lib/server/session.ts`),
-so rotating the token signs everything out. Without one in production the app
-answers 503. [`SECRETS.md`](SECRETS.md) says where it lives.
+so rotating the token signs everything out. [`SECRETS.md`](SECRETS.md) says
+where it lives.
+
+**Without a token, every built bundle answers 503**, however it was started.
+Only `vite dev` lets every request in with no token (`authMode` in
+`src/lib/server/auth.ts`), and that is decided when the app is compiled
+(`dev` from `$app/environment`), never by `NODE_ENV` at run time: only
+`scripts/serve.ts` sets that, so `node build` started any other way would
+otherwise have served the whole library to anyone who reached it.
+`tests/auth-bypass.spec.ts` holds the rule, and `tests/auth.e2e.ts` starts the
+suite's own build bare, with no token and no `NODE_ENV`, and is refused.
+
+**After signing in, `?next=` sends the browser only to a path on this
+origin** (`sameOriginPath`, `src/lib/server/next-path.ts`). A prefix check
+isn't enough: a browser strips a tab or newline from a URL (`/\t/evil.example`
+becomes `//evil.example`) and reads a backslash as a slash, so the value is
+resolved against the origin as the browser will, and kept only if it is still
+this origin (`tests/next-path.spec.ts`).
 
 **A TV paired on the tailnet signs in with its own cookie** (c245). The six
 digits on SETTINGS › 08 — DEVICES ([`WIFI.md`](WIFI.md), "A TV's code") are
