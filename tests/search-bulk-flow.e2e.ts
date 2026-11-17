@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { type Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * Acting on a selection from `/search` (c838; doc/LIBRARY.md, "SELECT across
@@ -281,7 +282,7 @@ test('a selection all of hidden series offers UNHIDE, and it takes them back', a
 	page,
 	context
 }) => {
-	await context.addCookies([{ name: 'tsundoku_reveal', value: '1', url: BASE }]);
+	await revealOn(context, BASE);
 	await tick(page, 'Lookism', ['Lookism']);
 	await expect(barCell(page, 'UNHIDE')).toBeVisible();
 	await expect(barCell(page, 'HIDE')).toHaveCount(0);

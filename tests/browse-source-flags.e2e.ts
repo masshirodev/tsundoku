@@ -8,6 +8,7 @@ import {
 	startTagWorld,
 	type TagWorld
 } from './helpers/tag-world';
+import { revealOn } from './helpers/reveal';
 
 /**
  * A source's own switches (card c435; doc/BROWSE.md, "A source's own
@@ -35,10 +36,7 @@ const settings = `/browse/${SOURCE.id}/settings`;
 const previewPath = `/downloads/source/${previewId}?from=${encodeURIComponent(`/browse/${SOURCE.id}`)}`;
 
 async function reveal(context: BrowserContext, on: boolean) {
-	if (on)
-		await context.addCookies([
-			{ name: 'tsundoku_reveal', value: '1', url: world.base, httpOnly: true }
-		]);
+	if (on) await revealOn(context, world.base);
 	else await context.clearCookies({ name: 'tsundoku_reveal' });
 }
 

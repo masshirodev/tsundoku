@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * Tab and a screen reader read the series panel in the order it is drawn
@@ -17,9 +18,7 @@ import { expect, test } from './fixtures';
  */
 
 const openCircle = async (page: Page, title: string) => {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page.context());
 	await page.goto('/?sort=title');
 	await expect(async () => {
 		await page.locator('.grid .tile', { hasText: title }).first().click();

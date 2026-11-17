@@ -10,6 +10,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { startPreview } from './highlights-preview';
 import { Zip } from '../src/lib/epub/unzip';
 import { sampleEpub } from '../src/lib/server/pages/sample-epub';
+import { revealOn } from './helpers/reveal';
 
 /**
  * Highlights H2 end to end (card c702; doc/HIGHLIGHTS.md, "Quotes"; Novel N1
@@ -938,7 +939,7 @@ test('hidden means hidden on the device: a hidden series and reveal never queue'
 	const d = db();
 	d.prepare(`UPDATE series SET hidden = 1 WHERE title = 'Mushoku Tensei'`).run();
 	d.close();
-	await page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: base }]);
+	await revealOn(page.context(), base);
 	await open(page, id);
 	await page.context().setOffline(true);
 	const w = await word(page, 2);
@@ -2868,7 +2869,7 @@ test('R13 a press in reveal puts back the waiting quote it took in, and keeps th
 	const d = db();
 	d.prepare(`UPDATE series SET hidden = 1 WHERE title = 'Mushoku Tensei'`).run();
 	d.close();
-	await page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: base }]);
+	await revealOn(page.context(), base);
 	await open(page, id);
 	await expect(page.locator('.mk')).toHaveText(w.word);
 

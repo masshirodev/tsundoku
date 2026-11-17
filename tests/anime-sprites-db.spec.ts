@@ -47,7 +47,7 @@ const sprites = await import('$lib/server/anime/sprites');
 const streams = await import('$lib/server/anime/streams');
 const route = await import('../src/routes/api/anime/sprite/[entry]/+server');
 const videos = await import('../src/routes/api/anime/episode/[entry]/videos/+server');
-const { INCOGNITO_COOKIE, REVEAL_COOKIE } = await import('$lib/server/prefs');
+const { INCOGNITO_COOKIE, REVEAL_COOKIE, revealValue } = await import('$lib/server/prefs');
 
 const db = getDb();
 const root = Number(
@@ -79,7 +79,9 @@ const episode = (s: { id: number; dir: string }, file: string) =>
 
 /** The route's answer, as the player's browser would get it; reveal on or off. */
 async function served(id: number, reveal = false): Promise<number> {
-	const cookies = { get: (k: string) => (reveal && k === REVEAL_COOKIE ? '1' : undefined) };
+	const cookies = {
+		get: (k: string) => (reveal && k === REVEAL_COOKIE ? revealValue(undefined) : undefined)
+	};
 	try {
 		const res = await route.GET({ params: { entry: String(id) }, cookies } as never);
 		return res.status;

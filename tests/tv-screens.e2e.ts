@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * The TV's screens (c238; doc/TV.md, "The design"). Read-only: nothing here
@@ -94,9 +95,7 @@ test("reveal's frame is drawn 20px in, for a TV that crops its edges", async ({ 
 	// Turned on where it can be (the computer) and carried here: the owner's
 	// call, 2026-11-01, is that a TV cannot turn reveal on itself. The cookie
 	// is the server's whole memory of it, so the context can hold it.
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page.context());
 	await page.goto('/');
 	const frame = page.locator('.reveal-frame');
 	await expect(frame).toBeVisible();

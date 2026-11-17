@@ -38,6 +38,8 @@ vi.mock('$lib/server/engine/extensions', async (original) => {
 const { getDb } = await import('$lib/server/db');
 const flags = await import('$lib/server/engine/source-flags');
 const band = await import('../src/routes/browse/extensions/select.server');
+// Reveal is a value only the server makes (prefs.ts), never a bare '1'.
+const { revealValue } = await import('$lib/server/prefs');
 
 /**
  * EXTENSIONS' SELECT (card c696): setting one of tsundoku's switches on every
@@ -101,7 +103,9 @@ async function loadAt(location: string, reveal = false) {
 	const url = new URL(location, 'http://localhost');
 	return (await extensionsPage.load({
 		url,
-		cookies: { get: (n: string) => (reveal && n === 'tsundoku_reveal' ? '1' : undefined) }
+		cookies: {
+			get: (n: string) => (reveal && n === 'tsundoku_reveal' ? revealValue(undefined) : undefined)
+		}
 	} as never)) as unknown as {
 		removeBand: { done: string[]; stayed: string[] };
 		updateBand: {
@@ -135,7 +139,9 @@ async function act(
 	try {
 		const answer = (await extensionsPage.actions[name]({
 			request: new Request('http://localhost/browse/extensions', { method: 'POST', body: form }),
-			cookies: { get: (n: string) => (reveal && n === 'tsundoku_reveal' ? '1' : undefined) }
+			cookies: {
+				get: (n: string) => (reveal && n === 'tsundoku_reveal' ? revealValue(undefined) : undefined)
+			}
 		} as never)) as { status?: number; data?: Record<string, unknown> };
 		return { status: answer.status ?? 200, data: answer.data };
 	} catch (e) {

@@ -1469,10 +1469,13 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 
 	it('shows the dropped Work in IMPORT LOG, through the page’s own load, from that scan (c570)', async () => {
 		const { load } = await import('../src/routes/import/log/+page.server');
-		const { REVEAL_COOKIE } = await import('$lib/server/prefs');
+		const { REVEAL_COOKIE, revealValue } = await import('$lib/server/prefs');
 		const logOf = async (reveal: boolean) =>
 			(await load({
-				cookies: { get: (name: string) => (reveal && name === REVEAL_COOKIE ? '1' : undefined) }
+				cookies: {
+					get: (name: string) =>
+						reveal && name === REVEAL_COOKIE ? revealValue(undefined) : undefined
+				}
 			} as never)) as {
 				entries: { kind: string; id: number; dropped: { line: string; workId: number | null }[] }[];
 			};
@@ -1636,10 +1639,13 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		};
 		const logOf = async (reveal: boolean) => {
 			const { load } = await import('../src/routes/import/log/+page.server');
-			const { REVEAL_COOKIE } = await import('$lib/server/prefs');
+			const { REVEAL_COOKIE, revealValue } = await import('$lib/server/prefs');
 			return (
 				(await load({
-					cookies: { get: (name: string) => (reveal && name === REVEAL_COOKIE ? '1' : undefined) }
+					cookies: {
+						get: (name: string) =>
+							reveal && name === REVEAL_COOKIE ? revealValue(undefined) : undefined
+					}
 				} as never)) as unknown as { entries: Entry[] }
 			).entries;
 		};

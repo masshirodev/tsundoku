@@ -7,6 +7,7 @@ import { type Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
+import { revealOn } from './helpers/reveal';
 
 /**
  * GROUP AS ONE SHOW end to end (c283, S2; doc/WORKS.md, "Per-season sources"):
@@ -413,7 +414,7 @@ test('ONE SHOW is offered only for what can be merged (round 2)', async ({ page 
 	work('Run Two', [gamma, delta]);
 	db.close();
 	// Reveal so a hidden tile can be ticked, as the library's own selection does.
-	await page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: base }]);
+	await revealOn(page.context(), base);
 
 	const tick = async (title: string) => {
 		const hit = page

@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * The series screen's LISTS row (c424; doc/SERIES.md "LISTS"), state by state,
@@ -461,9 +462,7 @@ test('hidden, with reveal on: never searched, PASTE A LINK alone and the accent 
 	page,
 	context
 }) => {
-	await context.addCookies([
-		{ name: 'tsundoku_reveal', value: '1', domain: 'localhost', path: '/' }
-	]);
+	await revealOn(context, BASE);
 	await page.goto(`${BASE}/series/${ids.hidden}`);
 	await expect(line(page, 'anilist').getByRole('link', { name: 'FIND' })).toBeVisible();
 	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
@@ -627,9 +626,7 @@ test('a refused UNDO of TAKE OUT, THEN HIDE is a band, never an error page, and 
 }) => {
 	const [P, Q, R] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'];
 	const [X, Y] = ['Villainess Level 99', 'Chainsaw Man'];
-	await context.addCookies([
-		{ name: 'tsundoku_reveal', value: '1', domain: 'localhost', path: '/' }
-	]);
+	await revealOn(context, BASE);
 	const old = await makeWork(page, [P, Q, R], 'Undo Run');
 	const p = idOf(P);
 

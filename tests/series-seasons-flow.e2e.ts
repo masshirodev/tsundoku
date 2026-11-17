@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * The series screen's seasons around an anime (c358; doc/SERIES.md, "The
@@ -501,7 +502,7 @@ test('an unlinked anime, a manga and a novel draw no seasons around', async ({ p
 test('KEEP BOTH says an earlier decision could not be carried out, and the note outlives the band (c671)', async ({
 	page
 }) => {
-	await page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: BASE }]);
+	await revealOn(page.context(), BASE);
 	// A FOLD decided before, waiting: written just now, so no library load has
 	// carried it out (the library's load runs `applyPending`; this file never
 	// opens the library).

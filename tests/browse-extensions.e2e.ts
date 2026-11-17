@@ -1,6 +1,7 @@
 import { test, expect, hydrated } from './fixtures';
 import { bumpWebtoons, NOVEL_REPO, REPO, resetEngine } from './browse-world';
 import { HOLD_MAX_MS } from '../src/routes/browse/test-hold.server';
+import { revealOn } from './helpers/reveal';
 
 /**
  * EXTENSIONS (Index-Extensions; doc/BROWSE.md, "Extensions and
@@ -63,13 +64,6 @@ test.beforeEach(async ({ page, baseURL }) => {
 	page.on('requestfailed', (r) => own.delete(r));
 });
 
-const revealCookie = (origin: string) => ({
-	name: 'tsundoku_reveal',
-	value: '1',
-	url: origin,
-	httpOnly: true
-});
-
 /** Set by an LNReader case once it is about to INSTALL; the afterEach puts back what it left. */
 let lnPluginInstalled = false;
 
@@ -99,7 +93,7 @@ test.afterEach(async ({ page }, testInfo) => {
 		new Promise((r) => setTimeout(r, 10_000))
 	]);
 	// Reveal on, so the hidden source's settings page is found at all.
-	await page.context().addCookies([revealCookie(origin)]);
+	await revealOn(page.context(), origin);
 	const post = (path: string, form: Record<string, string>) =>
 		page.request.post(`${origin}${path}`, { form, headers: { origin }, maxRedirects: 0 });
 	// Only tsundoku's own switches (`form.own`), not a plugin preference the
@@ -316,7 +310,7 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	// timeout its requests throw before they are sent (review, wave 23).
 	lnPluginInstalled = true;
 	const origin = new URL(test.info().project.use.baseURL!).origin;
-	const reveal = () => page.context().addCookies([revealCookie(origin)]);
+	const reveal = () => revealOn(page.context(), origin);
 	await page.goto('/browse/extensions?tab=available&kind=novels');
 	await row('Good Novels').getByRole('button', { name: 'INSTALL' }).click();
 	await expect(row('Good Novels')).toContainText('INSTALLED ✓');

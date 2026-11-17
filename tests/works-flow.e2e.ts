@@ -7,6 +7,7 @@ import { type Page, type Request } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { expect, readerReady, test } from './helpers/hydrated';
 import { E2E_TOKEN } from '../playwright.config';
+import { revealOn as revealContext } from './helpers/reveal';
 
 /**
  * The Works flow end to end (c276, c277, c278; doc/WORKS.md): browsing shows
@@ -174,9 +175,7 @@ async function endWork(page: Page) {
 /** Reveal on for this page, as `/reveal` does: hidden series become tiles that
  * say HIDDEN. Each test has its own context, so the cookie ends with it. */
 async function revealOn(page: Page) {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealContext(page.context());
 }
 
 test('a Work is one tile, one CONTINUE row, and a screen of its own', async ({ page }) => {
@@ -846,9 +845,7 @@ test('GROUP AS A WORK from the library: the AS row, the name, the band and UNDO'
 }) => {
 	// Two doujin singletons: the AS row offers BOOKS as well, and a Work is the
 	// answer chosen. The default name is the words every title starts with.
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page);
 	await page.goto('/');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await tileByTitle(page, 'Kōhai no Himitsu Nikki').locator('.open').click();
@@ -896,9 +893,7 @@ test('GROUP AS A WORK from the library: the AS row, the name, the band and UNDO'
 test('a person’s page groups its series into a Work, and says the run without pulling it in', async ({
 	page
 }) => {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page);
 	const circle = '/?tag=' + encodeURIComponent('circle:Hakka Kousha');
 	await page.goto(circle);
 	await page.waitForLoadState('networkidle');
@@ -987,9 +982,7 @@ test('ADD TO A WORK puts a series at the end, and IN <WORK> · MOVES HERE moves 
 });
 
 test('HIDE on a part asks: the Work whole, or take it out and hide it', async ({ page }) => {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page);
 	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
 	await openWork(page, 'Isekai');
 	// The part's own screen, opened from the run: ← names the Work (W5). Part 2

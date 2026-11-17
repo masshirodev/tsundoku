@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * The languages (doc/I18N.md; card c210), end to end: the browser's language
@@ -40,7 +41,7 @@ test.describe('a browser that speaks Portuguese', () => {
 		// and they are deleted again below. The seed stands in for the owner's
 		// own doors: GROUP over three singles makes the Work (only two parts, as
 		// the trigger requires), and the third is the newcomer the offer names.
-		await context.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+		await revealOn(context);
 		const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!);
 		const hiddenRoot = (
 			db.prepare(`SELECT id FROM roots WHERE hidden = 1 LIMIT 1`).get() as { id: number }
@@ -115,7 +116,7 @@ test.describe('a browser that speaks Portuguese', () => {
 		// WORK, not the series screen's offers. Reaching it takes three series of
 		// its own (no flow file may share one with another), put in the hidden
 		// root so only a revealed page lists them; they are deleted again below.
-		await context.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+		await revealOn(context);
 		const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!);
 		const hiddenRoot = (
 			db.prepare(`SELECT id FROM roots WHERE hidden = 1 LIMIT 1`).get() as { id: number }

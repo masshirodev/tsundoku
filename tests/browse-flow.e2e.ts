@@ -1,6 +1,7 @@
 import { devices } from '@playwright/test';
 import { test, expect, hydrated } from './helpers/hydrated';
 import { behindACheck, engineCalls, engineDown, resetEngine, SOURCES } from './browse-world';
+import { revealOn } from './helpers/reveal';
 
 /**
  * Browsing a source (Index-Browse; doc/BROWSE.md; card c141), end to end,
@@ -168,9 +169,7 @@ test('hidden means hidden: a mostly-hidden source isn’t there with reveal off,
 	const res = await page.goto(`/browse/${SOURCES.hidden.id}`);
 	expect(res?.status()).toBe(404);
 
-	await context.addCookies([
-		{ name: 'tsundoku_reveal', value: '1', domain: 'localhost', path: '/', httpOnly: true }
-	]);
+	await revealOn(context);
 	await page.goto(`/browse/${SOURCES.hidden.id}`);
 	await expect(page.locator('header.bar .name')).toHaveText('TOONILY');
 	await page.goto(OPEN);

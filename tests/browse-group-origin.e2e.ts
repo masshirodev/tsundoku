@@ -9,6 +9,7 @@ import Database from 'better-sqlite3';
 import sharp from 'sharp';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * Two one-offs added from a source and grouped keep READ ONLINE and DOWNLOAD,
@@ -168,7 +169,7 @@ test.afterAll(async () => {
 const url = (path: string) => `${base}${path}`;
 
 async function reveal(page: Page) {
-	await page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: base }]);
+	await revealOn(page.context(), base);
 }
 
 /** ADD from the preview: a one-off, as the owner's were. */

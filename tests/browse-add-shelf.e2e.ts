@@ -1,6 +1,7 @@
 import type { BrowserContext, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
+import { revealOn } from './helpers/reveal';
 
 /**
  * PUT ON A SHELF in the band ADD leaves (card c724; doc/BROWSE.md, "Shelves in
@@ -43,10 +44,7 @@ const chip = (page: Page, name: string) =>
 	strip(page).getByRole('button', { name: new RegExp(`^(✓ )?${name}$`) });
 
 async function reveal(context: BrowserContext, on: boolean) {
-	if (on)
-		await context.addCookies([
-			{ name: 'tsundoku_reveal', value: '1', url: world.base, httpOnly: true }
-		]);
+	if (on) await revealOn(context, world.base);
 	else await context.clearCookies({ name: 'tsundoku_reveal' });
 }
 

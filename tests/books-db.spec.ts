@@ -8,6 +8,8 @@ const { seedSample, BOOK_ROWS, BOOK_SERIES_TITLE } = await import('$lib/server/f
 const lib = await import('$lib/server/library');
 const series = await import('$lib/server/series');
 const books = await import('$lib/server/books');
+// Reveal is a value only the server makes (prefs.ts), never a bare '1'.
+const { revealValue } = await import('$lib/server/prefs');
 const { booksCount, booksOf, continueAction, extrasOf, isBookSeries, seriesMeta } =
 	await import('$lib/library/series');
 
@@ -298,7 +300,9 @@ describe('a hand-made extra beside a doujin (c650)', () => {
 		const ask = async (seriesId: number, book: number) =>
 			(await load({
 				params: { id: String(seriesId) },
-				cookies: { get: (n: string) => (n === 'tsundoku_reveal' ? '1' : undefined) },
+				cookies: {
+					get: (n: string) => (n === 'tsundoku_reveal' ? revealValue(undefined) : undefined)
+				},
 				url: new URL(`http://localhost/series/${seriesId}?book=${book}`),
 				parent: async () => ({ shelves: [] })
 			} as never)) as { book: { id: number } | null };

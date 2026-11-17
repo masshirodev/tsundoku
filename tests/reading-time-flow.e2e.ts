@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, readerReady, test } from './fixtures';
 import { sinceDay } from '../src/lib/library/history';
+import { revealOn } from './helpers/reveal';
 
 /**
  * Reading time end to end (card c443; doc/READING-LOG.md): read through the
@@ -205,7 +206,7 @@ test('HISTORY: each row says its time, the total says SINCE, and hidden is hidde
 		);
 
 	// Half an hour of a hidden series, through the reader's own call (reveal on, as it must be).
-	await page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: base }]);
+	await revealOn(page.context(), base);
 	await page.goto(`${base}/?sort=title`);
 	const db = new Database(dbPath, { readonly: true });
 	const hidden = db

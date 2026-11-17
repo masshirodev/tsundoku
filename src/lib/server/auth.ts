@@ -4,8 +4,9 @@ import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { dataPaths } from './data-dirs.ts';
 import { readLogin, sessionFor, type Login } from './login.ts';
+import { SESSION_COOKIE } from './session.ts';
 
-export const SESSION_COOKIE = 'tsundoku_session';
+export { SESSION_COOKIE };
 
 /**
  * Authentication is a single shared token, because there is exactly one user

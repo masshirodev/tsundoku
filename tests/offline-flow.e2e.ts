@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, readerReady, test } from './helpers/hydrated';
+import { revealOn } from './helpers/reveal';
 
 /**
  * The device cache and offline reading (doc/OFFLINE.md), with the service
@@ -112,9 +113,7 @@ test('↓ CACHE and REMOVE CACHE act on the selection, with counts', async ({ pa
 });
 
 test('nothing is kept while reveal is on', async ({ page, request }) => {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page.context());
 	const res = await page.request.get('/');
 	expect(res.headers()['cache-control']).toBe('no-store');
 	const plain = await request.get('/api/entries/999999/pages');

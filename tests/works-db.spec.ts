@@ -11,6 +11,8 @@ const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const works = await import('$lib/server/works');
 const online = await import('$lib/server/pages/online');
+// Reveal is a value only the server makes (prefs.ts), never a bare '1'.
+const { revealValue } = await import('$lib/server/prefs');
 const { continuePart, runStatus, workFavourite, workFoot, workRating } =
 	await import('$lib/library/works');
 type Rating = import('$lib/library/types').Rating;
@@ -1293,7 +1295,10 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
 					request: new Request('http://localhost/', { method: 'POST', body }),
 					params: { id: String(on) },
 					url: new URL(`http://localhost/series/${on}`),
-					cookies: { get: () => (reveal ? '1' : undefined) }
+					cookies: {
+						get: (n: string) =>
+							reveal ? (n === 'tsundoku_reveal' ? revealValue('1') : '1') : undefined
+					}
 				})) as Record<string, unknown>;
 			} catch (e) {
 				if (e && typeof e === 'object' && 'location' in e) return { to: e.location };
@@ -1426,7 +1431,7 @@ async function postSeries(
 		request: new Request('http://localhost/', { method: 'POST', body }),
 		params: { id: String(seriesId) },
 		url: new URL(`http://localhost/series/${seriesId}`),
-		cookies: { get: () => '1' }
+		cookies: { get: (n: string) => (n === 'tsundoku_reveal' ? revealValue('1') : '1') }
 	})) as Answer;
 }
 

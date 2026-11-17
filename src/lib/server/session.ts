@@ -9,6 +9,9 @@ import { createHash } from 'node:crypto';
  */
 const SALT = 'tsundoku/v1';
 
+/** Here rather than in auth.ts so modules outside SvelteKit's env can name it (prefs.ts). */
+export const SESSION_COOKIE = 'tsundoku_session';
+
 export function sessionValueFor(token: string): string {
 	return createHash('sha256').update(`${SALT}:${token}`).digest('hex');
 }

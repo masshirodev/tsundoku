@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * History end to end (doc/HISTORY.md). Serial, tablet-portrait only. This
@@ -57,9 +58,7 @@ test('✕ keeps the row', async ({ page }) => {
 test('hidden series have no history rows while reveal is off', async ({ page }) => {
 	await page.goto('/history');
 	await expect(page.getByText('Kaori Mama')).toHaveCount(0);
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page.context());
 	await page.goto('/history');
 	await expect(page.getByText(/Kaori Mama/).first()).toBeVisible();
 });

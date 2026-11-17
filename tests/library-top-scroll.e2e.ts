@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { type Locator, type Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * The library as it scrolls, and the SERIES TO LINK band put away
@@ -350,7 +351,7 @@ test('reveal off and on is no news: the band stays away until a series really is
 	setHidden('Scroll Filler 03', true);
 	queueOneMore('Scroll Filler 03');
 	const reveal = async (on: boolean) => {
-		if (on) await page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: BASE }]);
+		if (on) await revealOn(page.context(), BASE);
 		else await page.context().clearCookies({ name: 'tsundoku_reveal' });
 		await page.goto(`${BASE}/`);
 		await page.waitForFunction(() => document.cookie.includes('tsundoku_js=1'));

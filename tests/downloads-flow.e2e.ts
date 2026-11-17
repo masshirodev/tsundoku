@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, expect } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
+import { revealOn } from './helpers/reveal';
 
 /**
  * Downloading (Index Series Download, Index Downloads; doc/DOWNLOADING.md),
@@ -411,9 +412,7 @@ test('the queue: failures first, series in order, RETRY and TO THE TOP (state 8)
 });
 
 test('reveal on counts and names the hidden series (state 12)', async ({ page }) => {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page.context());
 	await page.goto('/downloads');
 	await expect(page.locator('.fail')).toHaveCount(1);
 	await expect(page.locator('.group')).toHaveCount(2);
@@ -478,9 +477,7 @@ test('library search carries the query to the sources, leaving out a mostly hidd
 });
 
 test('reveal on asks the mostly hidden source too', async ({ page }) => {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page.context());
 	await page.goto('/downloads/search?q=linden');
 	await expect(page.locator('.g-head')).toHaveCount(2);
 	await expect(page.getByText('Lindenborough After Dark')).toBeVisible();
@@ -491,11 +488,7 @@ test('TRY ALL AGAIN and TRY AGAIN ask only the source that did not answer, and a
 	page
 }) => {
 	const reveal = (on: boolean) =>
-		on
-			? page
-					.context()
-					.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }])
-			: page.context().clearCookies({ name: 'tsundoku_reveal' });
+		on ? revealOn(page.context()) : page.context().clearCookies({ name: 'tsundoku_reveal' });
 	const calls = () => ({ asura: searchCalls[SOURCE] ?? 0, toonily: searchCalls[TOONILY] ?? 0 });
 	// Inside reveal both sources are asked; Asura Scans' site is down.
 	await reveal(true);

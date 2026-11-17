@@ -14,6 +14,8 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const works = await import('$lib/server/works');
+// Reveal is a value only the server makes (prefs.ts), never a bare '1'.
+const { revealValue } = await import('$lib/server/prefs');
 const seriesScreen = await import('../src/routes/series/[id]/+page.server');
 
 beforeEach(() => {
@@ -77,7 +79,9 @@ async function postSeries(
 		request: new Request('http://localhost/', { method: 'POST', body }),
 		params: { id: String(seriesId) },
 		url: new URL(`http://localhost/series/${seriesId}`),
-		cookies: { get: () => (reveal ? '1' : undefined) }
+		cookies: {
+			get: (n: string) => (reveal ? (n === 'tsundoku_reveal' ? revealValue('1') : '1') : undefined)
+		}
 	})) as Answer;
 }
 

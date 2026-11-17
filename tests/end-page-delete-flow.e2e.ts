@@ -8,6 +8,7 @@ import Database from 'better-sqlite3';
 import { E2E_TOKEN } from '../playwright.config';
 import { WHEEL_QUIET_MS } from '../src/lib/reader/reader';
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * DELETE on the reader's end page (c655; doc/DELETING.md): the series screen's
@@ -291,9 +292,7 @@ test('a hidden series read under /reveal offers UNHIDE beside DELETE, and DELETE
 		form: { on: '1' }
 	});
 	expect(hidden.ok()).toBe(true);
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page.context());
 	await pagedEnd(page, lastEntry(id));
 	await expect(endPage(page).getByRole('button', { name: 'UNHIDE', exact: true })).toBeVisible();
 	await deleteFromEnd(page, title);

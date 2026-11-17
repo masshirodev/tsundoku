@@ -18,6 +18,8 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const dupes = await import('$lib/server/dupes');
 const { pairKey } = await import('$lib/library/dupes');
+// Reveal is a value only the server makes (prefs.ts), never a bare '1'.
+const { revealValue } = await import('$lib/server/prefs');
 const seriesScreen = await import('../src/routes/series/[id]/+page.server');
 
 const db = getDb();
@@ -108,7 +110,7 @@ describe('deciding', () => {
 				request: new Request('http://localhost/', { method: 'POST', body }),
 				params: { id: String(seriesOf(ONE)) },
 				url: new URL(`http://localhost/series/${seriesOf(ONE)}`),
-				cookies: { get: () => '1' }
+				cookies: { get: (n: string) => (n === 'tsundoku_reveal' ? revealValue('1') : '1') }
 			})) as { ok?: boolean; refused?: { pair: string; decision: string }[]; failed?: [] };
 			expect(answer).toMatchObject({ ok: true, failed: [] });
 			expect(answer.refused?.map((r) => [r.pair, r.decision])).toEqual([[earlier, 'fold']]);
@@ -128,7 +130,7 @@ describe('deciding', () => {
 				request: new Request('http://localhost/', { method: 'POST', body: again }),
 				params: { id: String(seriesOf(ONE)) },
 				url: new URL(`http://localhost/series/${seriesOf(ONE)}`),
-				cookies: { get: () => '1' }
+				cookies: { get: (n: string) => (n === 'tsundoku_reveal' ? revealValue('1') : '1') }
 			})) as { status?: number };
 			expect(second.status).toBe(409);
 		} finally {

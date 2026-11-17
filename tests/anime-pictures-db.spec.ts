@@ -131,6 +131,8 @@ afterAll(async () => {
 const { getDb } = await import('$lib/server/db');
 const { ensureRoot } = await import('$lib/server/import/write');
 const pictures = await import('$lib/server/anime/pictures');
+// Reveal is a value only the server makes (prefs.ts), never a bare '1'.
+const { revealValue } = await import('$lib/server/prefs');
 const { GET } = await import('../src/routes/api/anime/thumb/[entry]/+server');
 
 const db = getDb();
@@ -170,7 +172,9 @@ const size = async (id: number) => {
 	return [m.format, m.width, m.height];
 };
 const cookies = (reveal: boolean) =>
-	({ get: (k: string) => (k === 'tsundoku_reveal' && reveal ? '1' : undefined) }) as never;
+	({
+		get: (k: string) => (k === 'tsundoku_reveal' && reveal ? revealValue(undefined) : undefined)
+	}) as never;
 // A refusal is SvelteKit's error(), thrown: read as its status.
 const ask = async (id: number, reveal = false): Promise<Response | { status: number }> => {
 	try {

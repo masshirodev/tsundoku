@@ -49,7 +49,11 @@ async function plainPost(page: Page, q: string) {
 		result: await res.json().catch(() => res.text()),
 		reveals: res
 			.headersArray()
-			.some((h) => h.name.toLowerCase() === 'set-cookie' && /^tsundoku_reveal=1;/.test(h.value))
+			.some(
+				(h) =>
+					h.name.toLowerCase() === 'set-cookie' &&
+					/^tsundoku_reveal=v1\.\d+\.[\w-]{43};/.test(h.value)
+			)
 	};
 }
 
@@ -81,6 +85,18 @@ test('lock, reveal with the fingerprint, refuse without it, and unlock', async (
 	});
 	await page.goto('/');
 	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+
+	// Nor does a reveal cookie written by hand, as a browser's devtools or a
+	// paired TV could: only a value the server signed reveals (prefs.ts).
+	await page
+		.context()
+		.addCookies([
+			{ name: 'tsundoku_reveal', value: '1', url: new URL(test.info().project.use.baseURL!).origin }
+		]);
+	await page.goto('/');
+	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+	await expect(page.getByText('Kaori Mama')).toHaveCount(0);
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
 
 	// With the fingerprint, it does.
 	await command(page, '/reveal');

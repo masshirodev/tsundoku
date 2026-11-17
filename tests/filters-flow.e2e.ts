@@ -1,5 +1,6 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from './helpers/hydrated';
+import { revealOn } from './helpers/reveal';
 
 /**
  * The FILTER panel and + NEW (Library Filters turn 3, card c68;
@@ -24,9 +25,7 @@ async function openFilters(page: Page) {
 }
 
 async function reveal(page: Page) {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page.context());
 }
 
 test('a filter narrows the shelf: the URL, the label, the tab’s count and the cell all say so', async ({

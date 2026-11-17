@@ -9,6 +9,7 @@ import type { Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 import { freePort } from './helpers/tag-world';
+import { revealOn } from './helpers/reveal';
 
 /**
  * BROWSE's catalog coming back (c930; doc/BROWSE.md, "It scrolls on, and the
@@ -497,10 +498,7 @@ async function hideFound(page: Page, on: boolean) {
 	// Hiding is the reader's own act with reveal off (the action answers it with a
 	// 303 to the library). Showing it again needs reveal: hidden with reveal off,
 	// the series is not found, so the screen's own action 404s.
-	if (!on)
-		await page
-			.context()
-			.addCookies([{ name: 'tsundoku_reveal', value: '1', domain: 'localhost', path: '/' }]);
+	if (!on) await revealOn(page.context(), world.base);
 	try {
 		const answer = await page.request.post(`${world.base}/series/${world.foundSeriesId}?/hide`, {
 			form: { on: on ? '1' : '0' },
@@ -822,11 +820,7 @@ test('under reveal: nothing of the revealed list comes back after reveal ends', 
 }) => {
 	test.setTimeout(120_000);
 	const reveal = (on: boolean) =>
-		on
-			? context.addCookies([
-					{ name: 'tsundoku_reveal', value: '1', domain: 'localhost', path: '/', httpOnly: true }
-				])
-			: context.clearCookies({ name: 'tsundoku_reveal' });
+		on ? revealOn(context, world.base) : context.clearCookies({ name: 'tsundoku_reveal' });
 	await reveal(true);
 	await page.goto(`${world.base}/browse/${MANGA.id}?pages=2`);
 	// The hidden series is drawn inside reveal, and is not with it off.

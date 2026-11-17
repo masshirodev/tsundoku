@@ -1,6 +1,7 @@
 import { type Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { expect, test } from './fixtures';
+import { revealOn } from './helpers/reveal';
 
 /**
  * Series of books, person pages, grouping and suggestions end to end
@@ -16,9 +17,7 @@ test.describe.configure({ mode: 'serial' });
 const CIRCLE = '/?tag=' + encodeURIComponent('circle:Hakka Kousha');
 
 async function reveal(page: Page) {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await revealOn(page.context());
 }
 
 async function openBooks(page: Page) {

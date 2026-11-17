@@ -25,6 +25,8 @@ const { getDb } = await import('$lib/server/db');
 const { setSourceFlag } = await import('$lib/server/engine/source-flags');
 const settingsPage = await import('../src/routes/settings/+page.server');
 const extensionsPage = await import('../src/routes/browse/extensions/+page.server');
+// Reveal is a value only the server makes (prefs.ts), never a bare '1'.
+const { revealValue } = await import('$lib/server/prefs');
 
 const db = getDb();
 db.exec(`INSERT INTO engine_repos (id, base, name, fingerprint, added_at) VALUES (1, 'https://r/', 'Repo', 'f', 0);
@@ -101,7 +103,9 @@ type Counts = { installed: number; updates: number };
 async function settingsCounts(reveal: boolean): Promise<Counts | null> {
 	const url = new URL('http://localhost/settings');
 	const data = (await settingsPage.load({
-		cookies: { get: (n: string) => (reveal && n === 'tsundoku_reveal' ? '1' : undefined) },
+		cookies: {
+			get: (n: string) => (reveal && n === 'tsundoku_reveal' ? revealValue(undefined) : undefined)
+		},
 		url,
 		locals: { via: 'local', paired: null },
 		isDataRequest: true,
@@ -115,7 +119,9 @@ async function extensionsCounts(reveal: boolean): Promise<Counts> {
 	const url = new URL('http://localhost/browse/extensions');
 	const data = (await extensionsPage.load({
 		url,
-		cookies: { get: (n: string) => (reveal && n === 'tsundoku_reveal' ? '1' : undefined) }
+		cookies: {
+			get: (n: string) => (reveal && n === 'tsundoku_reveal' ? revealValue(undefined) : undefined)
+		}
 	} as never)) as {
 		counts: { installed: number };
 		installed: { updates: unknown[] };
@@ -135,9 +141,9 @@ describe('the EXTENSIONS row in SETTINGS (c725)', () => {
 	});
 	it('counts a hidden source only inside reveal, as EXTENSIONS does', async () => {
 		const { isRevealed } = await import('$lib/server/prefs');
-		// The reveal cookie as the app names it: the case is only as good as this.
+		// The reveal cookie as the app names and signs it: the case is only as good as this.
 		const revealed = isRevealed({
-			get: (n: string) => (n === 'tsundoku_reveal' ? '1' : undefined)
+			get: (n: string) => (n === 'tsundoku_reveal' ? revealValue(undefined) : undefined)
 		} as never);
 		expect(revealed).toBe(true);
 		expect(await settingsCounts(true)).toEqual({ installed: 6, updates: 3 });
