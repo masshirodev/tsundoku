@@ -112,6 +112,55 @@ test('↓ CACHE and REMOVE CACHE act on the selection, with counts', async ({ pa
 	await expect(page.locator('.entry .cache', { hasText: '↓' })).toHaveCount(0);
 });
 
+test('hiding a series takes what the tablet kept of it off the tablet', async ({ page }) => {
+	// 90 s for the worker, then two chapters and the sweep.
+	test.setTimeout(180_000);
+	const series = await seriesUrl(page);
+	const id = Number(series.match(/\/series\/(\d+)/)![1]);
+	const origin = new URL(series).origin;
+	await controlled(page);
+	// The service worker keeps this screen's copy once it is in charge.
+	await page.goto(series);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	const rows = page.locator('.entry .entry-btn');
+	await rows.nth(0).click();
+	await rows.nth(1).click();
+	await page.getByRole('button', { name: /↓ CACHE/ }).click();
+	await expect(page.locator('.entry .cache', { hasText: '↓' })).toHaveCount(2, { timeout: 20000 });
+
+	const held = () =>
+		page.evaluate(async (id) => {
+			const of = async (name: string) =>
+				(await caches.has(name))
+					? (await (await caches.open(name)).keys()).map((k) => new URL(k.url).pathname)
+					: [];
+			const entries = await of('tsundoku-entries');
+			return {
+				markers: entries.filter((p) => p.startsWith(`/__cache/series/${id}/`)).length,
+				pages: entries.filter((p) => /^\/api\/entries\/\d+\/pages\/\d+$/.test(p)).length,
+				screen: (await of('tsundoku-screens')).some((p) => p.startsWith(`/series/${id}`))
+			};
+		}, id);
+	expect(await held()).toMatchObject({ markers: 2, screen: true });
+	expect((await held()).pages).toBeGreaterThan(0);
+
+	const hide = (on: boolean) =>
+		page.request.post(`${series}?/hide`, {
+			headers: { origin, 'x-sveltekit-action': 'true' },
+			form: { on: on ? '1' : '0' }
+		});
+	try {
+		expect((await hide(true)).ok()).toBe(true);
+		// The library, as the series screen's own HIDE ends with reveal off.
+		await page.goto('/');
+		await expect.poll(held, { timeout: 15000 }).toEqual({ markers: 0, pages: 0, screen: false });
+	} finally {
+		await revealOn(page.context());
+		expect((await hide(false)).ok()).toBe(true);
+		await page.context().clearCookies({ name: 'tsundoku_reveal' });
+	}
+});
+
 test('nothing is kept while reveal is on', async ({ page, request }) => {
 	await revealOn(page.context());
 	const res = await page.request.get('/');

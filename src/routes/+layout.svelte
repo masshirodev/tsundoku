@@ -35,6 +35,7 @@
 	import { appUpdater } from '$lib/app/update.svelte';
 	import { offline } from '$lib/offline.svelte';
 	import { flushHighlights } from '$lib/cache/pending-highlights';
+	import { sweepSoon } from '$lib/cache/sweep';
 
 	let { data, children } = $props();
 
@@ -43,6 +44,15 @@
 	// the connection comes back. While anything waits, the call keeps itself going.
 	$effect(() => {
 		if (offline.online) void flushHighlights();
+	});
+
+	// What the device keeps of a series hidden since (or deleted) goes
+	// (src/lib/cache/sweep.ts; doc/OFFLINE.md): asked on opening, on coming
+	// back online, and after every screen change or reload of its data, which
+	// is what a HIDE anywhere ends in. Debounced, so a burst asks once.
+	$effect(() => {
+		void page.data;
+		if (offline.online) sweepSoon();
 	});
 
 	// D-pad focus for the whole app (src/lib/focus, doc/FOCUS.md): one key
