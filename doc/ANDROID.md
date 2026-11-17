@@ -206,47 +206,48 @@ neither.
 The TV's launcher shows **tsundoku** with the wordmark banner (320×180, drawn
 from `android/banner/tv-banner.svg`); the icon is the app's own 積 on graphite.
 
-## The screens, and their names in the code
+## The screens
 
 The pairing and server screens are split between the app's own page
-(`assets/pair/index.html`) and the computer's routes. Comments, test titles and
-the page's script refer to them by short codes, given here once:
+(`assets/pair/index.html`) and the computer's routes. These are the screens, and
+what each is called in this doc:
 
-| Code | Screen                                                        | Whose                                   |
-| ---- | ------------------------------------------------------------- | --------------------------------------- |
-| 9A   | Welcome: what the app does and the three steps, START →       | the app's page (`#welcome`)             |
-| 9B   | The computer's address                                        | the app's page (`#address`)             |
-| 9C   | The six digits                                                | the computer's `/pair/tv`               |
-| 9D   | Nothing answers: what was tried, the likely reasons, retrying | the app's page (`#lost`)                |
-| 9E   | Paired, OPEN THE LIBRARY →                                    | the computer's `/pair/tv`               |
-| S1   | The library bar's `ON LIVING ROOM` cell                       | the web app (`src/routes/+page.svelte`) |
-| S2   | SERVERS, the list                                             | the web app (`MoreSheet.svelte`)        |
-| S3   | A server's options                                            | the web app (`MoreSheet.svelte`)        |
-| S4   | FORGET                                                        | the web app (`MoreSheet.svelte`)        |
-| S5   | RENAME                                                        | the app's page, `#rename=<origin>`      |
-| S6   | MORE with its SERVERS row                                     | the web app (`MoreSheet.svelte`)        |
-| S7   | ADD A SERVER (9B, step `ADD A SERVER · 1 OF 2`)               | the app's page, `#add`                  |
-| S8   | A server added, in place of the computer's 9E                 | the app's page, `#added=<origin>`       |
-| S9   | 9D with the other servers offered                             | the app's page, `#lost=<origin>`        |
+| Screen name                                             | What it shows                                                 | Whose                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------- |
+| The first screen                                        | Welcome: what the app does and the three steps, START →       | the app's page (`#welcome`)             |
+| The address screen                                      | The computer's address                                        | the app's page (`#address`)             |
+| The code screen                                         | The six digits                                                | the computer's `/pair/tv`               |
+| The not-answering screen                                | Nothing answers: what was tried, the likely reasons, retrying | the app's page (`#lost`)                |
+| The paired page                                         | Paired, OPEN THE LIBRARY →                                    | the computer's `/pair/tv`               |
+| The bar's server cell                                   | The library bar's `ON LIVING ROOM` cell                       | the web app (`src/routes/+page.svelte`) |
+| SERVERS                                                 | The list of servers                                           | the web app (`MoreSheet.svelte`)        |
+| A server's options                                      | What can be done with one server                              | the web app (`MoreSheet.svelte`)        |
+| FORGET                                                  | Forgetting a server                                           | the web app (`MoreSheet.svelte`)        |
+| RENAME                                                  | Renaming a server                                             | the app's page, `#rename=<origin>`      |
+| MORE's SERVERS row                                      | MORE with its SERVERS row                                     | the web app (`MoreSheet.svelte`)        |
+| ADD A SERVER                                            | The address screen, step `ADD A SERVER · 1 OF 2`              | the app's page, `#add`                  |
+| The added screen                                        | A server added, in place of the computer's paired page        | the app's page, `#added=<origin>`       |
+| The not-answering screen with the other servers offered | Nothing answers, with the other servers offered               | the app's page, `#lost=<origin>`        |
 
 SERVERS, its options and FORGET are panels over the library, so they are the
 web app's, reading the bridge at runtime, in the 420 px panel every TV sheet
 is. RENAME and the add are whole screens, before or beside pairing, so they are
-the app's own page, as 9A, 9B and 9D are. The two halves talk only through
+the app's own page, as the first screen, the address screen and the
+not-answering screen are. The two halves talk only through
 `window.TsundokuTV`.
 
 The app's own page is served by `WebViewAssetLoader` at
 `https://appassets.androidplatform.net/pair/index.html` on both flavours, never
 as a `file://` page ([below](#the-apps-own-page)). It moves between screens by
-its URL fragment, the "doors" below: `#connect=`, `#ask=`, `#bad=`, `#long=`,
-`#lost=`, `#add`, `#added=`, `#rename=`.
+its URL fragment, the entry points below: `#connect=`, `#ask=`, `#bad=`,
+`#long=`, `#lost=`, `#add`, `#added=`, `#rename=`.
 
 ## On launch
 
 - **An address given at launch** ([below](#handing-the-app-an-address)) is
   dealt with first, whether it came with a cold start or with a second
   `am start` on an app already open. One in the list is checked and opened;
-  one that is not waits on 9B for CONNECT
+  one that is not waits on the address screen for CONNECT
   ([below](#an-address-from-outside-is-asked-about)) and is never stored before
   that.
 - **The last used server that answers** opens its library directly. The device
@@ -254,10 +255,11 @@ its URL fragment, the "doors" below: `#connect=`, `#ask=`, `#bad=`, `#long=`,
   open last; there is no default to mark. The answer is the web app manifest:
   `/manifest.webmanifest`'s name must be tsundoku's, so a router, a NAS or
   another web server does not pass.
-- **The last used server that does not answer** shows 9D for it, what it tried
-  and the three likely reasons, keeps probing every 5 s, and offers the other
-  servers beside the reasons (S9). It never silently opens another.
-- **No server at all, remembered or given,** shows 9A.
+- **The last used server that does not answer** shows the not-answering screen
+  for it, what it tried and the three likely reasons, keeps probing every 5 s,
+  and offers the other servers beside the reasons (not answering, with other
+  servers). It never silently opens another.
+- **No server at all, remembered or given,** shows the first screen.
 
 ### Handing the app an address
 
@@ -288,26 +290,28 @@ presses CONNECT.
 On a friend's install the same command takes that computer's own address, which
 is also what a failing LAN probe leaves to type: `--es url
 http://192.168.1.23:42143` (their `PORT` if they changed it). The whole address
-is the one thing 9B would otherwise ask for on a remote.
+is the one thing the address screen would otherwise ask for on a remote.
 
 Only `http` and `https` with a host are accepted (`Address.intentOrigin`): a
-tailnet name, a domain or an address, on a port from 1 to 65535 (a port of 0,
-or one above 65535, is refused rather than rewritten to the default one). Only
-the origin is kept: a path, a query and a fragment are dropped, and an address
+tailnet name, a domain or an address, on a port from 1 to 65535 (a port of 0, or
+one above 65535, is refused rather than rewritten to the default one). Only the
+origin is kept: a path, a query and a fragment are dropped, and an address
 carrying a username or password is refused. A bare `host:port` is not enough
-here, although it is on 9B: nothing was typed, and the command can always give
-the scheme. `Given.kt` decides what the page does with what arrived:
+here, although it is on the address screen: nothing was typed, and the command
+can always give the scheme. `Given.kt` decides what the page does with what
+arrived:
 
-| What arrives                                        | Door        | What the page does                              |
-| --------------------------------------------------- | ----------- | ----------------------------------------------- |
-| An address not in the list, by the link or by extra | `#ask=`     | 9B with the field filled; nothing until CONNECT |
-| An address already in the list                      | `#connect=` | Checks it, opens its library; stores nothing    |
-| One `Address.intentOrigin` refuses                  | `#bad=`     | 9B's refused band                               |
-| Not in the list and over 80 characters              | `#long=`    | The same band, saying it is the length          |
-| No address (the plain launcher entry)               | none        | Launch as usual                                 |
+| What arrives                                        | Entry point | What the page does                                              |
+| --------------------------------------------------- | ----------- | --------------------------------------------------------------- |
+| An address not in the list, by the link or by extra | `#ask=`     | The address screen with the field filled; nothing until CONNECT |
+| An address already in the list                      | `#connect=` | Checks it, opens its library; stores nothing                    |
+| One `Address.intentOrigin` refuses                  | `#bad=`     | The address screen's refused band                               |
+| Not in the list and over 80 characters              | `#long=`    | The same band, saying it is the length                          |
+| No address (the plain launcher entry)               | none        | Launch as usual                                                 |
 
-- **Refused** lands on 9B with its band: the field empty, the mark on NEXT, and
-  the band saying `THAT ADDRESS WAS REFUSED · NOTHING WAS SAVED`. Its hint,
+- **Refused** lands on the address screen with its band: the field empty, the
+  mark on NEXT, and the band saying
+  `THAT ADDRESS WAS REFUSED · NOTHING WAS SAVED`. Its hint,
   `http(s)://HOST · NO LOGIN · PORT 1–65535`, names every rule
   `Address.intentOrigin` refuses by and no other: the scheme, a host, no
   userinfo (LOGIN is a username, a password or both, before an `@`), and a port
@@ -315,55 +319,58 @@ the scheme. `Given.kt` decides what the page does with what arrived:
   first two. The row does not wrap, and on a TV its monospace is 0.6 em a glyph
   (Roboto Mono and Droid Sans Mono alike), so the hint is short enough to sit
   beside the band's first line there; a longer wording,
-  `http:// OR https:// WITH A HOST, NO USERNAME, PORT 1–65535`, fits a
-  desktop's narrower font and cuts the first line off on a TV. A new address
-  over 80 characters breaks none of those rules, so its band says what it did
-  break instead: `OVER 80 CHARACTERS IS TOO LONG TO READ`.
+  `http:// OR https:// WITH A HOST, NO USERNAME, PORT 1–65535`, fits a desktop's
+  narrower font and cuts the first line off on a TV. A new address over 80
+  characters breaks none of those rules, so its band says what it did break
+  instead: `OVER 80 CHARACTERS IS TOO LONG TO READ`.
 - **New** is asked about first. Once CONNECT is pressed and it answers, it is
   added to the device's servers (it does not replace the one in use) and opens
   the pairing at that address: the six digits on a tailnet instance or on a
   friend's.
 - **Answered** and already in the list opens that server's library: its pairing
   is already in the WebView's cookie jar.
-- **Not answered** shows 9D for that address and keeps trying. A previously
-  remembered address is left alone, but 9D does not give up the given one by
-  itself, and the launcher's icon does not bring the library back: the activity
-  is `singleTask`, so tapping the icon while the app is open hands a plain MAIN
-  intent to `onNewIntent`, which carries no address and changes nothing, and
-  the device stays on 9D retrying the mistyped address. **BACK** is the way
-  back: the page takes no BACK of its own there, so `Back.kt` goes to the
-  nearest earlier screen past the app's own pages, which is the library when
-  the app was open on it, and otherwise asks for the second press that leaves
-  the app ([BACK](#back)). The next launch, with no address given, probes the
-  last used server and opens its library.
+- **Not answered** shows the not-answering screen for that address and keeps
+  trying. A previously remembered address is left alone, but the not-answering
+  screen does not give up the given one by itself, and the launcher's icon does
+  not bring the library back: the activity is `singleTask`, so tapping the icon
+  while the app is open hands a plain MAIN intent to `onNewIntent`, which
+  carries no address and changes nothing, and the device stays on the
+  not-answering screen retrying the mistyped address. **BACK** is the way back:
+  the page takes no BACK of its own there, so `Back.kt` goes to the nearest
+  earlier screen past the app's own pages, which is the library when the app was
+  open on it, and otherwise asks for the second press that leaves the app
+  ([BACK](#back)). The next launch, with no address given, probes the last used
+  server and opens its library.
 
-The check is 9B's own: the web app manifest, through `PairingBridge`. Both
-`#connect=` and CONNECT on `#ask=` reach the one success branch that stores,
-and neither adds a second probe.
+The check is the address screen's own: the web app manifest, through
+`PairingBridge`. Both `#connect=` and CONNECT on `#ask=` reach the one success
+branch that stores, and neither adds a second probe.
 
 #### Only the current attempt is answered
 
-A given address supersedes a probe already in flight, and that probe's answer
-is dropped, success included, so a launch cannot be overtaken by the address it
-replaced. A question supersedes an attempt the same way. A refusal stops 9D's
-retry before showing the band, so the band is not replaced five seconds later
-by the old address's failure, and a probe still in flight when the refusal
-arrives cannot replace it either: only a _failure_ is dropped, so a late
-success still remembers and opens the pairing. A new attempt clears the band
-first, because it is a new question, whether typed on 9B or handed in at
-launch. The band's flag is cleared at all three ways into that screen
-(`probe`, `show`, `connect`), so a visible band always means the refusal is
-still the attempt in hand; hiding the screen alone does not hide the flag.
+A given address supersedes a probe already in flight, and that probe's answer is
+dropped, success included, so a launch cannot be overtaken by the address it
+replaced. A question supersedes an attempt the same way. A refusal stops the
+not-answering screen's retry before showing the band, so the band is not
+replaced five seconds later by the old address's failure, and a probe still in
+flight when the refusal arrives cannot replace it either: only a _failure_ is
+dropped, so a late success still remembers and opens the pairing. A new attempt
+clears the band first, because it is a new question, whether typed on the
+address screen or handed in at launch. The band's flag is cleared at all three
+ways into that screen (`probe`, `show`, `connect`), so a visible band always
+means the refusal is still the attempt in hand; hiding the screen alone does not
+hide the flag.
 
 The activity keeps the same rule for the one probe it makes itself, the
 remembered address's on a cold start. That probe can take up to six seconds
-(`Probe.kt`'s 3 s connect and 3 s read, longer when a `.ts.net` name stalls
-with Tailscale down), and a second launch handed an address inside that window
-reaches `onNewIntent` and loads 9B at once. `Attempts.kt` numbers the two
-paths: the probe takes an attempt before it starts, `takeGiven` takes the
-next, and the probe's answer is acted on only if its attempt is still the
-latest. So the given address's 9B is replaced neither by the library at the
-remembered address nor by 9D naming an address nobody handed in.
+(`Probe.kt`'s 3 s connect and 3 s read, longer when a `.ts.net` name stalls with
+Tailscale down), and a second launch handed an address inside that window
+reaches `onNewIntent` and loads the address screen at once. `Attempts.kt`
+numbers the two paths: the probe takes an attempt before it starts, `takeGiven`
+takes the next, and the probe's answer is acted on only if its attempt is still
+the latest. So the address screen for the given address is replaced neither by
+the library at the remembered address nor by the not-answering screen naming an
+address nobody handed in.
 
 ### An address from outside is asked about
 
@@ -387,32 +394,34 @@ from it. The cost is that the documented `am start` for a new computer needs
 one press of CONNECT at the TV. The six digits that follow already need
 somebody there.
 
-**The question** is 9B and its band, with no new layout. The band says
+**The question** is the address screen and its band, with no new layout. The
+band says
 `THIS ADDRESS CAME FROM A LINK · NOTHING IS SAVED UNTIL YOU PRESS CONNECT`, the
 field holds the address, the hint writes it out again whole on two lines (the
 address alone on the first, `BACK LEAVES WITHOUT SAVING IT` on the second, the
-same 19 px gap above the buttons at the 960 frame as under 9B's ordinary hint),
-because a field clips a long host and the end of a host is what says whose it
-is. NEXT reads `CONNECT →`. 80 characters is 9B's own limit for a whole
-address, and over it a new address is refused rather than shown cut, with the
-length's band.
+same 19 px gap above the buttons at the 960 frame as under the address screen's
+ordinary hint), because a field clips a long host and the end of a host is what
+says whose it is. NEXT reads `CONNECT →`. 80 characters is the address screen's
+own limit for a whole address, and over it a new address is refused rather than
+shown cut, with the length's band.
 
 - **CONNECT is the typed path.** It probes the field, and an answer is stored
   once in the same success branch a typed address uses. What is in the field
   is what gets connected to: it can be corrected first.
 - **The mark starts on the second button, not on CONNECT.** A link is opened by
   a press, so the next stray OK must not be the answer. That button is the way
-  out: 9B as START leaves it, the field empty.
-- **BACK** returns to the library of the server in use, and with no server it
-  is the app's to take: the first press only toasts and this page stays, so
-  the question goes back to what it was before CONNECT, with CHECKING gone,
-  CONNECT live and the mark on it. Neither saves anything, a CONNECT already
-  pressed included: opening the library is a `loadUrl`, so this document runs
-  on until that navigation commits, and an answer landing in that time is
-  dropped. It neither stores the address nor puts 9D over the library's load.
-- **A question does not outlive its door.** `settle()` takes `#ask=` off the
-  history entry the moment it is read, as it does `#connect=`, so a history
-  step into that entry shows 9A rather than the question again. Were it
+  out: the address screen as START leaves it, the field empty.
+- **BACK** returns to the library of the server in use, and with no server it is
+  the app's to take: the first press only toasts and this page stays, so the
+  question goes back to what it was before CONNECT, with CHECKING gone, CONNECT
+  live and the mark on it. Neither saves anything, a CONNECT already pressed
+  included: opening the library is a `loadUrl`, so this document runs on until
+  that navigation commits, and an answer landing in that time is dropped. It
+  neither stores the address nor puts the not-answering screen over the
+  library's load.
+- **A question does not outlive its entry point.** `settle()` takes `#ask=` off the
+  history entry the moment it is read, as it does `#connect=`, so a history step
+  into that entry shows the first screen rather than the question again. Were it
   replayed anyway, the worst it does is show the question: nothing is stored
   without the press.
 - **It supersedes what was in hand.** A typed probe still out, or a CONNECT
@@ -427,12 +436,13 @@ length's band.
   main-frame load that failed, without asking the list, so a page the WebView
   shows can name an origin by opening a closed port of its own, and an external
   link (`target=_blank` opens in the same WebView) whose host is down does the
-  same by accident. 9D's retry stores what answers, so only a server in the
-  list reaches 9D; any other origin gets this question, with no probe and no
-  `remember` until CONNECT, and its band still says the address came from a
-  link, because 9B has no other wording to give it. A server remembered just
-  before its `/pair/tv` failed is already in the list (`remember` is synchronous
-  and runs before the navigation), so that path still reaches 9D.
+  same by accident. The not-answering screen's retry stores what answers, so
+  only a server in the list reaches the not-answering screen; any other origin
+  gets this question, with no probe and no `remember` until CONNECT, and its
+  band still says the address came from a link, because the address screen has
+  no other wording to give it. A server remembered just before its `/pair/tv`
+  failed is already in the list (`remember` is synchronous and runs before the
+  navigation), so that path still reaches the not-answering screen.
 - **The 80 characters hold in the page, for every way to the question.**
   `#lost=` comes from `onReceivedError` and never meets `Given.door`, and a
   question fills the field past its `maxLength`, so `ask()` itself refuses an
@@ -440,9 +450,9 @@ length's band.
   holds the two together) with the length's own band. `#ask=`, `#lost=` and a
   `#connect=` for an address not in the list all come through `ask()`. A server
   in the list does not: nothing is asked about it, so one over 80 characters
-  still reaches 9D and opens. A refusal does not take back a CONNECT already
-  pressed: as with any refusal, only a late failure is dropped, and a late
-  answer still pairs the address CONNECT was pressed for.
+  still reaches the not-answering screen and opens. A refusal does not take back
+  a CONNECT already pressed: as with any refusal, only a late failure is
+  dropped, and a late answer still pairs the address CONNECT was pressed for.
 
 The list records nothing about how an entry got there, so an origin stored by a
 link before this rule existed cannot be told apart. MORE › SERVERS › FORGET is
@@ -450,30 +460,31 @@ the remedy for one nobody recognises.
 
 ### Origins
 
-An address is compared by its **origin**, not its text. 9B's field keeps what
-was typed (a path, a query, userinfo, a differently cased host) while
-`PairingBridge` answers with `Address.originOf`'s origin. Both sides of the
-comparison go through `new URL(…).origin` (the page's `atOrigin`), so a typed
-`https://zen.tailnet.ts.net:8443/library` and the bridge's
+An address is compared by its **origin**, not its text. The address screen's
+field keeps what was typed (a path, a query, userinfo, a differently cased host)
+while `PairingBridge` answers with `Address.originOf`'s origin. Both sides of
+the comparison go through `new URL(…).origin` (the page's `atOrigin`), so a
+typed `https://zen.tailnet.ts.net:8443/library` and the bridge's
 `https://zen.tailnet.ts.net:8443` are the same attempt and its success or
-failure lands; comparing the raw strings would drop the answer and leave 9B on
-CHECKING with NEXT disabled.
+failure lands; comparing the raw strings would drop the answer and leave the
+address screen on CHECKING with NEXT disabled.
 
-What the app **stores** is `Address.originOf`'s origin, lower case in its
-scheme and its host, as `intentOrigin`, Chromium's URL and the page's
-`location.origin` all are. A host stored as typed (`http://Zen.local:42143`)
-would break everything that compares: `BridgeGuard` would refuse the server's
-own pages (they load at `http://zen.local:42143`), FORGET, RENAME, the probe and
-`named` would do nothing from them, and `Servers.find` would miss it, so it
-would never become the server in use. A scheme typed in capitals (`HTTP://…`,
-or `Http://…` from a TV keyboard that capitalises the first letter) is read as
-a scheme twice over, not given a second `http://`: 9B's `origin()` tests it
+What the app **stores** is `Address.originOf`'s origin, lower case in its scheme
+and its host, as `intentOrigin`, Chromium's URL and the page's `location.origin`
+all are. A host stored as typed (`http://Zen.local:42143`) would break
+everything that compares: `BridgeGuard` would refuse the server's own pages
+(they load at `http://zen.local:42143`), FORGET, RENAME, the probe and `named`
+would do nothing from them, and `Servers.find` would miss it, so it would never
+become the server in use. A scheme typed in capitals (`HTTP://…`, or `Http://…`
+from a TV keyboard that capitalises the first letter) is read as a scheme twice
+over, not given a second `http://`: the address screen's `origin()` tests it
 without case (`/^https?:\/\//i`, the test `connect()` uses) before the probe and
 `remember` see it, and `originOf` reads it without case after. A case-sensitive
-test would turn `HTTP://Zen.local:42143` into `http://HTTP://Zen.local:42143`,
-a host named `HTTP`, and 9B would say NOTHING ANSWERS. 9B's CHECKING line and
-9D's title strip the scheme from what they print with the same case-blind
-regex, so a capitalised scheme reads as its host on both.
+test would turn `HTTP://Zen.local:42143` into `http://HTTP://Zen.local:42143`, a
+host named `HTTP`, and the address screen would say NOTHING ANSWERS. The address
+screen's CHECKING line and the not-answering screen's title strip the scheme
+from what they print with the same case-blind regex, so a capitalised scheme
+reads as its host on both.
 
 Every place the APK compares an origin goes through `originOf` or agrees with
 it: `BridgeGuard.allows` (the top-level URL through `originOf`; its scheme test
@@ -512,70 +523,73 @@ a friend's panel) makes another.
   WHOLE ADDRESS** the app types, the request's own origin, since a tailnet
   install has no last-number shortcut.
 
-### The screens, 9A to 9E
+### The pairing screens
 
-1. **9A**: what the app does, and the three steps. The first names the
-   computer's SETTINGS › 08 — DEVICES and WI-FI ON for a friend's install, and
-   says a Tailscale install has no switch to press: both truths, so neither
+1. **The first screen**: what the app does, and the three steps. The first names
+   the computer's SETTINGS › 08 — DEVICES and WI-FI ON for a friend's install,
+   and says a Tailscale install has no switch to press: both truths, so neither
    install is sent to a section with no digits. The step's copy is kept short
    enough that the steps grid ends above START at 960×540 (a longer wording ran
-   it to 413.75 against START's 400; `tv-app-pair.e2e.ts` checks the two
-   boxes). START →.
-2. **9B**: the address, written for the device: its own network's first three
-   numbers and tsundoku's port (42143 unless the friend changed `PORT`), so
-   only the last number is typed. On a TV the mark starts on NEXT, never on the
-   field: a focused text field is what asks the WebView for the TV's number
-   pad, and the pad opens over the bottom half of the screen, covering TYPE THE
-   WHOLE ADDRESS (the one button a Tailscale user needs) with nothing on screen
-   saying BACK would close it. The pad opens only when the mark is moved onto
-   the field, which is the request to type. The number keys type into the field
-   wherever the mark is, so a remote that has them never needs the pad; a
-   remote without them reaches TYPE THE WHOLE ADDRESS in one press down, and
-   the field is one press up. TYPE THE WHOLE ADDRESS takes `host:port` or a
-   full `http://…` for Tailscale or another port; its hint says where the
-   digits are, the computer's SETTINGS. NEXT probes it. An address handed in at
-   launch that is in the list is probed the same way and skips this screen;
-   one that is not stops here, filled in, until CONNECT is pressed. A pasted
-   address with a path or a query pairs at its origin: the origin is what is
-   probed, remembered and opened, never the whole string.
-3. **9C**: the computer's own `/pair/tv`: six cells in two threes, the number
-   keys type and ← erases, and PAIR → presses itself when the sixth arrives. A
-   wrong code says how many tries are left. With a band, the band sits at 84
-   and is 56 high, so the section label moves from 108 to 164 and the cells to
-   204, the rhythm 9D keeps below its own band, and the buttons still end
-   inside the frame (`tv-pair.e2e.ts` checks every band state's box ends above
-   the label and the cells). An expired code is replaced on arrival:
-   `/pair/tv` makes a fresh code when the only one has merely expired, and a
-   burned one still needs the computer (`TvPairing.renewForTv`;
-   [`WIFI.md`](WIFI.md), "A TV's code, typed with a remote").
-4. **9D**: nothing answered: what it tried, when, and that it keeps trying;
-   then the likely reasons, the third worked out from the device's own address
-   (on a phone, whether it is on mobile data). The second reason names both a
-   friend's WI-FI switch and a tailnet install with no digits, so neither reads
-   false. TRY AGAIN, or CHANGE THE ADDRESS. The reasons are at least 60 px
-   high, not exactly: at 500 px wide the second wraps on a TV's font, and all
-   three still end above TRY AGAIN.
-5. **9E**: paired. OPEN THE LIBRARY → is the computer's `/`. On a first
-   pairing it says nothing of other servers: with one server nothing changes.
+   it to 413.75 against START's 400; `tv-app-pair.e2e.ts` checks the two boxes).
+   START →.
+2. **The address screen**: the address, written for the device: its own
+   network's first three numbers and tsundoku's port (42143 unless the friend
+   changed `PORT`), so only the last number is typed. On a TV the mark starts on
+   NEXT, never on the field: a focused text field is what asks the WebView for
+   the TV's number pad, and the pad opens over the bottom half of the screen,
+   covering TYPE THE WHOLE ADDRESS (the one button a Tailscale user needs) with
+   nothing on screen saying BACK would close it. The pad opens only when the
+   mark is moved onto the field, which is the request to type. The number keys
+   type into the field wherever the mark is, so a remote that has them never
+   needs the pad; a remote without them reaches TYPE THE WHOLE ADDRESS in one
+   press down, and the field is one press up. TYPE THE WHOLE ADDRESS takes
+   `host:port` or a full `http://…` for Tailscale or another port; its hint says
+   where the digits are, the computer's SETTINGS. NEXT probes it. An address
+   handed in at launch that is in the list is probed the same way and skips this
+   screen; one that is not stops here, filled in, until CONNECT is pressed. A
+   pasted address with a path or a query pairs at its origin: the origin is what
+   is probed, remembered and opened, never the whole string.
+3. **The code screen**: the computer's own `/pair/tv`: six cells in two threes,
+   the number keys type and ← erases, and PAIR → presses itself when the sixth
+   arrives. A wrong code says how many tries are left. With a band, the band
+   sits at 84 and is 56 high, so the section label moves from 108 to 164 and the
+   cells to 204, the rhythm the not-answering screen keeps below its own band,
+   and the buttons still end inside the frame (`tv-pair.e2e.ts` checks every
+   band state's box ends above the label and the cells). An expired code is
+   replaced on arrival: `/pair/tv` makes a fresh code when the only one has
+   merely expired, and a burned one still needs the computer
+   (`TvPairing.renewForTv`; [`WIFI.md`](WIFI.md), "A TV's code, typed with a
+   remote").
+4. **The not-answering screen**: nothing answered: what it tried, when, and that
+   it keeps trying; then the likely reasons, the third worked out from the
+   device's own address (on a phone, whether it is on mobile data). The second
+   reason names both a friend's WI-FI switch and a tailnet install with no
+   digits, so neither reads false. TRY AGAIN, or CHANGE THE ADDRESS. The reasons
+   are at least 60 px high, not exactly: at 500 px wide the second wraps on a
+   TV's font, and all three still end above TRY AGAIN.
+5. **The paired page**: paired. OPEN THE LIBRARY → is the computer's `/`. On a
+   first pairing it says nothing of other servers: with one server nothing
+   changes.
 
-9C and 9E are the computer's route, so the code is posted same-origin and the
-paired cookie is set exactly as `/pair/<code>` sets it for a phone's browser
-(no CORS, no second way to be signed in). On a tailnet instance the cookie
-signs the WebView in as a browser would: `hooks.server.ts` accepts it in token
-mode on the instance's public host, so the device opens the library instead of
-`/login` ([`SIGN-IN.md`](SIGN-IN.md)).
+The code screen and the paired page are the computer's route, so the code is
+posted same-origin and the paired cookie is set exactly as `/pair/<code>` sets
+it for a phone's browser (no CORS, no second way to be signed in). On a tailnet
+instance the cookie signs the WebView in as a browser would: `hooks.server.ts`
+accepts it in token mode on the instance's public host, so the device opens the
+library instead of `/login` ([`SIGN-IN.md`](SIGN-IN.md)).
 
 The computer lists the device as a DEVICES row because the app appends
 `TsundokuTV/<version>` or `TsundokuApp/<version>` to the WebView's own user
 agent ([In DEVICES](#in-devices)).
 
-The bridge (`PairingBridge.kt`) is what the web page cannot do: the device's
-own IPv4 (for 9B's prefix and 9D's third reason), a probe of a candidate, and
-`SharedPreferences` for the servers that answered. It is registered for the
-whole WebView, so the paired web app reaches it too (MORE › SERVERS), and every
-call that writes, probes or reads the list asks first whether the page is the
-app's own or a known server's ([below](#the-bridge-and-its-guard)); the probe
-only fetches `/manifest.webmanifest` at the address it is given.
+The bridge (`PairingBridge.kt`) is what the web page cannot do: the device's own
+IPv4 (for the address screen's prefix and the not-answering screen's third
+reason), a probe of a candidate, and `SharedPreferences` for the servers that
+answered. It is registered for the whole WebView, so the paired web app reaches
+it too (MORE › SERVERS), and every call that writes, probes or reads the list
+asks first whether the page is the app's own or a known server's
+([below](#the-bridge-and-its-guard)); the probe only fetches
+`/manifest.webmanifest` at the address it is given.
 
 ### On a phone or tablet
 
@@ -592,40 +606,42 @@ The pages say the phone or the tablet where they say the TV, and reflow:
 Which app is asking is told, not measured: a TV is pinned at 960 CSS px and a
 tablet is wider, so the width alone cannot say.
 
-- **The app's own pages** (9A, 9B, 9D, S5, S7, S8, S9) ask the bridge's
-  `form()` before they paint and set `data-form` and `data-device` on `<html>`.
-  Every phone and tablet rule is under `html[data-form='mobile']`, so the TV's
-  960×540 frame is untouched.
-- **The computer's `/pair/tv`** (9C, 9E) reads the user agent (`appDevice`,
-  `src/lib/settings/catalog.ts`): `TsundokuApp` is a phone or a tablet, as
-  `pairedLabel` tells them apart, and anything else is the TV it was drawn for.
-  `.mobile` carries the same two layouts.
+- **The app's own pages** (the first screen, the address screen, the
+  not-answering screen with or without the other servers, RENAME, ADD A SERVER
+  and the added screen) ask the bridge's `form()` before they paint and set
+  `data-form` and `data-device` on `<html>`. Every phone and tablet rule is
+  under `html[data-form='mobile']`, so the TV's 960×540 frame is untouched.
+- **The computer's `/pair/tv`** (the code screen, the paired page) reads the
+  user agent (`appDevice`, `src/lib/settings/catalog.ts`): `TsundokuApp` is a
+  phone or a tablet, as `pairedLabel` tells them apart, and anything else is the
+  TV it was drawn for. `.mobile` carries the same two layouts.
 
 The words come from the screen's short side, so a phone turned on its side is
 still "this phone", laid out at the tablet's width.
 
 What the phone does that the TV does not:
 
-- **9B takes focus on arrival**, so the number keyboard opens at once; a
-  phone's keyboard pushes the page up rather than covering the buttons. On a
-  phone `http://` is dropped from the written prefix, so the field fits 360 px
-  at 130% text.
+- **The address screen takes focus on arrival**, so the number keyboard opens at
+  once; a phone's keyboard pushes the page up rather than covering the buttons.
+  On a phone `http://` is dropped from the written prefix, so the field fits 360
+  px at 130% text.
 - **The keyboard comes up by itself.** Android's WebView raises no keyboard for
   focus a script gives on arrival, so a page that focuses a field asks the
   bridge's `keyboard()`, which focuses the WebView and calls `showSoftInput`
-  (`Form.raisesKeyboard`; never on a TV). On 9C the app does it itself once
-  `/pair/tv` has hydrated (`CODE_FOCUS_JS`, which waits for SvelteKit's
-  announcer), so the digits can be typed on any server, including one whose 9C
-  was drawn for a TV alone: a 960 px frame squeezed into a phone, with a 1 px
-  field no tap reaches.
-- **9C's PAIR → stays dim until the sixth digit**, which presses it; the TV's
-  is pressable with a short code and says SIX DIGITS. On a phone the field lies
-  over the six cells, so a tap on any of them is a tap on it. NOT THAT CODE adds
-  `· FIVE WRONG TRIES BURN IT` on a phone or tablet only.
-- **9D says when the phone is on mobile data**: the bridge's `network()`
-  answers `home`, `data` or `none` (`Network.kt`), and reason 3 names the two
-  ways out. It answers only the app's own page and a known server's, as the
-  list and the address do: any other page reads an empty string.
+  (`Form.raisesKeyboard`; never on a TV). On the code screen the app does it
+  itself once `/pair/tv` has hydrated (`CODE_FOCUS_JS`, which waits for
+  SvelteKit's announcer), so the digits can be typed on any server, including
+  one whose code screen was drawn for a TV alone: a 960 px frame squeezed into a
+  phone, with a 1 px field no tap reaches.
+- **The code screen's PAIR → stays dim until the sixth digit**, which presses
+  it; the TV's is pressable with a short code and says SIX DIGITS. On a phone
+  the field lies over the six cells, so a tap on any of them is a tap on it. NOT
+  THAT CODE adds `· FIVE WRONG TRIES BURN IT` on a phone or tablet only.
+- **The not-answering screen says when the phone is on mobile data**: the
+  bridge's `network()` answers `home`, `data` or `none` (`Network.kt`), and
+  reason 3 names the two ways out. It answers only the app's own page and a
+  known server's, as the list and the address do: any other page reads an empty
+  string.
 - **A tablet's hardware keyboard** types digits wherever focus is, as a
   remote's number keys do, and Enter with nothing focused presses the screen's
   first button.
@@ -633,24 +649,23 @@ What the phone does that the TV does not:
   flavour's day and night themes are what the WebView's `prefers-color-scheme`
   reads); once paired, the web app's theme rules.
 
-The app's own pages ship no font, on either flavour, and use the device's
-system faces; `/pair/tv` is the web app's and has Plex. Boxes are border-box,
-so a 44 px number cell is 44 with its rule. 9C's cells are 47 px wide at 360:
-six equal cells in what is left of 360 after the 16 px margins, the six 6 px
-gaps and the 10 px between the threes (328 − 46 = 282, over six); they are never
-under 44. The server screens (RENAME, ADD A SERVER, ADDED, and 9D's other
-servers) take the column's rules as they are, the other servers stacked under
-the reasons.
+The app's own pages ship no font, on either flavour, and use the device's system
+faces; `/pair/tv` is the web app's and has Plex. Boxes are border-box, so a 44
+px number cell is 44 with its rule. The code screen's cells are 47 px wide at
+360: six equal cells in what is left of 360 after the 16 px margins, the six 6
+px gaps and the 10 px between the threes (328 − 46 = 282, over six); they are
+never under 44. The server screens (RENAME, ADD A SERVER, ADDED, and the
+not-answering screen's other servers) take the column's rules as they are, the
+other servers stacked under the reasons.
 
 ### The home address on a phone
 
 A phone has a cellular interface, and its IPv4 is often a carrier's 10.x:
-private, so a plain private-address test would offer it as 9B's prefix and
-send the phone looking for the computer on the carrier's network.
-`Network.homeV4` skips cellular and tunnel interfaces by name (`rmnet`,
-`ccmni`, `pdp`, `clat`, `wwan`, `tun`, `wg` and the rest) before the
-private-address test, Wi-Fi first. A TV has nothing but `wlan` and `eth`, so it
-is unaffected.
+private, so a plain private-address test would offer it as the address screen's
+prefix and send the phone looking for the computer on the carrier's network.
+`Network.homeV4` skips cellular and tunnel interfaces by name (`rmnet`, `ccmni`,
+`pdp`, `clat`, `wwan`, `tun`, `wg` and the rest) before the private-address
+test, Wi-Fi first. A TV has nothing but `wlan` and `eth`, so it is unaffected.
 
 ### In DEVICES
 
@@ -671,26 +686,28 @@ until the TV next checks in.
 The device keeps a list of the servers it has paired with, and switches
 between them as Jellyfin's TV app does.
 
-- **One server: nothing changes.** Launch, pairing and 9D are as with no list.
-  The one addition is a **SERVERS** row at the end of MORE (S6), drawn only
-  where the app's bridge exists, so a computer and a browser never see it. It
-  reads `1 · ADD ANOTHER`, or with two or more `3 · LIVING ROOM IN USE`. MORE's
-  own rows stay the house's (64 px, 15 px mono), not a 56 px panel action:
-  SERVERS is one more row in the sheet every device shares.
+- **One server: nothing changes.** Launch, pairing and the not-answering screen
+  are as with no list. The one addition is a **SERVERS** row at the end of MORE,
+  drawn only where the app's bridge exists, so a computer and a browser never
+  see it. It reads `1 · ADD ANOTHER`, or with two or more
+  `3 · LIVING ROOM IN USE`. MORE's own rows stay the house's (64 px, 15 px
+  mono), not a 56 px panel action: SERVERS is one more row in the sheet every
+  device shares.
 - **Launch opens the last used.** A server becomes the one in use when its
   library has loaded (`MainActivity.onPageFinished`, any page of it that is not
-  sign-in, set-up or pairing). If it does not answer, 9D for it with the others
-  offered (S9); never another.
+  sign-in, set-up or pairing). If it does not answer, the not-answering screen
+  for it with the others offered; never another.
 - **Names.** A server is named by itself: its hostname, upper case, as
-  `/pair/tv` says it. The app reads it from 9E's `data-paired-name` attribute
-  once 9E has loaded, falling back to 9E's first line (`✓ PAIRED WITH ZEN · …`)
-  for a server older than that attribute (`Forget.pairedNameFrom`), and the
-  library's layout also says it to the bridge on every load (`data.computer`,
-  sent only to the app's user agent), so a device paired before the list
-  existed is named too. The cost of reading it from 9E: S8 replaces 9E once 9E
-  has drawn, so 9E shows for a moment first. **RENAME** (S5) keeps the
-  device's own name for it, on the device only; emptied, the server's name
-  comes back; never named at all, the row shows its address.
+  `/pair/tv` says it. The app reads it from the paired page's `data-paired-name`
+  attribute once it has loaded, falling back to its first line
+  (`✓ PAIRED WITH ZEN · …`) for a server older than that attribute
+  (`Forget.pairedNameFrom`), and the library's layout also says it to the bridge
+  on every load (`data.computer`, sent only to the app's user agent), so a
+  device paired before the list existed is named too. The cost of reading it
+  from the paired page: the added screen replaces it once it has drawn, so the
+  paired page shows for a moment first. **RENAME** keeps the device's own name
+  for it, on the device only; emptied, the server's name comes back; never named
+  at all, the row shows its address.
 
 ### On the remote
 
@@ -707,12 +724,12 @@ between them as Jellyfin's TV app does.
 - **FORGET** is its own panel. The mark lands on KEEP IT; FORGET is ↓ then OK;
   for the first 0.6 s FORGET is disabled and KEEP IT ignores OK, so the tail of
   an OK held to open the options presses nothing. Forgetting the one in use
-  opens the next that answers, else the next by when it was opened, whose 9D
-  offers the rest; forgetting the last returns to 9A. FORGET disarms the moment
-  it is pressed, so a second press (a double tap, a second OK) before the next
-  server's page commits does nothing; and an answer that is not a list (the
-  bridge's refusal, `""`) changes nothing and calls neither `open` nor
-  `welcome`: only a real empty list is "the last one".
+  opens the next that answers, else the next by when it was opened, whose
+  not-answering screen offers the rest; forgetting the last returns to the first
+  screen. FORGET disarms the moment it is pressed, so a second press (a double
+  tap, a second OK) before the next server's page commits does nothing; and an
+  answer that is not a list (the bridge's refusal, `""`) changes nothing and
+  calls neither `open` nor `welcome`: only a real empty list is "the last one".
 - **BACK** climbs: FORGET to the options (on FORGET), the options to the list
   (on that row), the list to MORE (on SERVERS), MORE closed. Opened from the
   bar's cell, the list has no MORE under it: BACK closes the panel and the mark
@@ -721,7 +738,7 @@ between them as Jellyfin's TV app does.
 ### The bar's server cell
 
 With two or more servers, the library's top bar says whose library this is:
-`ON LIVING ROOM` after the wordmark (S1). `ON` is in the second ink
+`ON LIVING ROOM` after the wordmark. `ON` is in the second ink
 (`tv_servers_on`: `ON`, `EM` in Portuguese), the name is the one the rows show
 (`shown`: the device's RENAME, else the server's own, else its host), upper
 case, clipped by an ellipsis at 180 px in a cell at most 200 px wide, with a
@@ -737,9 +754,9 @@ hairline either side.
   the bar is as without it.
 - **Which one is in use: the page's own server.** The bridge's `inUse` is the
   server with the newest OPENED, and the app writes OPENED only once a page has
-  finished loading, so the library that mounts straight after a switch
-  (SERVERS' OK, 9D's others, S8's OPEN →) reads a list whose `inUse` is still
-  the server just left. The page knows better: `inUseOf`
+  finished loading, so the library that mounts straight after a switch (SERVERS'
+  OK, the not-answering screen's others, the added screen's OPEN →) reads a list
+  whose `inUse` is still the server just left. The page knows better: `inUseOf`
   (`src/routes/servers-in-use.ts`) takes the entry whose origin is
   `location.origin` (the form the app stores, since the layout names it by
   `location.origin`), and falls back to the bridge's flag only when no entry is
@@ -755,7 +772,7 @@ hairline either side.
   while the panel is up. BACK closes the panel onto the cell.
 - **The list is read, not watched.** The bridge has no event, so a RENAME or
   FORGET made in the app shows in the cell the next time the library loads
-  (RENAME is the app's own screen, S5, so returning from it is such a load), or
+  (RENAME is the app's own screen, so returning from it is such a load), or
   when MORE closes. FORGET from inside the panel that leaves one server takes
   the cell away as the panel closes, and the mark goes to MORE, the way that
   still leads to SERVERS.
@@ -766,13 +783,15 @@ hairline either side.
 
 ### Adding and moving
 
-- **ADD A SERVER** (S7) is 9B for the new computer's address: the meta line
-  names who is already here, and BACK returns to the library in use, nothing
-  changed. An address already in the list is not paired again: the band says
-  `ALREADY IN SERVERS AS STUDIO · OPENING` and its library opens. A new one
+- **ADD A SERVER** is the address screen for the new computer's address: the
+  meta line names who is already here, and BACK returns to the library in use,
+  nothing changed. An address already in the list is not paired again: the band
+  says `ALREADY IN SERVERS AS STUDIO · OPENING` and its library opens. A new one
   that answers is added and its pairing opens; after its six digits the app
-  shows S8 in place of the computer's 9E, with OPEN → focused and RENAME.
-- **9D's CHANGE THE ADDRESS** on a server in the list opens 9B for that entry
+  shows the added screen in place of the computer's paired page, with OPEN →
+  focused and RENAME.
+- **The not-answering screen's CHANGE THE ADDRESS** on a server in the list
+  opens the address screen for that entry
   (`01 — LIVING ROOM'S NEW ADDRESS`): the new address that answers takes the
   entry's place, keeping the device's name for it, then pairs. It takes the
   place when it answers, not once paired: the old address's cookie is no use to
@@ -810,8 +829,8 @@ opened and when it was added. Pure apart from its key-value store, so
   `move` carries the device's name across only onto an entry with none. The
   next write saves the folded list.
 - **`remember()` adds**, never replaces, and never makes a server the one in
-  use: an add left at 9C does not take launch from the library the device was
-  in.
+  use: an add left at the code screen does not take launch from the library the
+  device was in.
 - **FORGET** removes the entry and expires the cookies the WebView's jar sends
   that origin (`Forget.expiring`: each name written back with `Max-Age=0` at
   `/`, `Secure` on https), then flushes the jar, so adding it back pairs with
@@ -825,10 +844,10 @@ opened and when it was added. Pure apart from its key-value store, so
 - **Opening a server that fails** must not make it the one launch opens.
   `FailedLoad` marks a failed main-frame load, and that load's own finish
   consumes the mark, whatever came between, so it does not depend on the order
-  WebView reports a failure in; the app's next `open` of that server ends a
-  mark whose finish never came, so a server that comes back and opens is
-  counted. `FailedLoad.finish` is `onPageFinished`'s decision: a failed
-  `/pair/tv` consumes its mark, a loaded one is read for 9E's name, and an
+  WebView reports a failure in; the app's next `open` of that server ends a mark
+  whose finish never came, so a server that comes back and opens is counted.
+  `FailedLoad.finish` is `onPageFinished`'s decision: a failed `/pair/tv`
+  consumes its mark, a loaded one is read for the paired page's name, and an
   unknown server is never a visit.
 
 ### The bridge and its guard
@@ -854,17 +873,17 @@ or a page of a server in the list, by its exact origin: another port, or the
 http/https twin, is not it. An external link followed from a server's page
 cannot forget the list or move an entry to itself.
 
-**The reads ask it too**, because the list of servers is private to the
-device's user: `servers`, `remembered`, `tvAddress`, `prefix` and `network`
-answer any other page as a device that knows nothing would (`[]`, `""`), never
-with an exception. `forgetServer` refused answers `""`, not `[]`, which
-MoreSheet would read as "the last one is gone" and send the device to 9A with
+**The reads ask it too**, because the list of servers is private to the device's
+user: `servers`, `remembered`, `tvAddress`, `prefix` and `network` answer any
+other page as a device that knows nothing would (`[]`, `""`), never with an
+exception. `forgetServer` refused answers `""`, not `[]`, which MoreSheet would
+read as "the last one is gone" and send the device to the first screen with
 every server still stored; MoreSheet reads anything that is not a list as a
 refusal and changes nothing. `form` and `defaultPort` stay open (the user agent
 already says which app this is, and the port is a constant), and so do `open`
 and `welcome`: FORGET of the server in use calls one of them from the page of
 the server it has just forgotten, and neither goes anywhere but a known server
-or 9A.
+or the first screen.
 
 A frame inside a known server's page still reaches every call, read or write:
 a JavaScript interface cannot say which frame called, and the guard reads the
@@ -898,7 +917,7 @@ with a fragment that acts (`#connect=…`). The client closes every way in:
   action's fragment (`ASSET#connect=…`), or a link on an Android 6 box all
   arrive without the token and are a 404, with no script run. A sub-frame's
   request for the host is a 404 too. A reload reloads the document's own URL,
-  token included, so 9A still reloads.
+  token included, so the first screen still reloads.
 - **Navigation.** The client also refuses the navigations into that host it is
   shown, in **both** `shouldOverrideUrlLoading` overloads: the
   `WebResourceRequest` one, added in API 24, and the deprecated `String` one,
@@ -919,20 +938,20 @@ with a fragment that acts (`#connect=…`). The client closes every way in:
   and no navigation callback is documented to see it, so the entry is served
   with its own token and whatever fragment it still has. `routeHash` runs on
   every load, so an old `#connect=X` would probe X again and, if X answered and
-  was not in the list, store it and pair; an old `#lost=X` would reopen
-  9D, whose retry would do the same once X answered. So the page takes those
-  doors once: the moment `routeHash` acts on `#connect=`, `#lost=`, `#ask=` or
-  `#long=`, it drops the fragment from its own entry with
+  was not in the list, store it and pair; an old `#lost=X` would reopen the
+  not-answering screen, whose retry would do the same once X answered. So the
+  page takes those entry points once: the moment `routeHash` acts on `#connect=`,
+  `#lost=`, `#ask=` or `#long=`, it drops the fragment from its own entry with
   `history.replaceState`, keeping the path and the `?t=` query (the token,
-  without which the page is a 404). The entry loaded again is 9A, as any load
-  with no fragment is. `#ask=` and `#long=` are dropped too so that a second
-  launch can draw their band again. `#added=`, `#rename=`, `#bad=` and `#add`
-  are left as they are: each draws a screen and writes nothing until somebody
-  acts. `Back.kt`'s `goBackOrForward` never lands on an asset entry
+  without which the page is a 404). The entry loaded again is the first screen,
+  as any load with no fragment is. `#ask=` and `#long=` are dropped too so that
+  a second launch can draw their band again. `#added=`, `#rename=`, `#bad=` and
+  `#add` are left as they are: each draws a screen and writes nothing until
+  somebody acts. `Back.kt`'s `goBackOrForward` never lands on an asset entry
   (`Back.passedOver`), so BACK is unaffected; and a second launch with the same
-  address (a hash change on the same document) changes the fragment from none
-  to `#connect=X` and is taken again, where setting the same fragment would
-  fire no `hashchange`.
+  address (a hash change on the same document) changes the fragment from none to
+  `#connect=X` and is taken again, where setting the same fragment would fire no
+  `hashchange`.
 
 ### Launcher shortcuts
 
@@ -940,10 +959,11 @@ One dynamic launcher shortcut per server, up to four (or the launcher's own
 maximum, if lower), the last used first (`Shortcuts.kt`). Each fires the link,
 `tsundoku://connect?url=<the origin, encoded>`, so a shortcut takes the path the
 `am start` above takes: its address is in the list, so the server's library if
-it answers, 9D for it if not, and no question. A shortcut left pinned on a
-launcher after its server was forgotten is not in the list, so it asks, as any
-other address from outside does. They are rebuilt whenever the list changes
-and at every launch, and labelled as the row is, cut to 25 characters.
+it answers, the not-answering screen for it if not, and no question. A shortcut
+left pinned on a launcher after its server was forgotten is not in the list, so
+it asks, as any other address from outside does. They are rebuilt whenever the
+list changes and at every launch, and labelled as the row is, cut to 25
+characters.
 
 Dynamic rather than a static `res/xml/shortcuts.xml`: a static shortcut is fixed
 when the APK is built and cannot carry the address the device paired with,
@@ -964,12 +984,12 @@ keys, so the app's job is to deliver them. `Keys.kt` is the whole mapping, and
 | BACK          | The app ([BACK](#back)).                                                                                                                                                                       |
 | MENU          | Taken before the WebView: a synthetic `ContextMenu` keydown and keyup at `document.activeElement ?? document.body`, bubbling.                                                                  |
 | ▶❚❚ ⏩ ⏪ ⏭ ⏮ | The same, as `MediaPlayPause`, `MediaFastForward`, `MediaRewind`, `MediaTrackNext`, `MediaTrackPrevious`, `MediaPlay`, `MediaPause`. The WebView would take them as media transport otherwise. |
-| Number keys   | Type into the address on 9B wherever the mark is, and into the six digits' field on 9C. ← erases.                                                                                              |
+| Number keys   | Type into the address on the address screen wherever the mark is, and into the six digits' field on the code screen. ← erases.                                                                 |
 | MIC           | The TV's own voice search sits outside the app; nothing here forwards it.                                                                                                                      |
 
-A remote without number keys uses the TV's on-screen keyboard: 9B opens it when
-the mark moves onto the field, never on arrival, and BACK closes it. On a TV
-the app never calls `showSoftInput`.
+A remote without number keys uses the TV's on-screen keyboard: the address
+screen opens it when the mark moves onto the field, never on arrival, and BACK
+closes it. On a TV the app never calls `showSoftInput`.
 
 ## BACK
 
@@ -1176,21 +1196,22 @@ isMainFrame, known)` refuses every sub-frame, trusts a main frame whose
   `forgetServer()` reads are still synchronous. External links open inside the
   WebView, where the guard refuses them every write and every read; opening
   them outside it would change behaviour on a TV.
-- **9D probes the other servers once**, when it opens; its own retry every 5 s
-  is for the server in use only. A retry that fails again only counts (TRIED N
-  TIMES): the rows, their answers and the remote's mark stay where they are.
+- **The not-answering screen probes the other servers once**, when it opens; its
+  own retry every 5 s is for the server in use only. A retry that fails again
+  only counts (TRIED N TIMES): the rows, their answers and the remote's mark
+  stay where they are.
 - **FORGET expires the old shared `tsundoku_paired` too.** On a device whose
   jar still holds that name for another server on the same computer (one not
   opened since the per-server names), forgetting one server costs the other a
   second pairing. Forgetting must forget, so the old name goes. Two servers on
   one computer each holding their own name keep their pairing through FORGET on
   the other.
-- **Screens from an older server.** SERVERS, the bar's cell and 9C's phone
-  layout are the web app's, so a computer running an older tsundoku shows its
-  own versions: no SERVERS row (its other servers are reached through 9D when
-  it is off, or by a launcher shortcut), and a 9C drawn for a TV alone, on
-  which the app still raises the keyboard. A friend's install updates itself
-  ([`UPDATES.md`](UPDATES.md)).
+- **Screens from an older server.** SERVERS, the bar's cell and the code
+  screen's phone layout are the web app's, so a computer running an older
+  tsundoku shows its own versions: no SERVERS row (its other servers are reached
+  through the not-answering screen when it is off, or by a launcher shortcut),
+  and a code screen drawn for a TV alone, on which the app still raises the
+  keyboard. A friend's install updates itself ([`UPDATES.md`](UPDATES.md)).
 - **An origin stored from a link before links were asked about** cannot be told
   from one typed; FORGET removes it.
 - **Esc on a tablet's keyboard** does not go back: a page cannot press
@@ -1210,11 +1231,11 @@ BACK checks need real D-pad presses, never console clicks (Chromium can mark an
 entry a page added without a user gesture as skippable, so only real presses
 count).
 
-What has been seen on a device: on an Android 11 TV, focusing 9B's field opens
-the number pad over the buttons and BACK closes it; on a phone, the app
-installs and pairs, the page sits below the camera band, and zoom is off; on an
-emulator, the fullscreen turn ([above](#a-fullscreen-picture)). Everything else
-below is built and tested off the device only.
+What has been seen on a device: on an Android 11 TV, focusing the address
+screen's field opens the number pad over the buttons and BACK closes it; on a
+phone, the app installs and pairs, the page sits below the camera band, and zoom
+is off; on an emulator, the fullscreen turn ([above](#a-fullscreen-picture)).
+Everything else below is built and tested off the device only.
 
 ### BACK
 
@@ -1267,20 +1288,20 @@ untried.
 
 ### Addresses and links
 
-- **A server typed with capitals.** On 9B, TYPE THE WHOLE ADDRESS as
-  `http://<Host>:42143` with a capital in the host, pair, then MORE › SERVERS:
-  the row is there and IN USE, RENAME saves, and after closing and relaunching
-  the app it opens that library, not 9A. Then the same with the scheme in
-  capitals, `HTTP://<Host>:42143` (and `Http://…` if the keyboard capitalises
-  the first letter by itself): 9B checks and pairs it, not NOTHING ANSWERS
-  (`tv-app-pair.e2e.ts` pins the probe's address in a browser; a TV keyboard is
-  not). An entry stored with capitals by an older APK reads back lower case on
-  the first launch.
+- **A server typed with capitals.** On the address screen, TYPE THE WHOLE
+  ADDRESS as `http://<Host>:42143` with a capital in the host, pair, then MORE ›
+  SERVERS: the row is there and IN USE, RENAME saves, and after closing and
+  relaunching the app it opens that library, not the first screen. Then the same
+  with the scheme in capitals, `HTTP://<Host>:42143` (and `Http://…` if the
+  keyboard capitalises the first letter by itself): the address screen checks
+  and pairs it, not NOTHING ANSWERS (`tv-app-pair.e2e.ts` pins the probe's
+  address in a browser; a TV keyboard is not). An entry stored with capitals by
+  an older APK reads back lower case on the first launch.
 - **A link from outside the app**, with a computer running tsundoku that the
   device does not have in MORE › SERVERS:
   1. From a browser on the device, open a page with a link to
      `tsundoku://connect?url=<that computer's origin, percent-encoded>` and
-     press it. The app comes forward on 9B, the field holding the address, the
+     press it. The app comes forward on the address screen, the field holding the address, the
      band reading `THIS ADDRESS CAME FROM A LINK · NOTHING IS SAVED UNTIL YOU
 PRESS CONNECT`, the button reading `CONNECT →`, and the mark on
      `USE THE LAST NUMBER`.
@@ -1303,17 +1324,20 @@ PRESS CONNECT`, the button reading `CONNECT →`, and the mark on
      origin; for more than five seconds the console shows no probe; MORE ›
      SERVERS gains nothing; BACK returns to the library. Then do the same and
      press CONNECT: only now is it probed. Finally stop tsundoku on a computer
-     that is in the list and reload its library: 9D for it, retrying, and once
-     tsundoku is back its library opens with no second entry.
+     that is in the list and reload its library: the not-answering screen for
+     it, retrying, and once tsundoku is back its library opens with no second
+     entry.
   9. The 80-character refusal. A link to an `https://` origin of 81 characters
-     the device does not have (a long made-up host): 9B, the field empty, the
-     band reading `THAT ADDRESS WAS REFUSED · NOTHING WAS SAVED` with
+     the device does not have (a long made-up host): the address screen, the
+     field empty, the band reading
+     `THAT ADDRESS WAS REFUSED · NOTHING WAS SAVED` with
      `OVER 80 CHARACTERS IS TOO LONG TO READ` beside it, both whole in the TV's
      own font. The same through step 8's `location =` for an 81-character host
-     (`#lost=`): the same band, and for more than five seconds no probe. Then
-     an address of exactly 80 characters: the question, its whole address above
-     the buttons and none of it under them, in two lines of hint, with the same
-     gap above CONNECT → and USE THE LAST NUMBER as under 9B's ordinary hint.
+     (`#lost=`): the same band, and for more than five seconds no probe. Then an
+     address of exactly 80 characters: the question, its whole address above the
+     buttons and none of it under them, in two lines of hint, with the same gap
+     above CONNECT → and USE THE LAST NUMBER as under the address screen's
+     ordinary hint.
 - **A launch intent on a TV**: the documented `am start … --es url` for an
   address in the list opens it, and one not in the list asks.
 
@@ -1324,13 +1348,13 @@ With two tsundokus to hand (one over Tailscale and any other):
 1. Install the APK over an older one already paired with one address. It opens
    the same library with no digits asked, and MORE's last row reads
    `SERVERS → 1 · ADD ANOTHER`.
-2. MORE › SERVERS: the mark is on + ADD A SERVER. OK, type the second
-   computer's address, NEXT, then its six digits. S8 ("ZEN is one of this TV's
-   servers") replaces the computer's 9E within a second, with OPEN ZEN →
-   marked.
+2. MORE › SERVERS: the mark is on + ADD A SERVER. OK, type the second computer's
+   address, NEXT, then its six digits. The added screen ("ZEN is one of this
+   TV's servers") replaces the computer's paired page within a second, with OPEN
+   ZEN → marked.
 3. RENAME there: Android's keyboard rises under the field, its ✓ saves the name
-   and comes back to S8, and BACK (twice: the first closes the keyboard)
-   cancels.
+   and comes back to the added screen, and BACK (twice: the first closes the
+   keyboard) cancels.
 4. In the library, MORE › SERVERS: two rows, the mark on the one not in use; the
    remote's MENU key and OK held both open its options; BACK climbs options →
    list → MORE. Close MORE: the bar reads `ON <NAME>` after the wordmark, with
@@ -1343,17 +1367,17 @@ With two tsundokus to hand (one over Tailscale and any other):
    and again at once: nothing is forgotten. Then ↓ OK forgets it; add it back,
    and it asks for six digits again. Whether `CookieManager.setCookie` replaces
    an `HttpOnly` cookie with an expired one cannot be tested without a WebView.
-6. Turn the server in use off and relaunch: 9D for it, the other offered at the
-   right with ● ANSWERS; ↑ from TRY AGAIN reaches it. Leave the mark there for
-   15 s: it stays on that row, and the row keeps ANSWERS, while TRIED N TIMES
-   counts up. OK opens it.
-7. Turn one computer off, open it from MORE › SERVERS (9D appears), then quit
-   the app and launch it again: it opens the server that was in use before, not
-   9D for the one that is off.
-8. With A in use: stop B, open B from MORE › SERVERS (9D appears), start B and
-   press TRY AGAIN. B's library opens, MORE › SERVERS on B's page marks B IN
-   USE, and quitting and launching again opens B, even when WebView sent no
-   finish for B's failed load.
+6. Turn the server in use off and relaunch: the not-answering screen for it, the
+   other offered at the right with ● ANSWERS; ↑ from TRY AGAIN reaches it. Leave
+   the mark there for 15 s: it stays on that row, and the row keeps ANSWERS,
+   while TRIED N TIMES counts up. OK opens it.
+7. Turn one computer off, open it from MORE › SERVERS (the not-answering screen
+   appears), then quit the app and launch it again: it opens the server that was
+   in use before, not the not-answering screen for the one that is off.
+8. With A in use: stop B, open B from MORE › SERVERS (the not-answering screen
+   appears), start B and press TRY AGAIN. B's library opens, MORE › SERVERS on
+   B's page marks B IN USE, and quitting and launching again opens B, even when
+   WebView sent no finish for B's failed load.
 9. On a phone, the SERVERS row in MORE's sheet, drawn for a TV.
 
 **Two servers on one computer** (two ports). The server half is e2e-tested in a
@@ -1372,12 +1396,12 @@ browser's jar (`tests/tv-pair-origins.e2e.ts`); the WebView's jar is the claim.
 on a phone): one shortcut per server, named as its row is, each opening that
 server's library. A launcher that shows none is the launcher's choice.
 
-**The server's name from 9E.** `MainActivity` reads `main.paired`'s
+**The server's name from the paired page.** `MainActivity` reads `main.paired`'s
 `data-paired-name` from the computer's `/pair/tv`, and `.lab`'s text for an
-older server; `tests/tv-pair-origins.e2e.ts` runs the script on the real 9E,
-and that `evaluateJavascript` hands it back on a device is the claim. If neither
-is there, S8 does not appear (the computer's 9E stays) and the name arrives
-from the library instead.
+older server; `tests/tv-pair-origins.e2e.ts` runs the script on the real paired
+page, and that `evaluateJavascript` hands it back on a device is the claim. If
+neither is there, the added screen does not appear (the computer's paired page
+stays) and the name arrives from the library instead.
 
 ### The guard and the app's page
 
@@ -1387,25 +1411,26 @@ from the library instead.
   `TsundokuTV.forget()` leaves SERVERS as it was after BACK. The claim is that
   `WebView.url` on the UI thread is the top-level page's and comes back within
   the guard's 2 s.
-- **The reads' guard.** On a server's library, `TsundokuTV.servers()` prints
-  the list (and MORE › SERVERS and the bar's cell are as usual; on 9B the
-  prefix is still the device's own `192.168.x.`); on `https://example.com`,
-  `TsundokuTV.servers()` prints `[]`, and `tvAddress()`, `remembered()` and
-  `network()` an empty string, with no exception.
-- **The loader.** Pair from 9A (the page itself must draw, so the loader served
-  it); MORE › SERVERS › a server › FORGET (the page after must draw); from the
-  library, BACK out of `/pair/tv` lands on the screen before it, not on the
-  app's page; and with the computer off, open that server from SERVERS, so 9D
-  draws, not the WebView's grey error page. If any is blank, the loader's path
-  handler is the first place to look.
+- **The reads' guard.** On a server's library, `TsundokuTV.servers()` prints the
+  list (and MORE › SERVERS and the bar's cell are as usual; on the address
+  screen the prefix is still the device's own `192.168.x.`); on
+  `https://example.com`, `TsundokuTV.servers()` prints `[]`, and `tvAddress()`,
+  `remembered()` and `network()` an empty string, with no exception.
+- **The loader.** Pair from the first screen (the page itself must draw, so the
+  loader served it); MORE › SERVERS › a server › FORGET (the page after must
+  draw); from the library, BACK out of `/pair/tv` lands on the screen before it,
+  not on the app's page; and with the computer off, open that server from
+  SERVERS, so the not-answering screen draws, not the WebView's grey error page.
+  If any is blank, the loader's path handler is the first place to look.
 - **The navigation guard.** From a server's library, open (or set as
-  `location.href`) `https://appassets.androidplatform.net/pair/index.html#connect=http://example.com:42143`:
-  nothing happens, no 9B, no CHECKING, and MORE › SERVERS gains no
+  `location.href`)
+  `https://appassets.androidplatform.net/pair/index.html#connect=http://example.com:42143`:
+  nothing happens, no address screen, no CHECKING, and MORE › SERVERS gains no
   `example.com`. A server page that embeds the asset page in a frame shows a 404. **Run this on an Android 6 (API 23) box or emulator** too, since API 23
-  calls only the deprecated `shouldOverrideUrlLoading(WebView, String)`. Then
-  an HTTP 302 from a server page whose `Location` is that asset URL: the page
-  does not change, and SERVERS gains nothing; where the WebView APK does not
-  report redirects, the token is what refuses it.
+  calls only the deprecated `shouldOverrideUrlLoading(WebView, String)`. Then an
+  HTTP 302 from a server page whose `Location` is that asset URL: the page does
+  not change, and SERVERS gains nothing; where the WebView APK does not report
+  redirects, the token is what refuses it.
 - **The POST.** From a server page's console, submit a form with
   `method="post"` whose action is that same asset URL: a 404, no pair screen,
   no `example.com` entry.
@@ -1414,12 +1439,12 @@ from the library instead.
   leaves the page where it was, and a form `post` to the same URL shows a 404;
   SERVERS gains nothing, and the inspector's Network panel shows no request for
   `appassets.androidplatform.net` leaving the device.
-- **A history step into an old pair-page entry.** Hand the device an address
-  of a computer that answers and is not in SERVERS, press CONNECT, let it pair,
+- **A history step into an old pair-page entry.** Hand the device an address of
+  a computer that answers and is not in SERVERS, press CONNECT, let it pair,
   then FORGET it. From any server page's console, step back through the history
-  to the pair page's entry: it shows 9A, its URL ends in `?t=…` with no
-  `#connect=`, and SERVERS does not have the forgotten server back. Then hand
-  the device the address of a server it does have, twice in a row while it
+  to the pair page's entry: it shows the first screen, its URL ends in `?t=…`
+  with no `#connect=`, and SERVERS does not have the forgotten server back. Then
+  hand the device the address of a server it does have, twice in a row while it
   shows CHECKING: the second is checked again (a second probe in the console),
   not dropped.
 
@@ -1458,31 +1483,32 @@ The JVM unit tests in `android/app/src/test/` run once per flavour
   scheme, a missing host, userinfo, and a port of 0 or above 65535 (`null` is
   the refusal, not a rewrite to the default port).
 - `AttemptsTest`: the activity's two launch paths in order: a given address
-  during the remembered probe keeps its 9B whether the probe answers or not.
-  That `MainActivity` calls `Attempts` on both is read, not run: a JVM test
-  cannot drive the Activity.
+  during the remembered probe keeps its address screen whether the probe answers
+  or not. That `MainActivity` calls `Attempts` on both is read, not run: a JVM
+  test cannot drive the Activity.
 - `GivenTest`: the link-or-extra rule: an address not in the list asks; a
   shortcut's address does not, and one left behind by a forgotten server does;
   the intent's shape decides nothing; the plain launcher entry carries no
   address and someone else's link is not read; everything the parser refuses is
   refused even by a list that claims to know it; the list is asked about the
   origin, not the raw string; 80 characters is asked and 81 takes `#long=`.
-  Three cases read the source: `MainActivity` asks this rule and writes no door
-  of its own, the page takes every door the rule can name, and the page holds
+  Three cases read the source: `MainActivity` asks this rule and writes no entry
+  point of its own, the page takes every entry point the rule can name, and the page holds
   the same limit as the rule.
-- `ServersTest`: the store: the migration of a device paired with one address
-  (a list of one, opened, never asked to pair again), an add that never takes
-  launch, the last used first and 9D's others, names, encode and decode as each
-  other's inverse, an entry stored with its scheme's own port read back without
-  it, as WebView's URL has it, a mixed-case entry read back lower case and found
-  by its page's origin, an add typed in capitals stored lower case, two entries
-  differing only in case folded to the one opened last with the names it
-  lacked, forget down to 9A, a server that moved, and the JSON the pages read.
+- `ServersTest`: the store: the migration of a device paired with one address (a
+  list of one, opened, never asked to pair again), an add that never takes
+  launch, the last used first and the not-answering screen's others, names,
+  encode and decode as each other's inverse, an entry stored with its scheme's
+  own port read back without it, as WebView's URL has it, a mixed-case entry
+  read back lower case and found by its page's origin, an add typed in capitals
+  stored lower case, two entries differing only in case folded to the one opened
+  last with the names it lacked, forget down to the first screen, a server that
+  moved, and the JSON the pages read.
 - `ShortcutsTest`: one per server, four at most, each link read back through
   `givenAddress`'s decoding and `Address.intentOrigin` to the same origin.
 - `ForgetTest`: FORGET's cookie lines, one paired name per origin read from the
-  table the server's spec reads too, another origin's pairing kept, and 9E's
-  name from its attribute or, for an older server, its first line.
+  table the server's spec reads too, another origin's pairing kept, and the
+  paired page's name from its attribute or, for an older server, its first line.
 - `FailedLoadTest`: every order WebView may report a failed load in, the app's
   next attempt ending a mark whose finish never came, and
   `FailedLoad.finish`'s decision.
@@ -1539,83 +1565,87 @@ The browser specs, from the repository root (Playwright; [`TESTING.md`](TESTING.
 has the projects):
 
 - `tests/tv-app-pair.e2e.ts`: the app's own page from the shipped asset file
-  with a stand-in bridge: no real intent and no WebView. 9A and 9B: the mark on
-  NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press down),
-  the number keys typing into the field from there, the whole-address field
-  staying visible, 9A's step 01 and 9D's second reason keeping a friend's WI-FI
-  remedy beside a Tailscale install's truth, and 9A's steps grid ending above
-  START. A `#connect=` address in the list shows neither 9A nor 9B and names
-  what it is checking; a `#bad=` shows the band on 9B, above the label and
-  inside the frame, with the screen still usable, its hint and first line whole
-  at a TV's 0.6 em monospace. The attempt rules: a refusal handed to a device
-  on 9D stops its retry, so the band is still there past a 5 s tick and no probe
-  for the old address is made; a typed probe in flight when a link's question
-  arrives neither stores its answer nor leaves for `/pair/tv`, while the
-  refused path into 9B resets NEXT and the checking line; a probe in flight when
-  a refusal arrives fails without replacing the band; a new attempt after a
-  refusal clears the band and can still reach 9D; and a link after a refusal,
-  once CONNECT is pressed and it answers, still remembers and pairs. Origins: a
-  typed whole address with a path pairs at its origin, one with a query fails
-  to 9D for the origin, and a scheme in capitals reads as its host on CHECKING
-  and 9D. The question: `#ask=` calls neither `probe` nor `remember` until
-  CONNECT, then each once; the mark starts off CONNECT; `#connect=` for an
-  address not in the list asks; a non-http `#ask=` is refused; the entry loses
-  its fragment (keeping the token) and a history step shows 9A; the same link
+  with a stand-in bridge: no real intent and no WebView. The first screen and
+  the address screen: the mark on NEXT rather than the field (and on TYPE THE
+  WHOLE ADDRESS one press down), the number keys typing into the field from
+  there, the whole-address field staying visible, the first screen's step 01 and
+  the not-answering screen's second reason keeping a friend's WI-FI remedy
+  beside a Tailscale install's truth, and the first screen's steps grid ending
+  above START. A `#connect=` address in the list shows neither the first screen
+  nor the address screen and names what it is checking; a `#bad=` shows the band
+  on the address screen, above the label and inside the frame, with the screen
+  still usable, its hint and first line whole at a TV's 0.6 em monospace. The
+  attempt rules: a refusal handed to a device on the not-answering screen stops
+  its retry, so the band is still there past a 5 s tick and no probe for the old
+  address is made; a typed probe in flight when a link's question arrives
+  neither stores its answer nor leaves for `/pair/tv`, while the refused path
+  into the address screen resets NEXT and the checking line; a probe in flight
+  when a refusal arrives fails without replacing the band; a new attempt after a
+  refusal clears the band and can still reach the not-answering screen; and a
+  link after a refusal, once CONNECT is pressed and it answers, still remembers
+  and pairs. Origins: a typed whole address with a path pairs at its origin, one
+  with a query fails to the not-answering screen for the origin, and a scheme in
+  capitals reads as its host on CHECKING and the not-answering screen. The
+  question: `#ask=` calls neither `probe` nor `remember` until CONNECT, then
+  each once; the mark starts off CONNECT; `#connect=` for an address not in the
+  list asks; a non-http `#ask=` is refused; the entry loses its fragment
+  (keeping the token) and a history step shows the first screen; the same link
   twice asks twice and another replaces it; a second link or the way out while
   CHECKING drops the late answer; CONNECT is not swallowed after a late answer
-  and asks once if pressed twice; a failure reaches 9D and stores nothing until
-  it answers; BACK saves nothing, and BACK while CHECKING drops a late answer or
-  failure, with a server in use and with none (where the first BACK only
-  toasts and CONNECT works again); a `#lost=` for an origin not in the list
-  asks and probes nothing until CONNECT, while one in the list reaches 9D and
-  its retry opens it; over 80 characters is refused through `#ask=`,
-  `#connect=`, `#lost=` and `#long=` with the length's band, 80 exactly asks,
-  and the band and an 80-character address fit a TV and a phone's column. The
-  servers: 9D offers the others (each probed, answers landing out of order on
-  their own rows, ↑ from TRY AGAIN reaching them, OK opening one; the frame at
-  48/500 and 580/332, buttons at 416), and with one server is plain 9D; ADD A
-  SERVER names who is here and BACK opens the library in use; an address
-  already in the list opens without pairing, a new one is added and paired; a
-  given address in the list, and 9D's server back, open its library; CHANGE
-  THE ADDRESS moves the entry; S8 and RENAME (from S8 and from the library,
-  saved, cancelled and emptied); and a bridge with no list is the page without
-  servers.
+  and asks once if pressed twice; a failure reaches the not-answering screen and
+  stores nothing until it answers; BACK saves nothing, and BACK while CHECKING
+  drops a late answer or failure, with a server in use and with none (where the
+  first BACK only toasts and CONNECT works again); a `#lost=` for an origin not
+  in the list asks and probes nothing until CONNECT, while one in the list
+  reaches the not-answering screen and its retry opens it; over 80 characters is
+  refused through `#ask=`, `#connect=`, `#lost=` and `#long=` with the length's
+  band, 80 exactly asks, and the band and an 80-character address fit a TV and a
+  phone's column. The servers: the not-answering screen offers the others (each
+  probed, answers landing out of order on their own rows, ↑ from TRY AGAIN
+  reaching them, OK opening one; the frame at 48/500 and 580/332, buttons at
+  416), and with one server is the plain not-answering screen; ADD A SERVER
+  names who is here and BACK opens the library in use; an address already in the
+  list opens without pairing, a new one is added and paired; a given address in
+  the list, and the not-answering screen's server back, open its library; CHANGE
+  THE ADDRESS moves the entry; the added screen and RENAME (from the added
+  screen and from the library, saved, cancelled and emptied); and a bridge with
+  no list is the page without servers.
 - `tests/tv-servers.e2e.ts`: the web half in the `tv` project with a stand-in
-  bridge: no SERVERS row without the bridge; S6 with one server; S2's order,
-  mark, probes and frame; S3 and S4 with FORGET's 0.6 s; forgetting the one in
-  use and the last; a refused FORGET changing nothing, and FORGET of the one in
-  use pressed twice opening the next once and never 9A; the layout telling the
-  app, and only the app, the server's name; MORE's TO LINK row reached by keys.
-  The bar's cell: none without the bridge, with an APK without `servers`, with
-  five kinds of answer that are not a list of servers, with two of which none
-  is in use, or with one; two put the one in use after the wordmark, the
-  device's name first, the server's own without one, a long one clipped (200
-  and 180 px, the rules, `ON` in the second ink); ↑ reaches it, OK opens SERVERS
-  on the one not in use, MENU and BACK climb as from MORE, BACK closes onto the
-  cell; OK on the one in use closes onto the cell; FORGET leaving one server
-  takes the cell away and the mark to MORE; a rename shows when MORE closes and
-  on a reload, not before; MORE opened again while SERVERS is still leaving
-  gives focus back to MORE; `EM` in Portuguese; right after a switch, the cell
-  and SERVERS name the page's own server and FORGET acts on the right one; a
-  server not named yet shows its name on the first library. With a bridge whose
-  `servers()` answers a Promise: a late answer draws the cell when it lands, an
-  older answer landing after a newer one is dropped, one landing after the
-  library is left changes nothing, a bridge that throws or answers non-JSON
-  draws no cell, a late refused read draws none, and a bridge that never
-  answers leaves the page cell-less with its grid drawn and MORE opening.
+  bridge: no SERVERS row without the bridge; MORE's SERVERS row with one server;
+  SERVERS' order, mark, probes and frame; a server's options and FORGET with its
+  0.6 s; forgetting the one in use and the last; a refused FORGET changing
+  nothing, and FORGET of the one in use pressed twice opening the next once and
+  never the first screen; the layout telling the app, and only the app, the
+  server's name; MORE's TO LINK row reached by keys. The bar's cell: none
+  without the bridge, with an APK without `servers`, with five kinds of answer
+  that are not a list of servers, with two of which none is in use, or with one;
+  two put the one in use after the wordmark, the device's name first, the
+  server's own without one, a long one clipped (200 and 180 px, the rules, `ON`
+  in the second ink); ↑ reaches it, OK opens SERVERS on the one not in use, MENU
+  and BACK climb as from MORE, BACK closes onto the cell; OK on the one in use
+  closes onto the cell; FORGET leaving one server takes the cell away and the
+  mark to MORE; a rename shows when MORE closes and on a reload, not before;
+  MORE opened again while SERVERS is still leaving gives focus back to MORE;
+  `EM` in Portuguese; right after a switch, the cell and SERVERS name the page's
+  own server and FORGET acts on the right one; a server not named yet shows its
+  name on the first library. With a bridge whose `servers()` answers a Promise:
+  a late answer draws the cell when it lands, an older answer landing after a
+  newer one is dropped, one landing after the library is left changes nothing, a
+  bridge that throws or answers non-JSON draws no cell, a late refused read
+  draws none, and a bridge that never answers leaves the page cell-less with its
+  grid drawn and MORE opening.
 - `tests/tv-pair.e2e.ts`: the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a try,
-  the right one landing on 9E, five wrong ones burning it.
+  the right one landing on the paired page, five wrong ones burning it.
 - `tests/tv-pair-origins.e2e.ts`: two servers of its own, `ORIGIN` on
   `tsundoku.test:<port>` and a browser resolving that name to 127.0.0.1, so one
-  jar holds both (the WebView's shape), each server's `Date.now` moved by a
-  file the spec writes: an expired code made new on `/pair/tv` and paired, a
-  used one kept for ✓ USED's 2 minutes then made new, a code that runs out
-  while 9C is up, a burned one kept burned past its 10 minutes; 9E's
-  `data-paired-name` read by `PAIRED_JS` taken out of `MainActivity.kt`; and
-  two servers on one host each staying paired after the other pairs and after
-  FORGET on the other, and a jar holding only the old name staying paired and
-  moved.
+  jar holds both (the WebView's shape), each server's `Date.now` moved by a file
+  the spec writes: an expired code made new on `/pair/tv` and paired, a used one
+  kept for ✓ USED's 2 minutes then made new, a code that runs out while the code
+  screen is up, a burned one kept burned past its 10 minutes; the paired page's
+  `data-paired-name` read by `PAIRED_JS` taken out of `MainActivity.kt`; and two
+  servers on one host each staying paired after the other pairs and after FORGET
+  on the other, and a jar holding only the old name staying paired and moved.
 - `tests/pairing-tv.spec.ts`: the six digits: once, 10 minutes, five wrong
   tries burn it, every answer of the state machine; the tailnet path, the rule
   that draws the DEVICES block only where that cookie opens (never with no
@@ -1640,9 +1670,9 @@ has the projects):
   measurements, the pinned buttons riding a shorter viewport (the keyboard),
   mobile data, the colour told to the app, and the TV's words unchanged when no
   form is said.
-- `tests/phone-pair-route.e2e.ts`: `/pair/tv` as the phone app, 9C on a phone
-  and a tablet and 9E reached with a seeded paired row, never spending the six
-  digits the TV's specs pair with.
+- `tests/phone-pair-route.e2e.ts`: `/pair/tv` as the phone app, the code screen
+  on a phone and a tablet and the paired page reached with a seeded paired row,
+  never spending the six digits the TV's specs pair with.
 - `tests/phone-app-reader.e2e.ts`: the reader asks for the band and gives it
   back, its top bar reaches up through a 32 px band with its contents below it,
   and the bottom bar hugs the edge; in a browser the top bar is 64.
