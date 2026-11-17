@@ -153,6 +153,9 @@ waits a running scan out, and imports at startup what a restart left).
   sends the APK once (checked against its handle); failures are read from the
   body's `code`, so a 429 is `rate-limited` though the engine answers 500;
   `fetchProxied` takes pages and streams through `/image/` and `/video/`, and
+  fetches a page whose address is a site's (not one of the engine's loopback
+  proxy addresses, not on `ENGINE_URL`) as any address a source names: without
+  the token, on the internet only (`net-guard.ts`), and to 64 MB; and
   `imageType` tells a picture from an error page by its bytes. Tested against
   a fake engine (`tests/engine-client.spec.ts`), and live: Asura Scans'
   popular list, a memo split off its URL, 346 chapters all numbered by
