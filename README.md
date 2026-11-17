@@ -1,219 +1,130 @@
 # tsundoku
 
-積ん読 — _buying books and letting them pile up unread_.
+積ん読 (_tsundoku_): buying books and letting them pile up unread.
 
-One library for everything read on a tablet: manga, manhwa, doujinshi, light
-novels and web novels, served from the workstation over Tailscale and read in a
-PWA. It replaces the five apps that currently split that job (Mihon, Hentoid,
-Moon+ Reader, and whichever browser tab a web novel lives in this week), and it
-is organised the owner's way rather than any one of theirs.
+A self-hosted library for everything one household reads and watches: manga,
+manhwa, doujinshi, light and web novels, anime, films and shows. It runs on one
+computer, keeps the files there, and serves them to the phones, tablets and TV
+in the house, which read it in the browser, as an installed PWA, or in its
+Android app.
 
-Status: **the library and series screens are built** from the "Index" design
-system, on phone, tablet and desktop, against a sample library. There's no
-scanner and no reader yet, so nothing real can be read. See "What it does not do
-yet" in [`doc/LIBRARY.md`](doc/LIBRARY.md) and [`doc/SERIES.md`](doc/SERIES.md).
+| Library (desktop)                                                    | Series (tablet)                                                | Reader (phone)                                                 |
+| -------------------------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------- |
+| ![The library on a desktop](site/captures/library-desktop-dark.webp) | ![A series on a tablet](site/captures/series-tablet-dark.webp) | ![The reader on a phone](site/captures/reader-phone-dark.webp) |
 
-## Running it
+## What it does
+
+- **Reads comics and novels.** Pages right to left, left to right, or one long
+  strip; a text reader for EPUBs and web novels, vertical Japanese included.
+- **Plays video.** Anime episodes, films and shows, streamed or downloaded, with
+  openings and endings skipped.
+- **Imports what you have.** Mihon backups and download folders, Hentoid
+  libraries, EPUBs. Categories arrive as plain tags you can rename or delete.
+- **Downloads through extensions.** Mihon, Aniyomi and LNReader extensions run
+  in a separate engine ([tsundoku-engine](https://github.com/masshirodev/tsundoku-engine)).
+  tsundoku ships no sources and names no repositories: you add your own.
+- **Tracks progress everywhere.** Where you stopped, on every device; history
+  by day, ratings out of 10, favourites; links to AniList, MyAnimeList and TMDB.
+- **Works offline.** Chapters and episodes kept on a device read without the
+  computer, and the reading done meanwhile is sent when it is back.
+- **Keeps some shelves hidden.** Hidden series are filtered out on the server,
+  and showing them can be put behind the device's fingerprint.
+- **Helps with Japanese.** Raw pages can be OCR'd with mokuro, and tapping a
+  word looks it up through [kotoba](https://github.com/masshirodev/kotoba).
+
+## Who it is for
+
+One household on one computer. It is not a multi-user server: there is one
+library, one person's reading state, and a sign-in that keeps other people on
+the network out. It is built for my own use and shared with friends, who
+install the released bundles. Expect it to follow my needs rather than a
+roadmap.
+
+## Installing it
+
+Released builds for Windows, Linux, Android and Android TV are on
+[tsundoku.masshiro.pro](https://tsundoku.masshiro.pro). The Windows and Linux
+bundles carry everything, the engine and its Java runtime included; the
+Android apps pair with the computer over Wi-Fi. macOS is not built.
+
+## Running from source
+
+You need Node 24, Yarn 1 (`yarn@1.22.22`), and
+[kotoba](https://github.com/masshirodev/kotoba) checked out beside this
+repository, since `package.json` links it as `../kotoba`:
 
 ```sh
+git clone https://github.com/masshirodev/kotoba
+git clone https://github.com/masshirodev/tsundoku
+cd tsundoku
 yarn install
-yarn run seed     # the design's sample library, into data/tsundoku.sqlite
-yarn run dev      # localhost:42143; with a token in .env, it asks for it too
-yarn run import   # import $LIBRARY_ROOT/Mihon/ and H/.Hentoid/ (doc/IMPORT-*.md)
-yarn run backup   # snapshot the database to /mnt/backup/tsundoku (doc/BACKUPS.md)
-yarn run covers   # make cover thumbnails; --local to use files only (doc/COVERS.md)
-yarn run links    # link series to MAL / AniList, searching every one (doc/LINKS.md)
-yarn run ranobe   # novels to Ranobe: link, suggest editions, send reads (doc/RANOBE.md)
-yarn run secrets:pull  # write .env from Infisical on the VPS (doc/SECRETS.md)
-yarn run release 2026.10.29  # friends' bundles from tag release/2026.10.29 (doc/RELEASE.md)
+yarn run seed     # a sample library, invented, into data/tsundoku.sqlite
+yarn run dev      # http://localhost:42143
 ```
 
-On the tablet it's served over HTTPS on the tailnet, behind a token.
-[`doc/SERVING.md`](doc/SERVING.md) has the details.
+Optional, for the parts that need them: ffmpeg and ffprobe (video), the engine
+and FlareSolverr (browsing and downloading; `ops/engine/`), mokuro (OCR),
+chromaprint's `fpcalc` (finding openings and endings).
 
-```sh
-echo "TSUNDOKU_TOKEN=$(node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))")" >> .env
-yarn run build
-yarn run serve    # https://workstation.example.ts.net:8443
-# or, from boot with auto-restart: systemctl --user restart tsundoku (doc/SERVING.md)
-```
+Configuration is environment variables: [`.env.example`](.env.example) lists
+every one. `TSUNDOKU_HOME` is the one data directory everything else defaults
+into.
 
-`serve` runs the app on 127.0.0.1 and has `tailscale serve` terminate TLS
-with the tailnet's certificate: the reader's fingerprint gate, wake lock and
-offline chapters all need a secure context. Without a token it makes one into
-`TSUNDOKU_HOME/.env` and prints it. `TSUNDOKU_SERVE=http` is the old plain-http
-tailnet bind, and `TSUNDOKU_SERVE=local` serves http://localhost on this
-computer only, with no Tailscale: a friend's install
-([`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md)). `.env.example` lists every
-variable.
+## Serving it to other devices
 
-### Restarting it on the tailnet
+`yarn run build && yarn run serve` serves the built app. `TSUNDOKU_SERVE`
+chooses how:
 
-On the workstation it runs as the `tsundoku` systemd user service, so restart
-the service rather than starting `yarn run serve` by hand (a second server
-would find the port taken). Build first: the server runs from a snapshot of
-`build/` taken when it starts, so a restart without a build serves the old
-code again.
+- `local`: `http://localhost` on this computer only.
+- `https` (the default): on the tailnet, with `tailscale serve` terminating TLS
+  using the tailnet's certificate. The reader's fingerprint gate, wake lock and
+  offline chapters need a secure context.
+- `http`: the tailnet address on plain http.
 
-```sh
-yarn run build && systemctl --user restart tsundoku
-systemctl --user status tsundoku         # "Active: active (running)"
-journalctl --user -u tsundoku -n 5       # prints the https://…:8443 address
-curl -s -o /dev/null -w '%{http_code}\n' https://workstation.example.ts.net:8443/   # 303 to login
-```
-
-The served app migrates the database on its first request after a restart.
-Open tablets pick up the new build on their next navigation, within five
-minutes. [`doc/SERVING.md`](doc/SERVING.md) covers installing the unit, boot,
-and the HTTPS mapping.
-
-Search doubles as the command line. Type these exactly and press Enter:
-`/reveal` and `/hide` (show or hide hidden series), `/light` and `/dark`
-(theme), `/incognito` (read without saving), `/scan` (rescan the device copies),
-`/lock` and `/unlock` (put `/reveal` behind this device's fingerprint, or take
-it away).
+Phones on home Wi-Fi pair with a code instead. Without a `TSUNDOKU_TOKEN`,
+`serve` makes one and prints it. [`doc/SERVING.md`](doc/SERVING.md) and
+[`doc/WIFI.md`](doc/WIFI.md) have the details.
 
 ## Checks
 
 ```sh
 yarn run check && yarn run lint && yarn run test
-yarn run test:e2e    # when the UI changed; see doc/TESTING.md
+yarn run test:e2e    # Playwright, when the UI changed; see doc/TESTING.md
 ```
 
-## Why this exists instead of Mihon, Komga or Kavita
+Always `yarn run check`, never `yarn check`: Yarn 1 has a builtin of that name
+that checks `node_modules` and nothing else.
 
-- **Organisation belongs to the owner.** Every app imported from brings its own
-  categories. Here they arrive as plain tags that can be renamed or deleted, and
-  the structure — collections, ratings, favourites — is ours.
-- **Japanese raws are first-class.** Pages are OCR'd with mokuro on the
-  workstation GPU, and tapping a speech bubble gives a lookup through yomu's
-  tokenizer. Mined words go to Kumiko Flashcards. No off-the-shelf reader owns
-  both the page and the SRS.
-- **One reader for pictures and for text.** A manhwa and the web novel it was
-  adapted from are the same series in different formats, not two apps.
+## How it is built
 
-## Where things live
+SvelteKit 2 and Svelte 5 with SQLite (`better-sqlite3`), a PWA with a service
+worker, Kotlin for the Android apps, Go for the desktop tray, and a Kotlin
+extension engine beside it. [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) is the
+place to start.
 
-| What            | Where                                                   |
-| --------------- | ------------------------------------------------------- |
-| This repository | `~/projects/tsundoku` (workstation)                     |
-| Library files   | `/mnt/hdd2/tsundoku/library` (the mount with real room) |
-| Import samples  | `/mnt/hdd2/tsundoku/samples` — **never commit these**   |
-| Served on       | the tailnet address only, like kirisute                 |
+Most of the code was written by AI coding agents (Claude Code and OpenCode)
+working from my design briefs and reviews, often several at once in separate
+worktrees. That is why the history is long and dense. Every change goes through
+the same gates: typecheck, lint, about 4,000 unit tests and about 180
+Playwright specs, and review before it reaches `main`.
 
-The library is roughly 130 GB. It does not go under `/`, which is also home and
-is the mount development pressures.
+## Documentation
 
-## Documents
-
-- [`doc/WEBSITE.md`](doc/WEBSITE.md) — the website at tsundoku.masshiro.pro
-  (behind a password until the public release): how `site/` builds from the
-  signed latest.json, the captures, the deploy, and its departures from the handoff.
-- [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) — shape of the system, data
-  model, how it talks to Kumiko and yomu, and the phases.
-- [`doc/IMPORT-FORMATS.md`](doc/IMPORT-FORMATS.md) — what Mihon, Hentoid and
-  EPUB actually look like on disk, measured from real samples.
-- [`doc/LIBRARY.md`](doc/LIBRARY.md) — the library screen: what drives each
-  state, where it departs from the handoff, and what it doesn't do yet.
-- [`doc/SERIES.md`](doc/SERIES.md) — the series screen: frame, states,
-  departures, and what waits on the reader.
-- [`doc/MOVE.md`](doc/MOVE.md) — moving a series to another source: the
-  by-number map, what stays and what is added, the queue and FOLLOW, the way
-  back for 30 days, and the tablet backup's old key.
-- [`doc/INSTALL.md`](doc/INSTALL.md) — installing on the tablet, the manifest,
-  and the typeset 積 icon.
-- [`doc/OFFLINE.md`](doc/OFFLINE.md) — the device cache, the service worker,
-  and reading offline without losing stats.
-- [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
-  the plain-http fallback.
-- [`doc/LOGS.md`](doc/LOGS.md) — a friend's logs (stamped, rotated) and SAVE A
-  REPORT, scrubbed of anything hidden or secret.
-- [`doc/WIFI.md`](doc/WIFI.md) — a friend's phone over home Wi-Fi: the
-  listeners, pairing codes, paired devices, and departures from the handoff.
-- [`doc/TV.md`](doc/TV.md) — the plan for an Android TV with a remote: D-pad
-  focus, the ten-foot layout, the TV app, and reaching the server.
-- [`doc/FOCUS.md`](doc/FOCUS.md) — the D-pad focus layer: how an arrow picks the
-  next thing, a sheet as a scope, the focus mark, and where focus comes back.
-- [`doc/SIGN-IN.md`](doc/SIGN-IN.md) — the workstation's token, and a
-  friend's password (or none) chosen on first open.
-- [`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md) — the plan for installs on
-  friends' computers (Windows included): native bundles, Docker images, one
-  data directory, and what stays personal.
-- [`doc/RELEASE.md`](doc/RELEASE.md) — building the bundles friends install
-  (`yarn run release`), what's in them, the launcher, and the smoke test.
-- [`doc/TRAY.md`](doc/TRAY.md) — the tray a friend starts: no window, an icon
-  with OPEN and QUIT, one copy per account, and how it talks to the launcher.
-- [`doc/UPDATES.md`](doc/UPDATES.md) — dl.tsundoku.masshiro.pro, the release
-  key, `yarn run release:publish`, and UPDATE on a friend's install.
-- [`doc/WINDOWS-VM.md`](doc/WINDOWS-VM.md) — Zen, the Windows VM the install is
-  tested on: `ops/winvm/zen.sh`, `ssh win-test`, and its snapshots.
-- [`doc/COVERS.md`](doc/COVERS.md) — where covers come from, the thumbnail
-  cache, fetching from source sites, and sharp against the system libvips.
-- [`doc/WAITING.md`](doc/WAITING.md) — the time between a tap and the next
-  screen: pressed, the line, outlines, not answering, and failed saves.
-- [`doc/MOTION.md`](doc/MOTION.md) — how tsundoku moves: the motion tokens,
-  the press layer, hover, sheets arriving and leaving, and screen transitions.
-- [`doc/TEXT-READER.md`](doc/TEXT-READER.md) — the text reader: the book
-  downloaded once, pages from CSS columns, positions as paragraph and
-  character, vertical Japanese, and departures.
-- [`doc/IMPORT-EPUB.md`](doc/IMPORT-EPUB.md) — the EPUB importer: what the
-  real books' tables of contents look like, matter, and rescanning.
-- [`doc/DUPLICATES.md`](doc/DUPLICATES.md) — one chapter from several
-  scanlators: which copy represents it, read state, and the SCANLATOR row.
-- [`doc/BACKUPS.md`](doc/BACKUPS.md) — nightly and pre-migration database
-  snapshots, retention, the systemd timer, and restoring.
-- [`doc/READER.md`](doc/READER.md) — the image reader: touch, modes, spreads,
-  boundaries, where pages come from, progress, and departures.
-- [`doc/BOOKS.md`](doc/BOOKS.md) — series of books, grouping by hand, title
-  suggestions, and person and tag pages.
-- [`doc/IMPORT-MIHON.md`](doc/IMPORT-MIHON.md) — the Mihon importer: where it
-  reads, what becomes what, the categories-as-ratings rule, gallery sources
-  as books, and rescanning.
-- [`doc/EXTENSION-ENGINE.md`](doc/EXTENSION-ENGINE.md) — the engine that will
-  run Mihon and Aniyomi extensions (a fork of M-Extension-Server): the spike's
-  report, its API, what each source did, and what tsundoku's downloader owes it.
-- [`doc/IMPORT-HENTOID.md`](doc/IMPORT-HENTOID.md) — the Hentoid importer: the
-  hidden root, multi-chapter books, and finding grouped books again.
-- [`doc/HISTORY.md`](doc/HISTORY.md) — the history screen: one row per series
-  per day, removing a row, days and time zones.
-- [`doc/PRIVACY.md`](doc/PRIVACY.md) — incognito, blanking on leave, and the
-  deferred fingerprint gate.
-- [`doc/READING-LOG.md`](doc/READING-LOG.md) — the append-only reading log that
-  stats, history and tracking will be derived from, and why it exists first.
-- [`doc/design/README.md`](doc/design/README.md) — the imported design system,
-  where each part lives in the code, and its departures. `doc/design/handoff/` is
-  the untouched mirror of the design project.
-- [`doc/I18N.md`](doc/I18N.md) — English and Brazilian Portuguese: who
-  decides a device's language, how a screen's words become messages, the
-  glossary, and which screens are still in English.
-- [`doc/TESTING.md`](doc/TESTING.md) — the two test runners, the device
-  projects, and regenerating the frame spec.
-- [`doc/briefs/`](doc/briefs/) — design briefs for Claude Design. A brief moves
-  to `doc/briefs/done/` once its handoff is back.
-
-## Board labels
-
-Tracked on the **Tsundoku** board in Kumiko. Beyond the defaults (`Feature`,
-`Bug`, `Design`, `Infra`, `Docs`):
-
-- **`Phase 1`**: needed before the tablet can be emptied. The filter answers
-  "what is left before this replaces Mihon and Hentoid".
-- **`Blocked`**: waiting on something outside the card (a design handoff, a
-  sample from the tablet). Say what in the card body.
-- **`Later`**: deliberately parked. Wanted, but not before the tablet is emptied
-  (so never alongside `Phase 1`). The filter answers "what did we choose to
-  postpone", which plain Backlog doesn't. When a card needs groundwork laid now
-  so nothing is lost while it waits, the groundwork is its own card (for
-  example the reading log under stats).
-- **`Friends`**: part of making tsundoku installable on a friend's computer
-  ([`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md)).
+[`doc/`](doc/) holds one document per feature or screen: the reader
+([`READER.md`](doc/READER.md), [`TEXT-READER.md`](doc/TEXT-READER.md)), the
+library and series screens ([`LIBRARY.md`](doc/LIBRARY.md),
+[`SERIES.md`](doc/SERIES.md)), importing ([`IMPORT-MIHON.md`](doc/IMPORT-MIHON.md),
+[`IMPORT-HENTOID.md`](doc/IMPORT-HENTOID.md), [`IMPORT-EPUB.md`](doc/IMPORT-EPUB.md)),
+offline ([`OFFLINE.md`](doc/OFFLINE.md)), the extension engine
+([`EXTENSION-ENGINE.md`](doc/EXTENSION-ENGINE.md)), releases and updates
+([`RELEASE.md`](doc/RELEASE.md), [`UPDATES.md`](doc/UPDATES.md)), and testing
+([`TESTING.md`](doc/TESTING.md)).
 
 ## Licence
 
-[PolyForm Noncommercial 1.0.0](LICENSE): free to use, change and share for
-any noncommercial purpose, never to sell. It was MIT until 2026-10-29. The
-extension engine it talks to, `tsundoku-engine`, is a fork of
-M-Extension-Server and stays MPL-2.0, and the LNReader shims in
-`src/lib/server/novels/plugin-host.cjs` keep lnreader-plugins' MIT notice; why,
-and what that means for handing builds to friends, is in
-[`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md), "Licences".
+Source-available under the [PolyForm Noncommercial 1.0.0](LICENSE) licence:
+free to use, change and share for any noncommercial purpose, never to sell. It
+is not an OSI open-source licence. tsundoku-engine, a fork of
+M-Extension-Server, stays MPL-2.0, and the LNReader shims in
+`src/lib/server/novels/plugin-host.cjs` keep lnreader-plugins' MIT notice.
+[`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md), "Licences", says why.
