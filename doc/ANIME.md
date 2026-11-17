@@ -1037,6 +1037,11 @@ episode's picture is made on the workstation
    `-extension_picky 0` as a download's: the proxy's segments have no
    extension, and ffmpeg's HLS reader refuses those otherwise. On
    KickAssAnime an episode's picture comes out in about 10 s (9.8 s measured).
+   The option is ffmpeg 7.1's, and an older ffmpeg (Ubuntu 24.04's 6.1, which
+   CI runs) refuses the whole command when given it, while it never checks an
+   HTTP segment's extension to begin with. So `hls-reader.ts` asks each
+   binary's HLS reader once and passes the option only where it exists, for a
+   picture, a fingerprint and a download alike.
 
 A frame is taken a quarter in, past the opening; one that comes out dark or
 flat (a fade, a title card: `isBlankFrame`) is taken again at 40 %, then 60 %.

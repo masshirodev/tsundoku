@@ -323,12 +323,17 @@ export function muxArgs(o: {
 	header: string;
 	out: string;
 	title: string;
+	/**
+	 * What this ffmpeg's HLS reader needs to take the proxy's segments, which
+	 * have no extension: `-extension_picky 0` from ffmpeg 7.1, nothing before
+	 * (server/anime/hls-reader.ts asks the binary).
+	 */
+	hlsReader: string[];
 }): string[] {
 	const input = (url: string, hls: boolean) => [
 		'-headers',
 		`${o.header}\r\n`,
-		// The proxy's segments have no extension, and a site's are often dressed as .jpg.
-		...(hls ? ['-extension_picky', '0'] : []),
+		...(hls ? o.hlsReader : []),
 		'-i',
 		url
 	];

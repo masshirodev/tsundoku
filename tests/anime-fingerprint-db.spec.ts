@@ -112,6 +112,8 @@ let midB: string;
 let ed: string;
 let epAFile: string;
 
+// Encoding 1,320 s of Opus: about 15 s on an idle 6-core box, past 60 s on a
+// 4-core runner that encodes beside three other spec files.
 beforeAll(() => {
 	op = noise('op.mka', 20, 41);
 	midA = noise('mid-a.mka', 300, 100);
@@ -119,7 +121,7 @@ beforeAll(() => {
 	ed = noise('ed.mka', 20, 43);
 	epAFile = concat('ep-a.mka', [op, midA, ed]);
 	concat('ep-b.mka', [op, midB, ed]);
-}, 60_000);
+}, 300_000);
 
 describe('fingerprinting downloaded episodes', () => {
 	it.skipIf(noPrint)(

@@ -102,7 +102,8 @@ describe('the mux', () => {
 			subtitles: [{ url: 'http://127.0.0.1:9/api/anime/subtitle/s', lang: 'EN' }],
 			header: 'x-tsundoku: secret',
 			out: '/x/ep.mkv.partial',
-			title: 'Ep'
+			title: 'Ep',
+			hlsReader: ['-extension_picky', '0']
 		});
 		expect(args.filter((a) => a.startsWith('http'))).toEqual([
 			'http://127.0.0.1:9/api/anime/media/v',
@@ -113,9 +114,19 @@ describe('the mux', () => {
 		expect(args.join(' ')).toContain('-metadata:s:a:0 language=jpn -metadata:s:s:0 language=eng');
 		expect(args.slice(-3)).toEqual(['-f', 'matroska', '/x/ep.mkv.partial']);
 		expect(args.filter((a) => a === '-headers')).toHaveLength(3);
+		// The HLS reader's options go before the video's input and the audio's, never a subtitle's.
+		expect(args.filter((a) => a === '-extension_picky')).toHaveLength(2);
 		// The video's own audio when the source gives none apart.
 		expect(
-			muxArgs({ video: 'v', audio: [], subtitles: [], header: 'h', out: 'o', title: 't' }).join(' ')
+			muxArgs({
+				video: 'v',
+				audio: [],
+				subtitles: [],
+				header: 'h',
+				out: 'o',
+				title: 't',
+				hlsReader: []
+			}).join(' ')
 		).toContain('-map 0:v:0 -map 0:a? -c copy');
 		expect(iso3('ko')).toBe('kor');
 		expect([iso3('HI'), iso3('ta')]).toEqual(['hin', 'tam']);

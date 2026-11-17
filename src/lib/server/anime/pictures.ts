@@ -8,6 +8,7 @@ import { coverDir, loadSharp } from '../covers.ts';
 import { engineMedia, engineMediaPath } from '../engine/client.ts';
 import { publicFetch, readCapped } from '../net-guard.ts';
 import { frameAt, isBlankFrame, PICTURE_H, PICTURE_W } from '../../library/episode-pictures.ts';
+import { hlsReaderArgs } from './hls-reader.ts';
 import { loopback } from './loopback.ts';
 import { episodeFile, episodeStreams, probe, videoOnly } from './streams.ts';
 
@@ -83,7 +84,7 @@ async function sourcePicture(url: string): Promise<Buffer | null> {
  * One frame as PNG: [input] a file or a loopback address, [at] seconds in.
  * [stream] is how to read a loopback address; a file needs neither.
  */
-function grab(
+async function grab(
 	input: string,
 	at: number,
 	stream?: { header: string; hls: boolean }
@@ -93,9 +94,8 @@ function grab(
 		'-loglevel',
 		'error',
 		...(stream ? ['-headers', `${stream.header}\r\n`] : []),
-		// The proxy's segments have no extension, and ffmpeg's HLS reader refuses
-		// those unless told otherwise (as muxArgs does for a download).
-		...(stream?.hls ? ['-extension_picky', '0'] : []),
+		// The proxy's segments have no extension (hls-reader.ts).
+		...(stream?.hls ? await hlsReaderArgs(FFMPEG()) : []),
 		// Before -i: ffmpeg seeks the input, so a stream fetches only the segment it lands in.
 		'-ss',
 		String(at),

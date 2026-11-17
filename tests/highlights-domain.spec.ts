@@ -720,6 +720,7 @@ describe('reanchor against a naive search: a finite domain, all of it', () => {
 	const blockings = texts.flatMap((t) =>
 		t.length < 2 ? [[t]] : [[t], [t.slice(0, 2), t.slice(2)]]
 	);
+	// Over a million pairs: a few seconds here, past the default 5 s on a 4-core runner.
 	it('agrees on every pair', () => {
 		let ran = 0;
 		let different = 0;
@@ -762,7 +763,7 @@ describe('reanchor against a naive search: a finite domain, all of it', () => {
 		expect(ran).toBeGreaterThan(1_000_000);
 		expect(different).toBe(0);
 		console.info(`reanchor differential: ${ran} pairs, ${different} differences`);
-	});
+	}, 30_000);
 });
 
 describe('spans', () => {

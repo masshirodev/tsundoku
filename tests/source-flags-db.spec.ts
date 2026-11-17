@@ -955,6 +955,7 @@ describe('CONCEAL ITS SERIES', () => {
 	// A count on a size past it (COMMON.md): 600 conceals, 601 is refused, and
 	// the count is the source's own shown series plus the other parts of their
 	// Works (`conceal.server.ts`), so the mix is 599 + 1 and then 600 + 1.
+	// Six hundred series written one by one: past the default 5 s on a 4-core runner.
 	it('conceals 600 and refuses 601, counting a Work’s other parts too', async () => {
 		const { concealCount, conceal: press, concealBand, undoConceal } = await conceal();
 		const { createWork, ungroup } = await works();
@@ -1012,7 +1013,7 @@ describe('CONCEAL ITS SERIES', () => {
 			db.prepare(`DELETE FROM engine_extensions WHERE pkg = 'en.cap'`).run();
 			forgetSourceUse();
 		}
-	});
+	}, 30_000);
 });
 
 describe('BROWSE’s own band actions off the engine backend', () => {

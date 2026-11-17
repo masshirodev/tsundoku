@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -682,7 +683,7 @@ describe('taking one season out', () => {
 describe('the episodes’ files, and the show’s folder', () => {
 	/** A real folder per season, each holding `Episode 1.mkv`: the same name twice. */
 	function giveFiles() {
-		const root = mkdtempSync(join('temp', 'seasons-files-'));
+		const root = mkdtempSync(join(tmpdir(), 'seasons-files-'));
 		const dirs = ['One', 'Two', 'Three'].map((name) => {
 			const dir = join(root, name);
 			mkdirSync(dir, { recursive: true });
@@ -1268,7 +1269,7 @@ function filePlan(
 
 describe('a file gained while merged', () => {
 	const give = () => {
-		const root = mkdtempSync(join('temp', 'seasons-gained-'));
+		const root = mkdtempSync(join(tmpdir(), 'seasons-gained-'));
 		const dirs = ['One', 'Two', 'Three'].map((name) => {
 			const dir = join(root, name);
 			mkdirSync(dir, { recursive: true });
@@ -1370,7 +1371,7 @@ describe('a file gained while merged', () => {
 		// Every season streams, so the merge leaves the show with no folder.
 		db.prepare(`UPDATE series SET path = '' WHERE id IN (101, 102, 103)`).run();
 		const e = entryOf(102);
-		const root = mkdtempSync(join('temp', 'seasons-first-'));
+		const root = mkdtempSync(join(tmpdir(), 'seasons-first-'));
 		try {
 			books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 			expect(db.prepare(`SELECT path FROM series WHERE id = 101`).get()).toEqual({ path: '' });
@@ -1398,7 +1399,7 @@ describe('a file gained while merged', () => {
 	it('gives a season with no folder one on a take-out, so its file survives', () => {
 		db.prepare(`UPDATE series SET path = '' WHERE id IN (101, 102, 103)`).run();
 		const e = entryOf(102);
-		const root = mkdtempSync(join('temp', 'seasons-first-'));
+		const root = mkdtempSync(join(tmpdir(), 'seasons-first-'));
 		try {
 			books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 			write(root, 102, 2, 'Episode 1.mkv');

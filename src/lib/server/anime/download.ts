@@ -5,6 +5,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { coverDir } from '../covers.ts';
 import { getSetting } from '../settings.ts';
+import { hlsReaderArgs } from './hls-reader.ts';
 import { loopback } from './loopback.ts';
 import { ownEntry } from './marks.ts';
 import { seasonLinks, showEntry } from '../season-links.ts';
@@ -489,7 +490,8 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 					subtitles: kept(pick.quality).subtitles.map((t) => ({ url: local(t.src), lang: t.lang })),
 					header: `x-tsundoku: ${secret}`,
 					out: partial,
-					title: e.title || `Episode ${number}`
+					title: e.title || `Episode ${number}`,
+					hlsReader: await hlsReaderArgs(FFMPEG())
 				}),
 				(block) => {
 					const at = progressSeconds(block);

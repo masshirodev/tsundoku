@@ -6,6 +6,7 @@ import {
 	ENDING_MIN_S,
 	type Fingerprint
 } from '../../library/fingerprint.ts';
+import { hlsReaderArgs } from './hls-reader.ts';
 
 /**
  * Fingerprints of an episode (doc/ANIME.md, "Openings and endings"; card
@@ -75,15 +76,18 @@ function run(command: string, args: string[], collect = true): Promise<Ran> {
 	});
 }
 
-/** The arguments that seek to [region] and read only it, from a file or a stream. */
-function inputArgs(input: string, region: Span, stream?: Stream): string[] {
+/**
+ * The arguments that seek to [region] and read only it, from a file or a stream.
+ * [reader] is this ffmpeg's HLS reader options (hls-reader.ts), for an HLS stream.
+ */
+function inputArgs(input: string, region: Span, stream?: Stream, reader: string[] = []): string[] {
 	return [
 		'-hide_banner',
 		'-loglevel',
 		'error',
 		// As a download's and a picture's: the proxy's segments have no extension.
 		...(stream ? ['-headers', `${stream.header}\r\n`] : []),
-		...(stream?.hls ? ['-extension_picky', '0'] : []),
+		...(stream?.hls ? reader : []),
 		// Before -i: ffmpeg seeks, so a stream fetches only the segments it lands in.
 		'-ss',
 		String(region.start),
@@ -105,11 +109,12 @@ const fromRaw = (body: Buffer, seconds: number): Fingerprint | null => {
 async function muxerPrint(
 	input: string,
 	region: Span,
-	stream?: Stream
+	stream?: Stream,
+	reader?: string[]
 ): Promise<Fingerprint | null> {
 	if (muxerMissing) return null;
 	const ran = await run(FFMPEG(), [
-		...inputArgs(input, region, stream),
+		...inputArgs(input, region, stream, reader),
 		'-vn',
 		'-f',
 		'chromaprint',
@@ -124,12 +129,17 @@ async function muxerPrint(
 }
 
 /** fpcalc, fed the same audio as raw PCM: chromaprint without the muxer. */
-function fpcalcPrint(input: string, region: Span, stream?: Stream): Promise<Fingerprint | null> {
+function fpcalcPrint(
+	input: string,
+	region: Span,
+	stream?: Stream,
+	reader?: string[]
+): Promise<Fingerprint | null> {
 	const ff = track(
 		spawn(
 			FFMPEG(),
 			[
-				...inputArgs(input, region, stream),
+				...inputArgs(input, region, stream, reader),
 				'-vn',
 				'-ac',
 				'1',
@@ -198,9 +208,10 @@ function fpcalcPrint(input: string, region: Span, stream?: Stream): Promise<Fing
 
 /** One region's points: the muxer if it is there, else fpcalc. */
 async function printAt(input: string, region: Span, stream?: Stream): Promise<Fingerprint | null> {
-	const viaMuxer = await muxerPrint(input, region, stream).catch(() => null);
+	const reader = stream?.hls ? await hlsReaderArgs(FFMPEG()) : [];
+	const viaMuxer = await muxerPrint(input, region, stream, reader).catch(() => null);
 	if (viaMuxer) return { ...viaMuxer, start: region.start };
-	const fallback = await fpcalcPrint(input, region, stream).catch(() => null);
+	const fallback = await fpcalcPrint(input, region, stream, reader).catch(() => null);
 	return fallback ? { ...fallback, start: region.start } : null;
 }
 
