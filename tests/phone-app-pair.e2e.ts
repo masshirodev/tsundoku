@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /**
- * The pairing page on a phone and a tablet (doc/PHONE-APP.md): the file
+ * The pairing page on a phone and a tablet (doc/ANDROID.md): the file
  * the APK ships (android/app/src/main/assets/pair), opened with a stand-in
  * for the phone app's bridge, whose `form()` says "mobile". The TV's own frame
  * on the same file is tests/tv-app-pair.e2e.ts's, and stays exactly as it was.

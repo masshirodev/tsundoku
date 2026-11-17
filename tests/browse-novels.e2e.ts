@@ -34,7 +34,7 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read on
 	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['FIRST 3', 'REFRESH', 'FOLLOW']);
 
 	// Two chapters, ↓ each: queued in the one queue, downloaded by the novel worker.
-	// The row itself reads online (doc/BROWSING.md).
+	// The row itself reads online (doc/READING-ONLINE.md).
 	const row = (title: string) => page.locator('[id^="entry-"]', { hasText: title });
 	for (const t of ['Dust', 'Light']) {
 		await row(t).locator('.dl-cell').click();

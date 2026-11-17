@@ -3,7 +3,7 @@ package dev.masshiro.tsundoku.tv
 import java.net.URLEncoder
 
 /**
- * A launcher shortcut per remembered server (doc/TV-APP.md, "Launcher
+ * A launcher shortcut per remembered server (doc/ANDROID.md, "Launcher
  * shortcuts"). Each is the `tsundoku://connect?url=` link the `VIEW` filter
  * already takes, so a shortcut opens exactly what an `am start` does, and
  * the app needs no new way in.

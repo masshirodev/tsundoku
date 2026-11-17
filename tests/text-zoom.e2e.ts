@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 
 /**
  * The web app at 130% text: the phone and tablet app follows Android's
- * font size up to 130% through the WebView's `textZoom` (doc/PHONE-APP.md on
+ * font size up to 130% through the WebView's `textZoom` (doc/ANDROID.md on
  * the `phone-app` branch), which scales every computed font size and nothing
  * else. A browser has no text zoom, so the closest it gets is this: on a
  * 360 × 780 phone, every element's computed `font-size` is

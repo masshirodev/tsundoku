@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { continueCell, keptLine, recordLine, rowLook } from '$lib/library/browsing';
 
-// A browsing record on its preview (doc/BROWSING.md, Online Calls 1B, 1D).
+// A browsing record on its preview (doc/READING-ONLINE.md, Online Calls 1B, 1D).
 describe('a record’s preview rows', () => {
 	it('say WATCHED, how much is left with how far, or nothing', () => {
 		const s = { read: false, position: null, durationS: 1440, pageCount: 0 };

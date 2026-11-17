@@ -1,5 +1,5 @@
 // The one project: the app. Versions are AGP 8.13 / Gradle 8.14
-// (doc/TV-APP.md).
+// (doc/ANDROID.md).
 pluginManagement {
 	repositories {
 		google()

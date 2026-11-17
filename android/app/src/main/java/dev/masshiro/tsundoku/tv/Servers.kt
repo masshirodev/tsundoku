@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * The servers this TV has paired with (doc/TV-APP.md, "Servers").
+ * The servers this TV has paired with (doc/ANDROID.md, "Servers").
  *
  * One entry per origin: the origin, the name the server gives itself (its
  * hostname, as `/pair/tv` says it), the TV's own name for it (empty unless

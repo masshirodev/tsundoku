@@ -21,7 +21,7 @@ package dev.masshiro.tsundoku.tv
  * close that too is `WebViewCompat.addWebMessageListener` with origin rules
  * ([allowsMessage], below, is the rule such a listener would ask; it is
  * pinned by `MessageGuardTest` and not wired to anything yet).
- * `doc/TV-APP.md`, "What it does not do yet", says what that move still
+ * `doc/ANDROID.md`, "Limits", says what that move still
  * needs; the app's own page loads through `WebViewAssetLoader` (step 1),
  * and the listener itself is step 3.
  *
@@ -251,7 +251,7 @@ object BridgeGuard {
 	 * report), an absent origin, `""`, `about:`, `data:`, `javascript:`, and
 	 * [ASSET] itself (a URL with a path is not an origin). The asset page
 	 * loads from [ASSET_ORIGIN] through `WebViewAssetLoader` (item 1 of
-	 * `doc/TV-APP.md`'s order), which is what makes this rule's asset branch
+	 * `doc/ANDROID.md`'s order), which is what makes this rule's asset branch
 	 * reachable; the listener itself is still item 3 and not built.
 	 *
 	 * A known server is compared through [Address.originOf], as the top-level

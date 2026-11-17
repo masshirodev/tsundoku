@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * What the app does with an address handed to it from outside (doc/TV-APP.md,
+ * What the app does with an address handed to it from outside (doc/ANDROID.md,
  * "An address from outside is asked about"): which of the pair page's
  * fragments it opens.
  *

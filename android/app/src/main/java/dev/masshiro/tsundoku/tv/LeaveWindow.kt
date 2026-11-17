@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * The second press BACK has to make before it leaves the app (doc/TV-APP.md,
+ * The second press BACK has to make before it leaves the app (doc/ANDROID.md,
  * "BACK"). A BACK meant as a step would otherwise leave the app, so the press
  * that would leave only says so; the next one, while the window is open,
  * leaves.
@@ -99,7 +99,7 @@ class LeaveWindow(
 
 		/**
 		 * How soon after the first press a second one is still that first
-		 * press (doc/TV-APP.md). An IR remote repeats its
+		 * press (doc/ANDROID.md). An IR remote repeats its
 		 * frame about every 108 ms, so a doubled press is under ~220 ms; a
 		 * second press made after reading the toast takes far longer than
 		 * 400 ms. A deliberate fast double tap inside it costs one more press.

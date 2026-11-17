@@ -57,7 +57,7 @@ android {
 	}
 
 	/*
-	 * Two apps from one project (doc/PHONE-APP.md): the TV's, and the
+	 * Two apps from one project (doc/ANDROID.md): the TV's, and the
 	 * phone and tablet one. Every line of pairing is shared (src/main); what
 	 * differs is decided by Form.kt from FORM, and the little that is
 	 * manifest or theme lives in src/tv and src/mobile. The Kotlin package

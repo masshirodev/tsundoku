@@ -5,7 +5,7 @@ import { gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * IMPORT A BACKUP's server half (doc/IMPORT.md): the upload in pieces,
+ * IMPORT A BACKUP's server half (doc/IMPORT-BACKUP.md): the upload in pieces,
  * the import area, reading a file before anything is written, the preview,
  * IMPORT as a scan job, a second backup merging, and the log's counts
  * following reveal. Reached through the functions the routes call, from a
@@ -391,8 +391,8 @@ describe('a second backup of the same library', () => {
 		setInCollection([drawing.id], shelf, true);
 		setDirection(drawing.id, 'ltr');
 		setHidden([bunk.id], true);
-		// Nothing in the app edits a series' title or kind (doc/IMPORT.md, "Premises"):
-		// the writer must still leave both, so they stand in by hand.
+		// The writer never touches the title or kind of a series it finds again
+		// (doc/IMPORT-BACKUP.md, "IMPORT"), so both are set by hand here.
 		db().prepare(`UPDATE series SET title = 'My Title', kind = 'manhwa' WHERE id = ?`).run(bunk.id);
 		const before = (db().prepare(`SELECT COUNT(*) n FROM series`).get() as { n: number }).n;
 

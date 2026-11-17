@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures';
 
 /*
- * IMPORT A BACKUP's pick screen against its design (doc/IMPORT.md). The
+ * IMPORT A BACKUP's pick screen against its design (doc/IMPORT-BACKUP.md). The
  * design is drawn at a 1440-wide desktop, beside the sidebar, so this runs in
  * the desktop project alone: every other project ignores it
  * (playwright.config.ts's DESKTOP_ONLY), so it neither lists nor skips

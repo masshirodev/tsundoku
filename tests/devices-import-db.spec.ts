@@ -1051,9 +1051,8 @@ describe('a backup adopts a folder nothing scans any more', () => {
 });
 
 /**
- * A mirror's series (doc/IMPORT-MIHON.md, "What a mirror left
- * behind"): its row, its path and its files stay, and nothing reads the folder
- * any more. Then tsundoku downloads a chapter of it into its own device: the
+ * A mirror's series (doc/IMPORT-MIHON.md, "Where it reads from"): its row,
+ * its path and its files stay, and nothing reads the folder any more. Then tsundoku downloads a chapter of it into its own device: the
  * two files are one series, so its path widens to the folder both are under
  * and every entry's file is rewritten against it (write.ts, `widenTo`). Get
  * that rewrite wrong and every file of the series stops resolving -- reader,

@@ -41,8 +41,8 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 
 /**
- * tsundoku on an Android TV (doc/TV-APP.md), and on a phone or
- * tablet too (doc/PHONE-APP.md): one activity for both, the differences in
+ * tsundoku on an Android TV, and on a phone or tablet too (doc/ANDROID.md):
+ * one activity for both, the differences in
  * [Form]. A WebView that holds the same web app a phone or a computer opens,
  * and the things the page cannot do over plain http: a launcher presence, the
  * remote's keys (a TV's), the screen kept awake, and a way to be paired with
@@ -761,7 +761,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/**
 	 * The address this launch was handed, from the extra the documented
 	 * command sends or from a `tsundoku://connect?url=` link. The extra wins
-	 * when both are there: it is what doc/TV-APP.md tells the user to type,
+	 * when both are there: it is what doc/ANDROID.md tells the user to type,
 	 * and a launcher's link is the second way in.
 	 */
 	private fun givenAddress(intent: Intent?): String? {

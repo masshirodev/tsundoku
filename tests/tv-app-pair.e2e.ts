@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
  * here it is opened from the asset file itself, because a browser has
  * no loader and the page's scripts do not read `location.protocol`. What the
  * loader changes — `BridgeGuard`, `Back.kt` and the WebView client — is pinned
- * by the JVM tests and a check on a real TV (`doc/TV-APP.md`).
+ * by the JVM tests and a check on a real TV (`doc/ANDROID.md`).
  */
 const page9 = pathToFileURL(
 	join(process.cwd(), 'android/app/src/main/assets/pair/index.html')
@@ -346,7 +346,7 @@ test('a refused address shows the band on the address screen and leaves it usabl
 test("a refused address stops the not-answering screen's retry, so the refusal stays", async ({
 	page
 }) => {
-	// A friend whose LAN probe failed is the case doc/TV-APP.md sends here: the
+	// A friend whose LAN probe failed is the case doc/ANDROID.md sends here: the
 	// TV is already retrying something nobody answers. It is a server in the
 	// list, because that is who the app's own #lost= is for.
 	const lan = 'http://192.168.1.99:42143';
@@ -2086,7 +2086,7 @@ for (const door of ['lost', 'long'])
 	});
 
 // A refusal does not take back a CONNECT the user already pressed: only a late
-// failure is dropped, and a success still pairs (doc/TV-APP.md, Decision 9).
+// failure is dropped, and a success still pairs (doc/ANDROID.md).
 for (const ok of [true, false])
 	test(`a link over 80 characters while CONNECT is checking: a late ${ok ? 'answer pairs what was pressed' : 'failure leaves the refusal'}`, async ({
 		page

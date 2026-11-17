@@ -305,7 +305,7 @@ test('the DOWNLOAD row and every chapter state (state 1)', async ({ page }) => {
 	await expect(row(page, 12).locator('.status .long')).toHaveText('QUEUED');
 	await expect(row(page, 14).locator('.status .long')).toHaveText('FAILED · 3 TRIES');
 	// A source serves it, so a chapter with no file reads online, and ↓ downloads
-	// it apart (doc/BROWSING.md).
+	// it apart (doc/READING-ONLINE.md).
 	await expect(row(page, 16).locator('.status .long')).toHaveText('ONLINE');
 	await expect(row(page, 16).locator('.dl-cell')).toHaveText('↓');
 	await expect(row(page, 14).locator('.dl-cell')).toHaveText('RETRY');

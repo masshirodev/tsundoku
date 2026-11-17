@@ -2,7 +2,7 @@ package dev.masshiro.tsundoku.tv
 
 /**
  * How far the page sits in from each edge on a phone or tablet
- * (doc/PHONE-APP.md, "The camera band and the keyboard").
+ * (doc/ANDROID.md, "On a phone: the camera band and the keyboard").
  *
  * The app targets SDK 36, so on Android 15 and later it is drawn edge to edge
  * whatever it asks, and the system bars are hidden besides (fullscreen, as the
