@@ -3,7 +3,7 @@
 Where manga, manhwa and doujinshi are read: `/read/<entry>`, with `?p=<page>`
 (1-based, or `last`). Built from `Index Reader.dc.html` and `Reader States.dc.html`
 (the "Index" system, see [`design/README.md`](design/README.md)), plus the
-addendum's incognito states. Brief: [`briefs/done/READER.md`](briefs/done/READER.md).
+addendum's incognito states. Brief: `briefs/done/READER.md`.
 
 **The page is the interface.** Nothing is on screen but the art until a tap in
 the middle asks for the controls, and the next tap puts them away.

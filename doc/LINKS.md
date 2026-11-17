@@ -6,7 +6,7 @@ it gives tracking (card c37, "Link series to MyAnimeList / AniList: covers,
 then tracking", which absorbed c62, "Get missing covers to imported books by
 scrapping").
 
-- Brief: [`briefs/done/CATALOGUE-LINKS.md`](briefs/done/CATALOGUE-LINKS.md).
+- Brief: `briefs/done/CATALOGUE-LINKS.md`.
 - Handoff: `doc/design/handoff/Catalogue Links.dc.html` (the overview),
   `Link Review.dc.html` and `Series Link.dc.html`.
 - Code:

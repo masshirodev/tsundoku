@@ -5,8 +5,8 @@ clip. It is **a copy and a pointer**. The copy is the highlight's own and never
 changes; the pointer goes back to the place while the place exists, and says
 where it came from when it doesn't. Card c444 ("Highlights: a novel's passage,
 a manga's page, an anime's clip, kept even after the entry is gone") is the
-whole feature, from the brief [`briefs/HIGHLIGHTS.md`](briefs/HIGHLIGHTS.md)
-and the handoff [`handoffs/highlights/`](handoffs/highlights/) (start with
+whole feature, from the brief `briefs/HIGHLIGHTS.md`
+and the handoff `handoffs/highlights/` (start with
 `Main.dc.html`, whose numbered calls are cited below as _Main 02_ and so on).
 
 It ships in slices:
@@ -133,7 +133,7 @@ band says `2 HIGHLIGHTS LOST THEIR WAY BACK` when it took any (`?lost=`).
 
 ## Pages (H3)
 
-Card c703, from [`handoffs/highlights/Manga.dc.html`](handoffs/highlights/Manga.dc.html)
+Card c703, from `handoffs/highlights/Manga.dc.html`
 (_Manga M1_ to _M7_) and Main 02, built by `~/.config/myconf/HANDOFF.md`. Its
 store is `src/lib/server/highlights/pages.ts`; the reader's rules are in
 `src/lib/library/highlights.ts` (`cellState`, `cellLabel`, `spreadChoices`,
@@ -246,7 +246,7 @@ page's own size.
 
 ## Quotes (H2)
 
-Card c702, from [`handoffs/highlights/Novel.dc.html`](handoffs/highlights/Novel.dc.html)
+Card c702, from `handoffs/highlights/Novel.dc.html`
 (_Novel N1_ to _N8_, _J1_ to _J3_, _D1_ and _D2_) and Main 02, built by
 `~/.config/myconf/HANDOFF.md`. Its store is `src/lib/server/highlights/quotes.ts`,
 its door `src/routes/api/highlights/quotes/`, and the rules that read a chapter

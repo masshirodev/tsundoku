@@ -5,7 +5,7 @@ small Android app, as the TV's is. This is what that app is, how it differs
 from the TV's, how to build it, and what has not been tried on a real phone.
 
 Card c521 ("Phone and tablet app: tsundoku in its own Android app, paired the
-way the TV is"). The brief was [`briefs/PHONE-APP.md`](briefs/PHONE-APP.md);
+way the TV is"). The brief was `briefs/PHONE-APP.md`;
 the design is the handoff `doc/design/handoff/PhoneApp-*.dc.html`, its
 decisions in `PhoneApp-Calls.dc.html`. The TV app it shares everything with is
 [`TV-APP.md`](TV-APP.md).

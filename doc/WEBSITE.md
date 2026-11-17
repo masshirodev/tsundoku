@@ -9,10 +9,10 @@ the repositories stay private until then): Caddy's `basic_auth` in front of
 it, configured on the VPS, not here. The page itself is the public page it
 will become and never mentions the gate.
 
-- Brief: [`briefs/done/WEBSITE.md`](briefs/done/WEBSITE.md).
+- Brief: `briefs/done/WEBSITE.md`.
 - Handoff: the Claude Design canvas "tsundoku — website [finished]"
   (`https://claude.ai/artifact/31c3ce92-56a9-49ce-9c04-5a71d6e1f3de`),
-  mirrored byte for byte in [`handoffs/website/`](handoffs/website/). Like
+  mirrored byte for byte in `handoffs/website/`. Like
   `design/handoff/`, the mirror is never edited, and Prettier and ESLint skip
   it. `Main.dc.html` there holds the designer's eleven calls; this document
   cites them by number.

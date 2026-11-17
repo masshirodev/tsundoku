@@ -4,8 +4,8 @@ Anime from Aniyomi's extensions, found, streamed, downloaded and watched
 inside tsundoku, as manga runs on Mihon's and novels on LNReader's
 ([`DOWNLOADER.md`](DOWNLOADER.md), [`NOVELS.md`](NOVELS.md)). Card c128
 ("Anime from Aniyomi extensions: player and storage"), from the brief
-[`briefs/PLAYER.md`](briefs/PLAYER.md) and its handoff in
-[`design/handoff/`](design/handoff/) (Anime Calls, Anime States, Player
+`briefs/PLAYER.md` and its handoff in
+`design/handoff/` (Anime Calls, Anime States, Player
 States, Player Waiting, and the parametric Index Player, Index Anime Series
 and Index Anime Library). The owner approved its five defaults on 2026-10-28,
 the second amended to Jellyfin's TV layout (card c128 has them in full).

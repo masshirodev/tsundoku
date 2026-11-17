@@ -4,10 +4,10 @@ What a friend's empty install shows instead of "Nothing imported yet" (cards
 c208, c209). SET UP's four steps get tsundoku ready; FIRST READ's three walk
 through what it's for: find something, keep it, download it.
 
-- SET UP: the brief was [`briefs/GETTING-STARTED.md`](briefs/GETTING-STARTED.md);
+- SET UP: the brief was `briefs/GETTING-STARTED.md`;
   the design is the Getting Started handoff, `doc/design/handoff/Start-*.dc.html`
   (its decisions in `Start Calls.dc.html`).
-- FIRST READ: the brief was [`briefs/FIRST-READ.md`](briefs/FIRST-READ.md),
+- FIRST READ: the brief was `briefs/FIRST-READ.md`,
   from the owner on 2026-10-31 ("ppl learn how to read repos and whatnot but
   not how to search, add to library and download stuff"); the design is
   `doc/design/handoff/FirstRead-*.dc.html` (its decisions in

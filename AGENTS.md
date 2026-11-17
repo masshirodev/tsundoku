@@ -12,9 +12,10 @@ this machine (where the library and samples live, how the live copy runs).
   invented titles.
 - Exposure: bind to the tailnet or the configured address only, cookie auth,
   `ORIGIN` derived from the bound address (`doc/SERVING.md`).
-- Screens are built from a design handoff. Briefs live in `doc/briefs/`; the
-  design system is `doc/design/` (read its README before touching a component),
-  and `doc/design/handoff/` is a verbatim mirror: never edit it.
+- Screens are built from a design handoff. The design system as built is
+  `doc/design/` (read its README before touching a component). Briefs and
+  handoffs live in a separate, private design repository; `AGENTS.local.md`
+  says where, when this machine has it.
 - Colours come from tokens in `src/lib/styles/`, never literals. `--reveal`
   (magenta) is reserved for reveal mode: the banner, the frame, HIDDEN badges.
 - Device layout is CSS media queries, not script, so the first paint is right.

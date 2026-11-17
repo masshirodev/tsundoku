@@ -1,7 +1,7 @@
 # HELP: a page, and a "?" where the question comes up
 
 Seven short topics, and a "?" on the rows friends ask about (card c208). The
-brief was [`briefs/HELP.md`](briefs/HELP.md); the design is the HELP
+brief was `briefs/HELP.md`; the design is the HELP
 handoff, `doc/design/handoff/Help*.dc.html` and `Ask.dc.html` (its decisions
 in `Help Calls.dc.html`). Kumiko's help gave the idea; tsundoku's look is its
 own. GET STARTED, topic 01, is [`ONBOARDING.md`](ONBOARDING.md).
@@ -26,7 +26,7 @@ same IN SHORT as the page, so the two can't drift.
 | 07  | When something breaks   | `report`      | SAVE A REPORT                                                                                                                                   |
 
 **The handoff (2026-11-12): topic 08.** Mirrored at
-[`handoffs/keys-accounts/`](handoffs/keys-accounts/) (`Main.dc.html`, seven
+`handoffs/keys-accounts/` (`Main.dc.html`, seven
 boards, `Status: finished`). The design's answers, in its own words:
 
 - **One topic, `08 — Keys and accounts`**, opening with a table that puts the

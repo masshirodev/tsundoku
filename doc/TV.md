@@ -103,7 +103,7 @@ start but was drawn for fingers.
 | Card | What                                                               | Waits on   |
 | ---- | ------------------------------------------------------------------ | ---------- |
 | c232 | How the TV reaches the server, and signs in without a camera       | the owner  |
-| c233 | The ten-foot design, from [`briefs/TV.md`](briefs/TV.md)           | the design |
+| c233 | The ten-foot design, from `briefs/TV.md`                           | the design |
 | c234 | D-pad focus: moving by direction, and focus you can see            | nothing    |
 | c235 | The remote's way into long-press sheets; the player on screen      | c233       |
 | c236 | The Android TV app, a Kotlin WebView wrapper                       | c232       |
@@ -152,7 +152,7 @@ the list, 9B; a new address stops on 9B until CONNECT is pressed
 
 ## The design
 
-The handoff for [`briefs/TV.md`](briefs/TV.md) came back on 2026-11-01:
+The handoff for `briefs/TV.md` came back on 2026-11-01:
 `doc/design/handoff/TV Calls.dc.html` holds the decisions, the sizes, the
 media query and the remote's keys; the `TV-Board-*` files lay out each
 screen's states. Canvas: `https://claude.ai/artifact/91833e89-1e36-4d09-9f98-077c88bcf921`.

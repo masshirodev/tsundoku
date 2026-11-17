@@ -13,7 +13,7 @@ beside AniList's entry a season. A doujin goes nowhere. The contract it's built
 against is Ranobe's `doc/API-V1.md`, "For Tsundoku", and the steps below use
 its numbers.
 
-- Brief: [`briefs/done/RANOBE.md`](briefs/done/RANOBE.md). Handoff:
+- Brief: `briefs/done/RANOBE.md`. Handoff:
   `doc/design/handoff/Ranobe.dc.html`, with `Ranobe Review.dc.html` and
   `Ranobe Series.dc.html` (the zip is `doc/handoffs/done/Ranobe.zip`).
 - Code:

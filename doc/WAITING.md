@@ -1,8 +1,8 @@
 # Waiting
 
 The time between a tap and the next screen, on every screen. It's built from
-`Loading States.dc.html` in [`design/handoff/`](design/handoff/), the handoff for
-the brief [`briefs/done/LOADING.md`](briefs/done/LOADING.md).
+`Loading States.dc.html` in `design/handoff/`, the handoff for
+the brief `briefs/done/LOADING.md`.
 
 It's one state shared by every screen (`src/lib/waiting.svelte.ts`), started
 and ended by the root layout from SvelteKit's `beforeNavigate` and

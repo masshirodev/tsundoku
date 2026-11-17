@@ -41,14 +41,9 @@ const closure = [
 
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
-	// The handoff is a mirror; the LNReader fixtures are written as plugins are, not as tsundoku is.
+	// The LNReader fixtures are written as plugins are, not as tsundoku is.
 	{
-		ignores: [
-			'doc/design/handoff/**',
-			'doc/handoffs/**',
-			'tests/fixtures/lnreader/**',
-			'android/**/build/**'
-		]
+		ignores: ['tests/fixtures/lnreader/**', 'android/**/build/**']
 	},
 	js.configs.recommended,
 	...ts.configs.recommended,

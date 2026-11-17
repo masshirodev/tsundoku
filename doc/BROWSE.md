@@ -8,7 +8,7 @@ opened Suwayomi's web UI at all.
 
 Designed in the handoff `Index-Browse.dc.html`, `Index-Extensions.dc.html`,
 `R1`–`R8` and `Browse Calls.dc.html` ([`design/README.md`](design/README.md)),
-from the brief [`briefs/BROWSE.md`](briefs/BROWSE.md). Card c126 ("Browse,
+from the brief `briefs/BROWSE.md`. Card c126 ("Browse,
 extensions and repos screens") on the Tsundoku board, split into six parts:
 
 | Part                                                              | Card | State |
@@ -490,7 +490,7 @@ SEARCH THE SOURCES too, before this, and is fixed for both
 
 **SELECT** on a source's page (card c868, the owner's ask; designed in
 `doc/handoffs/browse-select/` from the brief
-[`briefs/BROWSE-SELECT.md`](briefs/BROWSE-SELECT.md)) ticks as many results as
+`briefs/BROWSE-SELECT.md`) ticks as many results as
 the owner likes while browsing, then adds them to the library, and downloads
 them, in one press. This is **cut 1** (the owner's split): the selection, the
 bulk bar and a press driven by the page. What cut 2 adds is under "What it does

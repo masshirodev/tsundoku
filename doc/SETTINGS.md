@@ -1,7 +1,7 @@
 # Settings
 
 `/settings`, one page with every setting on it (card c171, with c160 folded
-in; the brief is [`briefs/SETTINGS.md`](briefs/SETTINGS.md), the handoff
+in; the brief is `briefs/SETTINGS.md`, the handoff
 `design/handoff/Settings*.dc.html` and `Reach.dc.html`). Settings still live
 where they're used, in the READING sheet, the text reader's sheet, the
 player's sheet and FILTER. This page is the overview. It shows each setting

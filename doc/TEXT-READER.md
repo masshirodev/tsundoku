@@ -6,8 +6,8 @@ looks at the series' kind and draws one or the other, so every ▶ in the app
 opens an entry without knowing which it is.
 
 It's built from `Index Text Reader.dc.html` and `Text Reader States.dc.html` in
-[`design/handoff/`](design/handoff/), the handoff for the brief
-[`briefs/done/TEXT-READER.md`](briefs/done/TEXT-READER.md). How books get into
+`design/handoff/`, the handoff for the brief
+`briefs/done/TEXT-READER.md`. How books get into
 the library is [`IMPORT-EPUB.md`](IMPORT-EPUB.md).
 
 **The text is the interface.** Nothing is on screen but the page and a 2px

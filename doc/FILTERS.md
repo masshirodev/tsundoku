@@ -3,10 +3,10 @@
 Card c68 ("More library filters: unfavourited, unrated, hidden, languages; add
 a shelf from the sidebar"). The handoff is `doc/handoffs/done/Filters.zip`,
 mirrored as
-[`design/handoff/Library Filters.dc.html`](design/handoff/Library%20Filters.dc.html),
+`design/handoff/Library Filters.dc.html`,
 of which **turn 3** is what's built (turns 1 and 2, an ONLY row and a panel
 beside an AT LEAST band, were superseded by it). The brief is
-[`briefs/done/LIBRARY-FILTERS.md`](briefs/done/LIBRARY-FILTERS.md).
+`briefs/done/LIBRARY-FILTERS.md`.
 
 ## Shelves are where, filters are which
 

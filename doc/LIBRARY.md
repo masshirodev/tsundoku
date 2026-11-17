@@ -382,8 +382,8 @@ TAKEN OUT`, counting only ids still out: one ticked again by hand is
 ### SELECT across the search
 
 The search is part of SELECT (c698, wave 34; the handoff
-[`handoffs/select-search/`](handoffs/select-search/), from
-[`briefs/SELECT-SEARCH.md`](briefs/SELECT-SEARCH.md)): a trip to `/search` in a
+`handoffs/select-search/`, from
+`briefs/SELECT-SEARCH.md`): a trip to `/search` in a
 selecting mode, not a field inside the selecting bar.
 
 - **Two ways in.** The selecting bar's `/` cell, between SHOW and SELECT ALL:

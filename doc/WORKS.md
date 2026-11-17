@@ -2,9 +2,9 @@
 
 Cards c215 ("Anime seasons group into one series, so a show is one tile") and
 c216 ("A Work groups series, so finishing one leads into the next"). The brief
-is [`briefs/done/WORKS.md`](briefs/done/WORKS.md); the design handoff
+is `briefs/done/WORKS.md`; the design handoff
 (2026-11-02, canvas `https://claude.ai/artifact/LMzdUzR8JemZer1tS3ECQq`) is
-mirrored in [`design/handoff/`](design/handoff/) as `Works Calls.dc.html` (the
+mirrored in `design/handoff/` as `Works Calls.dc.html` (the
 designer's decisions, the canvas's `Main.dc.html`), the `Seasons-*` and
 `Work-*` boards, `wk.css`, and `Works canvas.json`.
 
@@ -110,7 +110,7 @@ selection bars prepend it to `groupAnswers`, which stays the books' rule).
 - `INTO`: `NEW SERIES` / `ADD TO A SHOW · 0`. **Adding a season to an existing
   show has no door yet** (S3's SEASONS · EDIT), so the cell is drawn disabled,
   as the board draws it, and `?/group` takes only a new show. Its design is
-  delivered (c961, 2026-11-12): [`handoffs/add-to-a-show/`](handoffs/add-to-a-show/),
+  delivered (c961, 2026-11-12): `handoffs/add-to-a-show/`,
   which draws what N counts, the pick, the appended sheet and the append's
   UNDO. Unbuilt.
 - `NAME`: **the shortest title, with its trailing season marker taken off** —

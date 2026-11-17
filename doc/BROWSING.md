@@ -2,7 +2,7 @@
 
 Card c161 ("Read or watch from a source without adding to the library"),
 from the owner's report on 2026-10-29: "I can't watch or read anything without
-adding it to my library." Its brief is [`briefs/READING-ONLINE.md`](briefs/READING-ONLINE.md),
+adding it to my library." Its brief is `briefs/READING-ONLINE.md`,
 whose design was still being drawn when the anime part shipped.
 
 | Part                                                      | Card | State           |

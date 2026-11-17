@@ -99,7 +99,7 @@ place.
 
 ## The handoff (2026-11-12)
 
-Mirrored at [`handoffs/movies-shows/`](handoffs/movies-shows/): the canvas
+Mirrored at `handoffs/movies-shows/`: the canvas
 (`canvas.json`, title `… [finished]`, `Status: finished`), `Main.dc.html` (the
 designer's decisions and answers) and eleven boards, dark. The palette is all
 tokens (7 of 7); the theme declares no length tokens, so the mock's literal px

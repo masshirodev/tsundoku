@@ -3,8 +3,8 @@
 Phase 2 (card c9): looking words up while reading raw Japanese, and turning
 what was looked up into flashcards in Kumiko. Designed in
 `Index Japanese.dc.html` and `Japanese States.dc.html` in
-[`design/handoff/`](design/handoff/), the handoff for the brief
-[`briefs/done/JAPANESE.md`](briefs/done/JAPANESE.md).
+`design/handoff/`, the handoff for the brief
+`briefs/done/JAPANESE.md`.
 
 Three parts, each its own section: **OCR** reads manga pages into text on the
 workstation; **lookup** splits text into words and finds them in JMdict;

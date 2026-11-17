@@ -3,8 +3,8 @@
 The same doujin downloaded in two or three languages is **one book**, not
 duplicates. The book gets one tile, one rating, one place, and a language
 switch. Card c60. It was designed in `Editions.dc.html`, `Book Editions.dc.html`
-and the updated `Pair Review.dc.html` in [`design/handoff/`](design/handoff/),
-the handoff for [`briefs/done/BOOK-EDITIONS.md`](briefs/done/BOOK-EDITIONS.md). The owner
+and the updated `Pair Review.dc.html` in `design/handoff/`,
+the handoff for `briefs/done/BOOK-EDITIONS.md`. The owner
 decided on 2026-09-24 that English opens first by default, with a choice in
 SETTINGS, and that there is no side-by-side view.
 

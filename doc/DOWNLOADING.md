@@ -53,7 +53,7 @@ The rules are pure and tested (`src/lib/library/downloads.ts`,
 which answers from the engine's backend (`engine/backend.ts`). The screens
 come from the handoff in `doc/design/handoff/`: `Index Series
 Download.dc.html`, `Index Downloads.dc.html` and the canvas `Download
-States.dc.html` (brief: [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)).
+States.dc.html` (brief: `briefs/done/DOWNLOADS.md`).
 
 ## The series screen
 

@@ -27,7 +27,7 @@ map kind's (`series/[id]/move-words.ts`). Nothing in MOVE names a kind: the
 modules since K4 (wave 17), the route and the MOVED band since wave 18.
 
 Design: `doc/design/handoff/Migrate Calls.dc.html` (the decisions) and the
-boards beside it. Brief: [`briefs/MIGRATE.md`](briefs/MIGRATE.md). Card c139.
+boards beside it. Brief: `briefs/MIGRATE.md`. Card c139.
 
 ## What moves, decided
 

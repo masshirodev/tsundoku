@@ -2,9 +2,9 @@
 
 Card c67 ("Ratings out of 10, in half-stars"). The handoff is
 `doc/handoffs/done/Ratings.zip`, mirrored as
-[`design/handoff/Ratings out of 10.dc.html`](design/handoff/Ratings%20out%20of%2010.dc.html)
-and [`design/handoff/RatingSlider.dc.html`](design/handoff/RatingSlider.dc.html);
-the brief is [`briefs/done/RATINGS.md`](briefs/done/RATINGS.md).
+`design/handoff/Ratings out of 10.dc.html`
+and `design/handoff/RatingSlider.dc.html`;
+the brief is `briefs/done/RATINGS.md`.
 
 ## The scale
 

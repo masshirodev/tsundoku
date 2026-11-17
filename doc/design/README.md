@@ -1,25 +1,13 @@
 # The design system ("Index")
 
-tsundoku's look comes from a Claude Design project, direction **1b Index**, with
-palette **2a Graphite / lime** as the dark default and **2d Paper / ink** as the
-light theme. The project's own readme is the authority on the look itself, so
-read [`handoff/readme.md`](handoff/readme.md) first. This file only covers how the
-system got into the code.
+tsundoku's look comes from a design system called **Index**, made in Claude
+Design: palette **Graphite / lime** as the dark default and **Paper / ink** as
+the light theme. This file covers how the system lives in the code: its
+tokens, its components, and where the code departs from the design.
 
-- Project: `https://claude.ai/design/p/630f3cfa-f63f-4765-87a0-3c700e62dbda`
-- Imported: 2026-09-22, all 91 files, byte-for-byte.
-
-## `handoff/` is a mirror, not source
-
-`handoff/` holds the design project exactly as it was exported, including
-`support.js`, the React component sketches, the specimen cards and the
-exploration canvas. Don't edit it. Prettier and ESLint skip it, and it's kept so
-that a later change to the design can be diffed against what the code was built
-from.
-
-To refresh it, mirror the project again (`list_files` + `read_file` through the
-`claude_design` MCP, decoding `&lt; &gt; &amp;`) over the top, then `git diff
-doc/design/handoff` shows what the designer changed.
+The design project itself, and the briefs and handoffs each screen was built
+from, are kept in a separate private repository. The `.dc.html` files named
+below are files of that design project.
 
 Which file is the spec:
 

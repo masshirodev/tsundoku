@@ -8,7 +8,6 @@ yarn.lock
 /playwright-report/
 .claude/
 # Verbatim mirror of the Claude Design project; see doc/design/README.md.
-/doc/design/handoff/
 # Paraglide's compiled messages (doc/I18N.md): generated, never tracked.
 /src/lib/paraglide/
 /project.inlang/*
@@ -16,4 +15,3 @@ yarn.lock
 # The Android apps' Gradle output (android/.gitignore), never source.
 /android/**/build/
 # The website handoff, mirrored verbatim like the design project (doc/WEBSITE.md).
-/doc/handoffs/

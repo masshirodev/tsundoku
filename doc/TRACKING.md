@@ -299,7 +299,7 @@ HISTORY`, muted, `NO TRACKER SIGNED IN · WATCHED 12 NOV` (or `EP. 6 OF 16`),
 
 ### The handoff (2026-11-12)
 
-Mirrored at [`handoffs/keys-accounts/`](handoffs/keys-accounts/)
+Mirrored at `handoffs/keys-accounts/`
 (`Main.dc.html`, seven boards, dark, `Status: finished`). What it changed in
 the plan:
 
