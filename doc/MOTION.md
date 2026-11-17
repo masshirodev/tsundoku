@@ -1,19 +1,13 @@
 # Motion
 
-How tsundoku moves, and when it doesn't. The owner asked on 2026-11-03 for it
-to "feel more like an app and less like a website": most taps showed nothing
-until their result arrived (card c396, "Make tsundoku feel like an app: every
-tap lands, sheets and screens move"). This document is the rulebook that came
-out of it. It's adapted from Kumiko's `doc/MOTION.md`, which translates Emil
-Kowalski's animation standards (the `animate`, `review-animations`,
-`improve-animations` and `animation-performance` skills on the workstation) to
-plain CSS and Svelte. **Where this document and the skills disagree, this
-document wins.**
+How tsundoku moves, and when it doesn't. The aim is for it to feel like an
+app, not a website: every tap is seen at once, and sheets and screens move to
+say where they came from. The rules follow Emil Kowalski's animation
+standards, translated to plain CSS and Svelte.
 
-It departs from the design handoff, whose motion is "minimal and instant"
-(`design/handoff/readme.md`). The departure is number 20 in
-[`design/README.md`](design/README.md), "Departures". The press look stays
-the handoff's own: the cell inverts.
+The design system's own motion is "minimal and instant"; this document is
+where tsundoku moves more than that ([`design/README.md`](design/README.md),
+"Departures"). The press look stays the design's own: the cell inverts.
 
 ## The tokens
 
@@ -28,15 +22,14 @@ In `src/lib/styles/spacing.css`, beside the design's own `--ease` and
 | `--ease-drawer`   | `cubic-bezier(0.32, 0.72, 0, 1)` | Sheets and panels, in and out                          |
 | `--motion-fast`   | `120ms`                          | The switch knob (the design's)                         |
 | `--motion-press`  | `140ms`                          | A press sinking and coming back                        |
-| `--motion-appear` | `160ms`                          | Fades in (c185)                                        |
+| `--motion-appear` | `160ms`                          | Fades in                                               |
 | `--motion-leave`  | `180ms`                          | Anything leaving; the old screen fading out            |
 | `--motion-panel`  | `240ms`                          | Sheets rising, dialogs, the next screen sliding in     |
 
 **Don't invent a sixth duration or a fourth curve.** A value the table can't
 express is a question for this document. Constant motion (the waiting line's
 fill, spinners) is `linear` or stepped, as `WAITING.md` says. The one value
-outside the table is the readers' page turn, which is older than it and isn't
-a thing coming or going ("Page turns", below).
+outside the table is the readers' page turn, which isn't a thing coming or going ("Page turns", below).
 
 ## Should it animate at all
 
@@ -93,22 +86,21 @@ The tint is a colour change, so it is instant and isn't gated by reduced motion.
 
 A surface that only catches input says `data-press="off"`, which leaves out
 the hover and the press together: the player's tap zone over the picture is
-the one such button (c485, doc/ANIME.md); the readers catch taps on plain
+the one such button (doc/ANIME.md); the readers catch taps on plain
 elements, which the rule never matches.
 
-**The tint never lands on a picture** (c486). It is a `background-image`, so
-it _replaces_ whatever image the element draws, and hovering the series cover
-made the cover vanish. The rule leaves out:
+**The tint never lands on a picture.** It is a `background-image`, so it
+_replaces_ whatever image the element draws: on the series cover it would make
+the cover vanish. The rule leaves out:
 
 - anything with an inline `background` of any kind (`[style*='background']`),
-  the shorthand included. Until c486 it left out only `background-image`, and
-  every cover, icon and thumb here is set with the shorthand
-  (`style:background`). A placeholder's stripes (`coverPlaceholder`) are a
-  picture too;
+  the shorthand included, since every cover, icon and thumb here is set with
+  the shorthand (`style:background`), not `background-image`. A placeholder's
+  stripes (`coverPlaceholder`) are a picture too;
 - anything marked `data-picture`, which is how an element whose picture comes
   from a **stylesheet** says so: no attribute selector can see a stylesheet.
   The fold buttons' stripes in `EntryList.svelte` and `EpisodeList.svelte`
-  carry it (c488); `series-layout.e2e.ts` hovers the chapter fold on the
+  carry it; `series-layout.e2e.ts` hovers the chapter fold on the
   desktop project and `browse-move.e2e.ts` the episode fold (the one seed with
   a season watched through), each reading its `repeating-linear-gradient`
   back under the pointer. A new pressable element whose stylesheet draws a
@@ -117,13 +109,13 @@ made the cover vanish. The rule leaves out:
 Most pictures are a child of the pressable thing, not the pressable thing
 itself, and the tint never reaches a child: an episode's thumb sits inside its
 row's button, which is tinted while the thumb keeps its image. Only the series
-cover, a link that resumes, carried its picture itself. `motion.e2e.ts` hovers
+cover, a link that resumes, carries its picture itself. `motion.e2e.ts` hovers
 it with its placeholder and with a picture, and checks a plain link is still
 tinted.
 
-**A library tile hovers as one** (c487). A `CoverTile` is three buttons: the
-cover and title (`.open`), the rating, and FAV. Tinted each on its own, they
-grayed a patchwork of the tile, and the rating only its own inset box. So the
+**A library tile hovers as one.** A `CoverTile` is three buttons: the cover and
+title (`.open`), the rating, and FAV. Tinted each on its own, they would gray a
+patchwork of the tile, and the rating only its own inset box. So the
 hover can belong to a group:
 
 - `data-hover="group"` on the container tints the container whole while the
@@ -138,15 +130,15 @@ hover can belong to a group:
   FAV keeps its own box.
 
 `WorkTile` does the same with its one button. So does the library's CONTINUE
-row (`ContinueRow`, owner 2026-11-10): the band alone stopped 16px short of ▶,
+row (`ContinueRow`): the band alone stops 16px short of ▶,
 so the row is the group, the band is `off`, and ▶ keeps its own tint on top. A
 row with nowhere to go (no `href`) is not a group and is never tinted. `BookTile` (the tiles inside a
-series' book grid) is one button already, so it was always tinted whole.
+series' book grid) is one button already, so it is tinted whole.
 `motion.e2e.ts`, "a library tile hovers as one", reads the tint on the tile,
 none on `.open`, the cover's picture unchanged, the rating as wide as the tile,
 and no move.
 
-**The rating slider previews its value** (c494). A rating is a level, so the
+**The rating slider previews its value.** A rating is a level, so the
 hover shows what a click would set instead of tinting the one half under the
 pointer. Each half carries `data-hover="off"` and `RatingSlider` draws the
 preview itself, in CSS alone (`:has()`), so a slider in a plain form previews
@@ -160,8 +152,7 @@ too. The rule, from the hovered half:
   it.
 - The rating runs from the start to the pointer. FILTER's AT LEAST
   (`mode="min"`) runs from the pointer to the end, the ratings it would keep.
-- Leaving clears it. A drag captures the pointer and draws its own fill, as
-  before. A disabled slider has no preview, and touch and the TV are
+- Leaving clears it. A drag captures the pointer and draws its own fill. A disabled slider has no preview, and touch and the TV are
   unchanged.
 
 The slider is one component, so this holds everywhere it's used: the series
@@ -190,22 +181,20 @@ same element, resumed, and it must take taps again.
 Sheets slide with `translate`, never `transform`, so a sheet's own transform is
 never fought. A sheet is opaque and doesn't fade while it slides. Under reduced
 motion, entrances and exits keep their fades and lose their movement: the
-same rule `.appear` has kept since c185, and a deliberate difference from
-Kumiko, which zeroes everything.
+same rule `.appear` follows. Reduced motion here never zeroes everything.
 
-**A bar hides off its own edge** (c427): the top bar up and away, the bottom
+**A bar hides off its own edge**: the top bar up and away, the bottom
 bar down, on the drawer curve, opaque, as a sheet does. It fades in, but it is
 fixed to an edge, and a bar that only faded read as the page dimming, not as
 the controls going away. On a TV a bar still goes up or down: only a `.rise`
 sheet becomes a panel from the right there, and `leave` reads that from the
 element, so a bottom bar never slides sideways. Reduced motion fades both.
 
-**A bare `out:leave` fades, and that took a fix** (c427). Svelte hands a
-transition with no value `{}`, not `undefined`, so `leave`'s default parameter
-never applied: until c427 every bare caller slid down off the screen, and the
-image reader's top bar fell through the page as it hid. `leaveKind` reads the
-value and falls back to `fade` for anything that isn't a kind. The callers
-whose exit changed with it, from a slide down to the fade they always meant:
+**A bare `out:leave` fades.** Svelte hands a transition with no value `{}`,
+not `undefined`, so a default parameter on `leave` never applies; left to it,
+every bare caller would slide down off the screen. `leaveKind` reads the value
+and falls back to `fade` for anything that isn't a kind. The bare callers,
+which fade:
 `Sheet`'s and `NewShelfSheet`'s scrims, `UpdateModal`'s scrim, `ImageView`,
 `WideView`, the image reader's TO TOP button and tap zones (`ImageReader.svelte`), the
 player's two scrims (`VideoPlayer.svelte`), and the scrims of `ReadingSheet`
@@ -228,10 +217,10 @@ screen is in the page, before it's painted, puts it on `.main` as
 - It moves **40px** and fades in, over `--motion-panel` on `--ease-out`.
   Enough to say where it came from, not enough to wait for. The old screen
   goes at once.
-- **It's the real screen that moves, never a View Transition.** The first build
-  used one, and while a View Transition plays Chromium sends every tap to
-  `<html>`, whatever its pictures' `pointer-events` say: the reader lost the
-  first tap after it opened (`reader-layout.e2e.ts` caught it). Nothing covers
+- **It's the real screen that moves, never a View Transition.** While a View
+  Transition plays Chromium sends every tap to `<html>`, whatever its
+  pictures' `pointer-events` say, so the reader would lose the first tap after
+  it opened (`reader-layout.e2e.ts` checks it). Nothing covers
   the moving screen, so a tap lands on it from the first frame
   (`motion.e2e.ts`, "a tap the moment a screen arrives").
 - **The same screen doesn't move:** a shelf tab, a filter, the reader's next
@@ -241,12 +230,12 @@ screen is in the page, before it's painted, puts it on `.main` as
   long as it moves. Elsewhere that's only a sheet opened within the first
   240 ms, which is accepted.
 - **Once it has arrived, the screen holds nothing.** The animation fills
-  `backwards`, never `both` or `forwards` (c426). A finished animation that
+  `backwards`, never `both` or `forwards`. A finished animation that
   keeps filling its last frame still sets `translate: 0px` on the screen, and
   that makes the screen the containing block of everything fixed inside it,
-  for good: FILTER's scrim began a sidebar's width past the sidebar and was
-  only as tall as the library, and a sheet's scrim missed the screen's left
-  edge. `motion.e2e.ts` measures both scrims against the viewport after a
+  for good: FILTER's scrim would begin a sidebar's width past the sidebar and
+  be only as tall as the library, and a sheet's scrim would miss the screen's
+  left edge. `motion.e2e.ts` measures both scrims against the viewport after a
   navigation, and checks a screen at rest has `translate: none`.
 - **A slow screen's outline is what slides in.** From 150 ms the next screen's
   outline shows (`WAITING.md`). It carries `data-arrive`, and `.main` carries
@@ -259,11 +248,10 @@ screen is in the page, before it's painted, puts it on `.main` as
 
 ## Page turns
 
-**The page follows the hand, and that is not style** (c441). In both readers
-a paged page moves with a sideways drag and slides the rest of the way when a
-turn is taken, the neighbouring page beside it: a manga's since 2026-09-23
-(`READER.md`, "Turning pages"), a novel's since 2026-11-04
-(`TEXT-READER.md`, "Turning"). The owner asked for both. What the rule above
+**The page follows the hand, and that is not style.** In both readers a paged
+page moves with a sideways drag and slides the rest of the way when a turn is
+taken, the neighbouring page beside it: a manga's (`READER.md`, "Turning
+pages") and a novel's (`TEXT-READER.md`, "Turning"). What the rule above
 rules out is a turn that plays an effect (a curl, a fade, a bounce) between a
 tap and the page; a slide that starts under the finger and lands where the
 next page already lies is the page being moved, and taps, keys and the wheel
@@ -297,15 +285,14 @@ the scrims' boxes once a screen has arrived);
 `tests/tv-motion.e2e.ts` checks a TV's screens don't move;
 `tests/motion.spec.ts` covers the decisions.
 
-## Known debt
+## Limits
 
 - FILTER's panel opens and closes at once. It's a `<details>`, and a closing
   one hides its content before anything can run. An entrance was tried: inside
   a `<details>` opened without script, Chromium never let it settle
-  (`filters-flow.e2e.ts`, "without script…"), and why isn't understood yet.
+  (`filters-flow.e2e.ts`, "without script…"), for a reason not yet understood.
 - Hover tints appear and go at once: a gradient can't be transitioned. A
   pseudo-element overlay could fade, but every component would have to give up
   its own `::after`.
-- Menus that scale from their trigger: tsundoku has none yet, since every menu
-  is a sheet. When one comes, it scales from 0.96 with `transform-origin` on
-  the control's side.
+- Every menu is a sheet: nothing scales from its trigger. A menu that does
+  would scale from 0.96 with `transform-origin` on the control's side.

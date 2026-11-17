@@ -1,17 +1,10 @@
 # GET STARTED: seven steps in two parts
 
-What a friend's empty install shows instead of "Nothing imported yet" (cards
-c208, c209). SET UP's four steps get tsundoku ready; FIRST READ's three walk
-through what it's for: find something, keep it, download it.
-
-- SET UP: the brief was `briefs/GETTING-STARTED.md`;
-  the design is the Getting Started handoff, `doc/design/handoff/Start-*.dc.html`
-  (its decisions in `Start Calls.dc.html`).
-- FIRST READ: the brief was `briefs/FIRST-READ.md`,
-  from the owner on 2026-10-31 ("ppl learn how to read repos and whatnot but
-  not how to search, add to library and download stuff"); the design is
-  `doc/design/handoff/FirstRead-*.dc.html` (its decisions in
-  `FirstRead Calls.dc.html`).
+What a friend's empty install shows instead of "Nothing imported yet". SET
+UP's four steps get tsundoku ready; FIRST READ's three walk through what it's
+for: find something, keep it, download it. People learn to add a repository
+from guides elsewhere, but not how to search, add to the library and download,
+so FIRST READ walks through those.
 
 Its other half, the update modal, is [`UPDATES.md`](UPDATES.md), "Told on
 entry"; HELP is [`HELP.md`](HELP.md). Its words are in English and
@@ -33,7 +26,7 @@ Portuguese ([`I18N.md`](I18N.md)).
   COUNT(\*)s the layout asks on every page). The rules are pure,
   `src/lib/library/start.ts`. A hidden series ticks nothing for someone who
   can't see it.
-- **04, exactly** (c722): `phones` in `startFacts` is the number of
+- **04, exactly**: `phones` in `startFacts` is the number of
   `paired_devices` rows plus the `devices` rows whose kind is `phone`,
   `tablet` or `tv`. A row in `paired_devices` is written by the pairing
   itself, before the phone has loaded anything: `/pair/<code>` (a phone's
@@ -46,7 +39,7 @@ Portuguese ([`I18N.md`](I18N.md)).
   device's row (deletes its `paired_devices` row; its `devices` row, if it
   checked in as a phone, still counts), and a device unseen for 180 days
   (`FORGET_MS`, deleted at the next check-in).
-- **What ticks a step without a reload** (c722). A step is ticked by what
+- **What ticks a step without a reload**. A step is ticked by what
   is there, and much of it arrives from elsewhere: a phone pairing, a
   download finishing, another tab. The list is the layout's load, which a
   client-side navigation reruns only when something it depends on changes,
@@ -55,8 +48,7 @@ Portuguese ([`I18N.md`](I18N.md)).
   `tsundoku:start` key): on `/start` and on the empty library, every 5 s
   while the page is in view and the list isn't finished, and once whenever
   the page comes back into view or the window regains focus; a hidden page
-  asks nothing. The empty library asks exactly while its list is drawn
-  (c722, wave 34): it stops when the library fills (the ask that brings the
+  asks nothing. The empty library asks exactly while its list is drawn: it stops when the library fills (the ask that brings the
   first series also brings the grid, and the next is not made), when the
   list finishes, and when the page is left, and a library with series never
   asks. A trip's band does the same on its screen (below), and SETTINGS
@@ -67,8 +59,7 @@ Portuguese ([`I18N.md`](I18N.md)).
   chosen on IMPORT A BACKUP runs as a scan job too ([`IMPORT.md`](IMPORT.md)),
   so its series carry its job's id and tick 03. So 06 never ticks 03, and an
   imported Mihon library never ticks 06.
-- **03's done row names the door that ticked it** (c511, c634; Import-Doors
-  B) on `/start` and on the library's empty list: `Done · Mihon backup · 382
+- **03's done row names the import that ticked it** on `/start` and on the library's empty list: `Done · Mihon backup · 382
 series` when the series that first ticked 03 came from an import's job,
   else the step's own `Done · 4 series` and LIBRARY → to `/`. **"The series
   that first ticked 03" is not recorded**, so it is derived: the lowest id
@@ -76,20 +67,18 @@ series` when the series that first ticked 03 came from an import's job,
   plus one, so that is the first one still there), and its `scan_job_id`
   where an `imports` row has that job (`tickingImport`,
   `src/lib/server/import/log.ts`). A scan's job, a series with no job at all
-  (written before jobs, or by hand), or none, keeps the scan's line. Only a
+  (written by hand, or before scans recorded their job), or none, keeps the scan's line. Only a
   finished import names it: one still running, or one that failed partway,
   has a partial count and has not ticked anything as done, so the row takes
   only an `imports` row whose `state = 'done'` (the rule `lastImport` holds)
-  and keeps the scan's line until then. So a
-  later import no longer takes the row over: a library scanned in first (300
+  and keeps the scan's line until then. So a later import never takes the row over: a library scanned in first (300
   series) and a 2-series backup after it reads the scan's line, `Done · 302
 series`, and only a backup that came first names itself. The count is the
   import's own, counted as the viewer may see it, so a backup whose series
   are all hidden later leaves the scan's line while reveal is off. When the
   import's line draws, its quiet link is **IMPORT LOG →**, which opens that
   import's entry in the log, already open (`/import/log?open=backup:<id>`).
-- **03's body** (c438; the import handoff's Import-Doors A) is the three
-  backups first: Mihon backup with IMPORT A BACKUP → to `/import`, Aniyomi
+- **03's body** is the three backups first: Mihon backup with IMPORT A BACKUP → to `/import`, Aniyomi
   and LNReader dimmed, NOT YET. Under them, FILES INSTEAD · EPUBS, AND
   DOWNLOADED CHAPTERS: the library folder with START SCAN beside it, the way
   for files. Its tick line says an import or a scan.
@@ -116,8 +105,8 @@ SKIPPED WITH 02`), with no UNDO of their own: the skipped step's UNDO
 - **01 names no repository.** It says where one comes from (ask the friend
   who gave you tsundoku, or search), what each kind holds and its file name,
   and offers three search phrases to COPY (no clipboard over plain-http
-  Wi-Fi: the words are there to type). The owner, 2026-10-30: "we don't point
-  the user at it, but we give them all the tools they need to find it".
+  Wi-Fi: the words are there to type). tsundoku never points at a repository,
+  but gives everything needed to find one.
 
 ## The two parts
 
@@ -140,17 +129,17 @@ FIRST READ`, `Set up. Now something to read.`
 ## Where it shows
 
 - **The empty library** is the list (`00 — GET STARTED`, `Nothing here
-yet.`) until it's finished; then the first day (board 3): `Everything is
+yet.`) until it's finished; then the first day: `Everything is
 one search away.`, the sources' search, the sources with BROWSE →, and the
   library folder with START SCAN. With no sources at all, just the folder.
-  Since FIRST READ, the first day is only what an empty library shows once
-  GET STARTED is finished, which now takes skipping FIRST READ, or removing
-  every series again; its search is 05's on the way in.
+  The first day is only what an empty library shows once GET STARTED is
+  finished, which takes skipping FIRST READ, or removing every series again; its search is 05's on the way in.
 - **Once the library isn't empty** (06 puts a series in it), the list lives
   on at `/start`: the sidebar's row and the band lead there. Nothing new
   appears over the shelves.
 - **`/start`**, a page of its own: the same list, on any install, finished or
-  not, so the owner's workstation shows what friends get. HELP's first topic
+  not, so an install that has been set up for a while still shows what a new
+  one gets. HELP's first topic
   opens it; HELP's 03 opens it at FIRST READ (`/start#first-read`).
 - **The sidebar's foot** starts with `GET STARTED 2 / 7` (accent count) until
   it's finished; on the tablet and phone, MORE's first row. The count is done
@@ -159,8 +148,7 @@ one search away.`, the sources' search, the sources with BROWSE →, and the
 
 ## The way back
 
-The owner's worry was how a friend gets back to the list after a step sent
-them off. A step's link starts a **trip** (`src/lib/start-trail.svelte.ts`):
+A friend needs a way back to the list after a step sent them off. A step's link starts a **trip** (`src/lib/start-trail.svelte.ts`):
 the screen it opens wears one band under its top bar
 (`src/lib/components/start/StartTrail.svelte`): `← GET STARTED · 01 OF 07 ·
 ADD A REPOSITORY · TICKS ITSELF WHEN ONE IS ADDED`, with ✕. When the step
@@ -170,7 +158,7 @@ list every 5 s (`invalidate('tsundoku:start')`), so a phone pairing or a
 download ticks it without a reload.
 
 - **A SET UP trip** lasts on its one screen, across its tabs and its own
-  redirects. 03's is IMPORT A BACKUP → (c511): the band is on the pick
+  redirects. 03's is IMPORT A BACKUP →: the band is on the pick
   screen and on the file's own page, `/import/<id>` (its preview, its
   progress and its result, where the step ticks once the import brings a
   series in: `✓ 03 DONE · A SERIES FOUND`). The upload lands there, so the
@@ -200,39 +188,35 @@ download ticks it without a reload.
   `?tab=repos` after adding a repository, which would drop a parameter, and
   the band with it, at the moment the step ticks.
 
-## Where it departs from the handoffs
+## On the page
 
-- **04 ticks on any phone, tablet or TV that has paired or checked in**,
-  not "a second device signed in over Tailscale": which door a device came
-  in by isn't recorded. A paired device, or a phone, tablet or TV in
-  DEVICES, ticks it ("04, exactly", above).
-- **No "Wi-Fi needs a password first" state.** The handoff drew one for an
-  install with no password, but Wi-Fi pairing needs none: with no password,
-  only a code signs in ([`WIFI.md`](WIFI.md)). Tailscale does need one, and
-  its way says so.
+- **04 ticks on any phone, tablet or TV that has paired or checked in**, not
+  on "a second device signed in": which way a device came in isn't recorded.
+  A paired device, or a phone, tablet or TV in DEVICES, ticks it ("04,
+  exactly", above).
+- **No "Wi-Fi needs a password first" state.** Wi-Fi pairing needs no
+  password: with none, only a code signs in ([`WIFI.md`](WIFI.md)).
+  Tailscale does need one, and its way says so.
 - **The done row's meta** counts (`Done · 2 repositories`), without the
   repository's kind: a Mihon or Aniyomi repository's kind isn't kept.
-- **02's open body leaves out** `LANGUAGES COME FROM SETTINGS · EN`.
-- **02's done link is BROWSE →**, as the first handoff drew it; the FIRST
-  READ boards show EXTENSIONS → there.
-- **`/start` on the desktop** has a heading the handoffs didn't draw: `Set
-up, then a first read.` (and FIRST READ's head once SET UP is through).
-- **Every block is closed** (doc/design/README.md, "Close every block", a
-  rule written after both handoffs): the steps' rows, the holds tables and
-  the rows a step leads on from have all four sides, where the handoffs drew
-  rules above and below only. On the phone the list runs edge to edge, and
-  the screen's sides close it.
+- **02's open body** doesn't mention languages, and **02's done link is
+  BROWSE →**.
+- **`/start` on the desktop** has a heading: `Set up, then a first read.` (and
+  FIRST READ's head once SET UP is through).
+- **Every block is closed** (doc/design/README.md, "Close every block"): the
+  steps' rows, the holds tables and the rows a step leads on from have all
+  four sides. On the phone the list runs edge to edge, and the screen's sides
+  close it.
 - **No cover squares on the rows** a step leads on from (a source, the
-  record, the series): the handoff's are placeholder stripes whose colours
-  aren't tokens.
+  record, the series).
 - **The replicas take real numbers**: 06's bar the record's own ▶ CONTINUE
   line, 07's DOWNLOAD row the series' own unread count (NEXT 10 once
   something's on disk). Without a record or a series, the replica goes.
 
-## What it doesn't do yet
+## Limits
 
-- The Aniyomi and LNReader backup rows are drawn dimmed, NOT YET: card c190
-  (the owner's call for c438, 2026-11-03: Mihon first).
+- The Aniyomi and LNReader backup rows are drawn dimmed, NOT YET: only Mihon
+  backups import.
 - 05's search field and source rows are the first day's; a source that never
   answers still lists.
 - The phone's narrower 05 body and tick line are CSS swaps of two messages,
@@ -254,13 +238,12 @@ everything is skipped and the folded parts, and FIRST READ end to end (SET UP
 done leading to it, the band from the search through a record, ADD and a
 queued chapter to BACK TO GET STARTED), and 03's IMPORT A BACKUP → (the
 band on `/import`, its tick when an import lands, the done row's import line
-and IMPORT LOG → to the entry, c511). `tests/friend-pair-firefox.e2e.ts` (c722) pairs a phone through the real
+and IMPORT LOG → to the entry). `tests/friend-pair-firefox.e2e.ts` pairs a phone through the real
 link on the friend install's Wi-Fi listener and watches 04 tick on the
 computer's open `/start` with no reload; `tests/library-flow.e2e.ts`
-("the empty library's GET STARTED asks again (c722)") watches the empty
+("the empty library's GET STARTED asks again") watches the empty
 library's list tick 04 with no reload, and counts its asks while the list is
 drawn, after it is left, after the library fills and on a library with
-series. Generated from the handoffs:
-`tests/start-frame.e2e.ts` (`Start-Checklist.dc.html`, SET UP's 01 open) and
-`tests/first-read-frame.e2e.ts` (`FirstRead-List.dc.html`, the parts' heads
-and every row), on `/start`.
+series. Generated from the design's frames: `tests/start-frame.e2e.ts` (SET
+UP's 01 open) and `tests/first-read-frame.e2e.ts` (the parts' heads and every
+row), on `/start`.

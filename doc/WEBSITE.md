@@ -1,21 +1,8 @@
 # The website: tsundoku.masshiro.pro
 
 One static page that says what tsundoku is, shows it, and gets a Windows or
-Linux install running. Card c359 ("A website at tsundoku.masshiro.pro
-(password-gated until the public release)") on the Tsundoku board.
-
-It is **behind a password until the public release** ([`DISTRIBUTION.md`](DISTRIBUTION.md):
-the repositories stay private until then): Caddy's `basic_auth` in front of
-it, configured on the VPS, not here. The page itself is the public page it
-will become and never mentions the gate.
-
-- Brief: `briefs/done/WEBSITE.md`.
-- Handoff: the Claude Design canvas "tsundoku — website [finished]"
-  (`https://claude.ai/artifact/31c3ce92-56a9-49ce-9c04-5a71d6e1f3de`),
-  mirrored byte for byte in `handoffs/website/`. Like
-  `design/handoff/`, the mirror is never edited, and Prettier and ESLint skip
-  it. `Main.dc.html` there holds the designer's eleven calls; this document
-  cites them by number.
+Linux install running. It is built here, in `site/`, from the signed release
+manifest, and deployed by a GitHub workflow.
 
 ## Commands
 
@@ -31,10 +18,10 @@ latest.json with no network at all (FlareSolverr's sizes are then left out
 rather than guessed). The browser tests build that way, from
 `site/test/fixtures/latest.json`, a real latest.json saved from the download
 host: it is signed by the release key, so it opens exactly as the live one does.
-It predates c614, so it has no `files.android` and the browser run covers the
-page as most releases draw it. The app rows are covered by
-`site/test/page.test.ts`, which renders a c614-shaped manifest signed with a key
-of the tests' own (`readRelease(text, key)`), never the release key.
+It is from a release without Android apps, so it has no `files.android` and the
+browser run covers the page without app rows. The app rows are covered by
+`site/test/page.test.ts`, which renders a manifest with `files.android` signed
+with a key of the tests' own (`readRelease(text, key)`), never the release key.
 
 ## What is where
 
@@ -42,8 +29,8 @@ of the tests' own (`readRelease(text, key)`), never the release key.
 | ------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `site/build.ts`                                                     | The build: reads everything below, writes `site/build/`.                |
 | `site/lib/data.ts`                                                  | Pure: opening latest.json, sizes, dates, escaping, tokens, font picks.  |
-| `site/lib/page.ts`                                                  | The page's HTML, from the handoff. Copy lives here.                     |
-| `site/src/site.css`                                                 | The page's CSS, every measurement the handoff's.                        |
+| `site/lib/page.ts`                                                  | The page's HTML. Copy lives here.                                       |
+| `site/src/site.css`                                                 | The page's CSS.                                                         |
 | `site/src/order.js`                                                 | Which download a visitor sees first: shared by the page and the tests.  |
 | `site/src/site.js`                                                  | The only script: theme, and the visitor's system.                       |
 | `site/captures/`                                                    | The figures, committed, with `captures.json` (sizes for `<img>`).       |
@@ -57,7 +44,7 @@ of the tests' own (`readRelease(text, key)`), never the release key.
 configs collect nothing of the app's. Like `scripts/` and `ops/`, `site/` runs
 under Node's type stripping and isn't in svelte-check's tsconfig; ESLint and
 its own tests cover it, and `yarn run check` type-checks it with
-`tsc -p site/tsconfig.json` (c718), `checkJs` over `site/src/*.js` included.
+`tsc -p site/tsconfig.json`, `checkJs` over `site/src/*.js` included.
 `site/src/globals.d.ts` names what the build inlines above `site.js`.
 
 ## What the build reads, never types
@@ -71,22 +58,20 @@ its own tests cover it, and `yarn run check` type-checks it with
   size come from the manifest; the links are `latest/<name>`, which
   `ops/release/publish.ts` keeps pointing at the newest release, so a page
   built a day late still downloads the newest.
-- **The Android apps (c614, c667)** are in the same signed manifest, under
+- **The Android apps** are in the same signed manifest, under
   `files.android.app` and `files.android.tv`. A row is drawn only for an app
   the manifest carries, with its signed name, size and SHA-256; a manifest
-  without them is not refused, because every release before c614 has none, and
-  the page is built exactly as it was before with no app row. The live host
-  answers 404 for `latest/tsundoku-app.apk` until a release with APKs is
-  published, so a link is never drawn from an older manifest.
+  without them is not refused, because older releases have none, and the page
+  is then built with no app row, so a link is never drawn to an APK the
+  release did not publish.
 - **FlareSolverr.** It isn't in the signed manifest, so its version comes from
   `ops/release/versions.json` and its sizes from a HEAD request to `latest/`.
 - **The colours.** The `:root` and `[data-theme='light']` custom properties of
   `src/lib/styles/colors.css`, copied into the CSS, plus the same light block
   under `prefers-color-scheme: light` (the app decides by its cookie; the
   site follows the system until the visitor chooses). The site's CSS uses the
-  app's own token names (`--surface-page`, `--text-prose`, ...): every colour
-  in the handoff turned out to be one of them (checked with
-  `design-tools/reconcile-tokens.mjs`).
+  app's own token names (`--surface-page`, `--text-prose`, ...), and every
+  colour on the page is one of them.
 - **The fonts**, self-hosted: IBM Plex Mono 400/500 from IBM's complete build
   (it has ← and →; `src/lib/styles/fonts-mono.css` says why), Plex Sans Latin
   400/500, and Plex Sans JP only in the Fontsource chunks that hold 積ん読,
@@ -95,17 +80,17 @@ its own tests cover it, and `yarn run check` type-checks it with
   for the file once downloaded.
 
 Every published asset is named `name.<10 hex>.ext` after its content
-(captures, fonts, icons, CSS, script), so Caddy can serve them as immutable
-and only `index.html` (and `version.json`) needs revalidating. ranma's site
-does the same, so the two Caddy blocks differ only in tsundoku's `basic_auth`.
+(captures, fonts, icons, CSS, script), so the web server can serve them as
+immutable and only `index.html` (and `version.json`) needs revalidating.
 
-## The visitor's system (calls 02 and 03)
+## The visitor's system
 
 The HTML as built is the no-JavaScript page: Windows, Linux, macOS, then any
 app rows, in that order, nothing tagged, the Windows installer on the accent
-(most friends are on Windows), the hero button `↓ DOWNLOAD`, no theme button
-(it is added by the script, so without it there's no dead control). `site.js`
-then:
+(most people are on Windows), the hero button `↓ DOWNLOAD`, no theme button
+(it is added by the script, so without it there's no dead control). The page
+is one document that the script reorders, so the no-JavaScript state is
+literally the HTML; there is no `<template>` per system. `site.js` then:
 
 | Visitor | Rows                                                               | Tagged YOUR SYSTEM    | Accent                        | Hero button            |
 | ------- | ------------------------------------------------------------------ | --------------------- | ----------------------------- | ---------------------- |
@@ -116,15 +101,14 @@ then:
 | iOS     | the desktop rows, then any app rows                                | none                  | the Windows installer         | ↓ DOWNLOAD             |
 | TV      | the TV app (if any), the phone app (if any), then the desktop rows | the TV app, if any    | the TV app, else installer    | ↓ DOWNLOAD             |
 
-A release without `files.android` has no app rows at all, and every row above
-the phone and iOS lines behaves exactly as it did before c667. A phone and an
-iOS device also get the band above 04's rows ("ON A PHONE?"); a TV does not.
+A release without `files.android` has no app rows at all. A phone and an iOS
+device also get the band above 04's rows ("ON A PHONE?"); a TV does not.
 
 An iPhone, iPad or iPod is `ios`, never `phone`, even though it gets the band
 and the same line about needing a computer: both APKs are Android's, so an app
 row never leads, is tagged YOUR SYSTEM or takes the accent for it, and the
-Windows installer keeps the accent as it did for a phone before c667. 06's
-lead says the app is Android's, so an iOS reader is not offered it.
+Windows installer keeps the accent. 06's lead says the app is Android's, so an
+iOS reader is not offered it.
 
 `navigator.userAgentData.platform` where Chromium offers it, else the user
 agent. Android says Linux in its user agent, so phones are checked first; an
@@ -135,7 +119,13 @@ names TV browsers use (`Android TV`, `Google TV`, `Fire TV`, `AFT…`, `BRAVIA`,
 the phone app serves too. The rules are `site/src/order.js`, one copy for the
 page and the tests.
 
-## Theme (call 04)
+The Android rows (ANDROID and ANDROID TV) use the desktop rows' own
+name/body/note markup, so 04 keeps its shape; their buttons, sizes and SHA-256
+come from the manifest. 06 and the phone band name the app under the same
+condition. The install line (allow installs from the browser; on a TV, a USB
+stick or a downloader app) is plain text in each row.
+
+## Theme
 
 Dark (Graphite / lime) or light (Paper / ink) follows the system, in CSS. The
 header's cell reads `/LIGHT` or `/DARK`, the app's own search commands, sets
@@ -144,15 +134,40 @@ private window that refuses storage just doesn't remember). Each figure is
 captured in both palettes and CSS shows the one in force; the two reader
 figures are dark only, as the reader is.
 
+## Copy and layout
+
+- **Numbers** are whatever the signed manifest says: version, sizes, date.
+  Notes are one paragraph per line of the manifest's `notes`.
+- **IMPORT** says "your Mihon downloads and EPUBs in the library folder", not
+  "CBZ files and EPUBs": a CBZ is only imported as a Mihon (or Hentoid)
+  download (IMPORT-FORMATS.md), never as a loose file.
+- **FlareSolverr's size** in its prose is the measured one ("about 311 MB",
+  as its buttons say), not README.txt's "about 330 MB", which is the same file
+  in decimal megabytes; two numbers for one file on one page read as a mistake.
+- **Between phone and desktop.** The layout is drawn at 1440 and 390. Below
+  1080px the header's six anchors don't fit, so they go (the phone's header);
+  below 900px the hero, WHAT IT DOES and STARTING IT stack, and the figures go
+  two up. Below 600px is the phone layout.
+- **The help line**, the footer's slot and the last row of IF SOMETHING GOES
+  WRONG, is `DEFAULT_HELP` in `site/lib/page.ts`: "Ask whoever gave you
+  tsundoku." (README.txt's own answer).
+- `site/test/site.e2e.ts` pins the layout's measurements: header 56/48px,
+  gutters 24/16px, the 1200px column, hero 5fr/7fr, look 10fr/7.2fr/7.2fr,
+  the 380px stills column, 160px feature labels, 220px download names, 48px
+  and 44px step numbers, 120px data labels, the footer's 1:2:1:1, 44px
+  controls and 48px hero buttons.
+
 ## Captures
 
 `yarn run site:captures` builds the app, seeds a fresh library into a scratch
-folder (on `/mnt/hdd2/tmp` when it exists, since `/tmp` is RAM on the
-workstation, and removed afterwards), serves it, and takes the six figures of
-the handoff's capture table with Playwright at device scale 2, as WebP, with
-their sizes in `captures.json`. They're committed: a deploy never boots the
-app, and a figure that changes shows up as a reviewable diff. Retake them when
-a screen they show changes.
+folder (on `/mnt/hdd2/tmp` when it exists, since `/tmp` can be RAM, and
+removed afterwards), serves it, and takes the six figures with Playwright at
+device scale 2, as WebP, with their sizes in `captures.json`. They're
+committed: a deploy never boots the app, and a figure that changes shows up as
+a reviewable diff. Retake them when a screen they show changes.
+
+The figures are captures of the seed library as it is, not drawings: its real
+titles, progress and chapters, its striped covers, its AniList linking band.
 
 | Figure  | Screen                | Device           | Palettes |
 | ------- | --------------------- | ---------------- | -------- |
@@ -162,6 +177,11 @@ a screen they show changes.
 | FIG. 4  | Reader, controls up   | phone 412×915    | dark     |
 | STILL A | Long strip (a manhwa) | phone 412×915    | dark     |
 | STILL B | History               | phone 412×915    | both     |
+
+Phone captures are 412×915, the full screen of the phone, not the e2e `phone`
+project's Pixel 7 viewport (412×839). FIG. 1 on a phone is the desktop
+capture cropped from the right to 1190/900, which is exactly the library
+without its 247px sidebar.
 
 **Nothing hidden ever reaches a figure.** The seed has a hidden Hentoid root
 of doujinshi (`src/lib/server/fixtures.ts`, `HIDDEN_TITLES`). Reveal is never
@@ -175,8 +195,7 @@ that isn't a capture run's):
   wrong on a public page; the series screen then draws as it does for any
   series without one;
 - it moves the seed's one visible doujin (Hoshi no Umi no Tabibito) into the
-  hidden root, so the library figures name no doujinshi (call 09, and the
-  brief).
+  hidden root, so the library figures name no doujinshi.
 
 Both change the data the app shows, never the picture of it.
 
@@ -188,7 +207,7 @@ lockfile), and on dispatch. `ops/release/publish.ts` dispatches it at the end
 of a successful publish (`gh workflow run site.yml`; a failure there only
 warns, since the release is already out), so the download block shows a new
 version within minutes. The job runs the unit tests, builds from the live
-latest.json, and rsyncs `site/build/` to the VPS:
+latest.json, and rsyncs `site/build/` to the web server:
 
 ```sh
 rsync -rlz --delete-delay --delay-updates --checksum \
@@ -196,16 +215,17 @@ rsync -rlz --delete-delay --delay-updates --checksum \
   site/build/ "$SITE_DEPLOY_TARGET:public/"
 ```
 
-- **`SITE_DEPLOY_KEY`**: a key used for nothing else, locked on the VPS by
+- **`SITE_DEPLOY_KEY`**: a key used for nothing else, locked on the server by
   `authorized_keys` (`restrict`, `command="rrsync -wo ~/sites/tsundoku"`) to
   writing that one folder: no shell, no reading, nothing else.
-- **The destination is named**, `public/` (what Caddy serves), never a bare
-  `host:`. Through rrsync they'd be the same folder, but without the lock a bare
-  `host:` is the home directory, and an `rsync --delete` aimed there empties it.
+- **The destination is named**, `public/` (what the web server serves), never
+  a bare `host:`. Through rrsync they'd be the same folder, but without the
+  lock a bare `host:` is the home directory, and an `rsync --delete` aimed
+  there empties it.
 - **`SITE_KNOWN_HOSTS`**: the server's host key line (`[host]:port ssh-ed25519 …`),
   pinned; it is never learned on first contact.
 - **`SITE_DEPLOY_TARGET`** (`user@host`) and **`SITE_SSH_PORT`**: where it
-  deploys, kept as secrets so the public repository doesn't name the server.
+  deploys, kept as secrets so the repository doesn't name the server.
 - `--delay-updates` and `--delete-delay` swap the new files in at the end and
   remove the old after, so a visitor mid-deploy gets one version or the other.
   Old hashed assets go with the next deploy, which is safe because the new
@@ -215,78 +235,15 @@ Install runs with `--ignore-scripts`: the site needs no native module, and
 `prepare` wants the sibling kotoba checkout (`link:../kotoba`), which yarn
 leaves as a dangling link on a runner. The site never imports kotoba.
 
-The repository is private, so its Actions minutes are metered; a deploy is a
-minute or two. The VPS side (Caddy's block with `basic_auth`, the read-only
-mount of `~/sites`, the hub's `sites.yaml`, the probe expecting 401)
-lives in the homelab repository on the VPS.
+The web server's side (its site block and the read-only mount of the deploy
+folder) is configured outside this repository.
 
-## Where it departs from the handoff
+## Limits
 
-Each of these is deliberate; don't "fix" it back to the drawing.
-
-- **Numbers.** The handoff draws `2026.10.30.4` and `[SIZE]`; the page shows
-  whatever the signed manifest says. Notes are one paragraph per line of the
-  manifest's `notes`.
-- **IMPORT** says "your Mihon downloads and EPUBs in the library folder", not
-  "CBZ files and EPUBs": a CBZ is only imported as a Mihon (or Hentoid)
-  download (IMPORT-FORMATS.md), never as a loose file.
-- **FlareSolverr's size** in its prose is the measured one ("about 311 MB",
-  as its buttons say), not README.txt's "about 330 MB", which is the same file
-  in decimal megabytes; two numbers for one file on one page read as a mistake.
-- **The figures are captures, not the drawn renditions,** of the seed library
-  as it is: its real titles, progress and chapters (Frieren is at chapter 140
-  of 140, not 61 of 128), its striped covers, its AniList linking band. The
-  handoff's drawings only placed them (Main.dc.html, section 03).
-- **Two download rows the handoff does not draw** (c667). ANDROID and ANDROID
-  TV are the desktop rows' own name/body/note markup, so 04 keeps its shape;
-  they appear only when the signed manifest carries the apps, and their
-  buttons, sizes and SHA-256 come from it. 06 and the phone band name the app
-  in the same condition. The install line (allow installs from the browser;
-  on a TV, a USB stick or a downloader app) is plain text in each row.
-- **Phone captures are 412×915**, the handoff's frame, not the e2e `phone`
-  project's Pixel 7 viewport (412×839): same device, the full screen height
-  the frames draw.
-- **FIG. 1 on a phone** is the desktop capture cropped from the right to
-  1190/900, which is exactly the library without its 247px sidebar; the
-  handoff draws that view at 4:3 without the sidebar.
-- **Between phone and desktop.** The handoff draws 1440 and 390. Below 1080px
-  the header's six anchors don't fit, so they go (the phone's header);
-  below 900px the hero, WHAT IT DOES and STARTING IT stack, and the figures
-  go two up. Below 600px is the handoff's phone, as drawn.
-- **No `<template>` for OS states.** The handoff's Download-States board is
-  five renders; the page is one document that the script reorders, so the
-  no-JavaScript state is literally the HTML.
-- **`gen-conformance.mjs` wasn't used.** The handoff's values are
-  `{{holes}}` filled by the design runtime (`support.js`, not part of the
-  export), so a machine extraction measures unresolved templates.
-  `site/test/site.e2e.ts` pins the authored values by hand instead: header
-  56/48px, gutters 24/16px, the 1200px column, hero 5fr/7fr, look
-  10fr/7.2fr/7.2fr, the 380px stills column, 160px feature labels, 220px
-  download names, 48px and 44px step numbers, 120px data labels, the footer's
-  1:2:1:1, 44px controls and 48px hero buttons.
-
-## Left to the owner
-
-- **HELP**, the footer's slot and the last row of IF SOMETHING GOES WRONG:
-  `DEFAULT_HELP` in `site/lib/page.ts`, "Ask whoever gave you tsundoku."
-  (README.txt's own answer) until it says where to ask.
-- **At the public release**: take the `basic_auth` off (VPS), add SOURCE → as a
-  fifth footer cell, and drop `<meta name="robots" content="noindex">` from
-  `site/lib/page.ts`. Docker compose, once built, becomes a row in 04 under
-  Linux.
-
-## What it does not do yet
-
-- **The app rows wait for a release that carries them.** When c667 landed the
-  live `latest.json` was 2026.11.05.1's, older than c614, with no
-  `files.android`: the deployed page draws no app row, and offers no app in 06
-  or the band, until the owner publishes a release with the APKs
-  ([`UPDATES.md`](UPDATES.md), "The Android apps"). Nothing in the site has to
-  change for that; the next deploy reads the new manifest.
-- No page for older versions or notes: OLDER VERSIONS links Caddy's listing
-  of dl.tsundoku.masshiro.pro, which has the checksums.
+- The page carries `<meta name="robots" content="noindex">`
+  (`site/lib/page.ts`) and has no SOURCE → cell in the footer.
+- No page for older versions or notes: OLDER VERSIONS links the download
+  host's file listing, which has the checksums.
 - The series figure shows the series screen's real FILE row, with its HIDE
-  and DELETE buttons and the sample's `sample:library/...` path. Neither is
-  hidden content, but whether HIDE belongs on a public figure is the owner's
-  call; cropping or retaking FIG. 2 is the fix if not.
+  and DELETE buttons and the sample's `sample:library/...` path.
 - No Open Graph image or social card.
