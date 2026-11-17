@@ -1,4 +1,22 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// A site's page address, named by a source: the cdn is on the internet, the
+// other one is not. Every other name resolves as it really does.
+vi.mock('node:dns/promises', async (importOriginal) => {
+	const real = await importOriginal<typeof import('node:dns/promises')>();
+	const named: Record<string, string> = {
+		'cdn.example.org': '93.184.215.14',
+		'kaa.example': '93.184.215.15',
+		'inside.example': '10.0.0.5'
+	};
+	return {
+		...real,
+		lookup: (async (host: string, opts?: unknown) =>
+			named[host]
+				? [{ address: named[host], family: 4 }]
+				: real.lookup(host, opts as never)) as typeof real.lookup
+	};
+});
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
@@ -274,6 +292,67 @@ describe('pages through the engine', () => {
 			failure: 'not-found'
 		});
 	});
+
+	it('fetches an address on ENGINE_URL itself from the engine, with the token', async () => {
+		await fetchProxied(`${url}/image/abc123`);
+		expect(seen[0].headers.authorization).toBe('Bearer s3cret');
+	});
+});
+
+describe('pages a source names on a site', () => {
+	/** The site, played by a stubbed fetch: what it was asked, and with what. */
+	const site = (answer: () => Response) => {
+		const asked: { url: string; headers: Headers; dispatcher: unknown }[] = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (u: string, init: RequestInit & { dispatcher?: unknown }) => {
+				asked.push({ url: u, headers: new Headers(init.headers), dispatcher: init.dispatcher });
+				return answer();
+			})
+		);
+		return asked;
+	};
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('goes to the site, never with the engine’s token, and through the guarded pool', async () => {
+		const asked = site(() => new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0])));
+		const got = await fetchProxied('https://cdn.example.org/p/1.jpg');
+		expect(imageType(got.bytes)).toBe('jpg');
+		expect(asked.map((a) => a.url)).toEqual(['https://cdn.example.org/p/1.jpg']);
+		expect(asked[0].headers.get('authorization')).toBeNull();
+		expect(asked[0].dispatcher).toBeDefined();
+	});
+
+	it('sends a site’s own /image/ path to the site, not to the engine as a token', async () => {
+		const asked = site(() => new Response(new Uint8Array([0xff, 0xd8, 0xff])));
+		await fetchProxied('https://kaa.example/image/poster/1.jpg');
+		expect(asked.map((a) => a.url)).toEqual(['https://kaa.example/image/poster/1.jpg']);
+		expect(asked[0].headers.get('authorization')).toBeNull();
+		expect(seen).toEqual([]);
+	});
+
+	it('refuses an address off the internet before asking anything', async () => {
+		const asked = site(() => new Response('secret'));
+		for (const at of [
+			'https://inside.example/p.jpg',
+			'http://192.168.1.1/p.jpg',
+			'http://[::ffff:7f00:1]/p.jpg'
+		])
+			await expect(fetchProxied(at), at).rejects.toMatchObject({ failure: 'source' });
+		expect(asked).toEqual([]);
+	});
+
+	it('stops reading a page past its limit', async () => {
+		site(
+			() =>
+				new Response(
+					new ReadableStream({
+						pull: (c) => c.enqueue(new Uint8Array(1024 * 1024))
+					})
+				)
+		);
+		await expect(fetchProxied('https://cdn.example.org/p/huge.jpg')).rejects.toThrow(/too large/);
+	});
 });
 
 describe('the wire format', () => {
@@ -296,6 +375,10 @@ describe('the wire format', () => {
 		);
 		expect(proxyUrl('https://cdn.example.org/p/1.jpg', 'http://e:1')).toBe(
 			'https://cdn.example.org/p/1.jpg'
+		);
+		// A site's own /image/ path is the site's.
+		expect(proxyUrl('https://kaa.lt/image/poster/1.jpg', 'http://e:1')).toBe(
+			'https://kaa.lt/image/poster/1.jpg'
 		);
 	});
 

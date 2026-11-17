@@ -101,9 +101,14 @@ export function failureOf(status: number, body: unknown): EngineFailure {
 /**
  * The engine's proxy URLs name its own port inside its container
  * (`http://127.0.0.1:8080/image/<token>`); tsundoku reaches it at ENGINE_URL.
+ * Only a loopback address is one: a site's own `/image/` path (KickAssAnime's
+ * `https://kaa.lt/image/poster/…`) is the site's, and must not be sent to the
+ * engine as if it were a token.
  */
 export function proxyUrl(url: string, engineUrl: string): string {
-	const m = /^https?:\/\/[^/]+(\/(?:image|video)\/.*)$/.exec(url);
+	const m = /^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(\/(?:image|video)\/.*)$/i.exec(
+		url
+	);
 	return m ? engineUrl.replace(/\/$/, '') + m[1] : url;
 }
 

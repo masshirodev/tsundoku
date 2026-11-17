@@ -8,6 +8,8 @@ import {
 	type Preference
 } from './protocol.ts';
 import { parseWebViewStatus, webviewFailure, type WebViewStatus } from '../../webview.ts';
+import { engineAuth } from './auth.ts';
+import { publicFetch, readCapped } from '../net-guard.ts';
 
 /**
  * tsundoku calling the extension engine (doc/EXTENSION-ENGINE.md, "Running
@@ -301,37 +303,71 @@ export async function engineMedia(
 	}
 }
 
+/** A page is a picture: past this it is something else, and is not read to the end. */
+export const MAX_PAGE_BYTES = 64 * 1024 * 1024;
+
 /**
- * The bytes behind one of the engine's /image/ or /video/ URLs, fetched
- * through the source's own client, interceptors and cookies included (the
- * spike: MANGA Plus's pages are XOR-encrypted without them). Not in a lane:
- * the engine doesn't lock an extension for these, and a chapter's pages are
- * fetched several at a time.
+ * Where [url] is on the engine, when it is the engine's: one of the proxy
+ * addresses it hands out (`engineMediaPath`, its own port inside its
+ * container), or an address on ENGINE_URL itself. Null for anything else,
+ * which is a site's.
+ */
+function onEngine(url: string): string | null {
+	const path = engineMediaPath(url);
+	if (path) return proxyUrl(url, engineUrl());
+	return engineAuth(url).authorization ? url : null;
+}
+
+/**
+ * The bytes behind a page's address. One of the engine's /image/ or /video/
+ * URLs is fetched from the engine, with its token, through the source's own
+ * client, interceptors and cookies included (the spike: MANGA Plus's pages
+ * are XOR-encrypted without them). Any other address is the site's, named by
+ * the source: it gets no token, since the token must never leave for a host
+ * that isn't the engine, and it is fetched as any address a source names is,
+ * on the internet only (net-guard.ts). Not in a lane: the engine doesn't lock
+ * an extension for these, and a chapter's pages are fetched several at a
+ * time.
  */
 export async function fetchProxied(
 	url: string,
 	timeoutMs = 60_000
 ): Promise<{ bytes: Uint8Array; type: string }> {
+	const engine = onEngine(url);
 	let res: Response;
-	try {
-		res = await fetch(proxyUrl(url, engineUrl()), {
-			headers: { 'user-agent': USER_AGENT, ...authorization() },
-			signal: AbortSignal.timeout(timeoutMs)
-		});
-	} catch (e) {
-		throw unreachable(e, timeoutMs);
+	if (engine) {
+		try {
+			res = await fetch(engine, {
+				headers: { 'user-agent': USER_AGENT, ...authorization() },
+				signal: AbortSignal.timeout(timeoutMs)
+			});
+		} catch (e) {
+			throw unreachable(e, timeoutMs);
+		}
+	} else {
+		try {
+			res = await publicFetch(url, {
+				headers: { 'user-agent': USER_AGENT },
+				signal: AbortSignal.timeout(timeoutMs)
+			});
+		} catch (e) {
+			throw new EngineError(`The page could not be fetched (${(e as Error).message})`, 'source');
+		}
 	}
 	if (!res.ok) {
 		const text = await res.text().catch(() => '');
 		// 404 is a token the engine forgot (a restart): ask for the page list again.
 		throw new EngineError(
-			text || `The engine answered ${res.status}`,
+			(engine && text) || `The ${engine ? 'engine' : 'site'} answered ${res.status}`,
 			res.status === 404 ? 'not-found' : 'source',
 			res.status
 		);
 	}
-	return {
-		bytes: new Uint8Array(await res.arrayBuffer()),
-		type: res.headers.get('content-type') ?? ''
-	};
+	let bytes: Buffer;
+	try {
+		bytes = await readCapped(res, MAX_PAGE_BYTES);
+	} catch (e) {
+		throw new EngineError(`The page is too large (${(e as Error).message})`, 'source');
+	}
+	return { bytes: new Uint8Array(bytes), type: res.headers.get('content-type') ?? '' };
 }
