@@ -23,9 +23,16 @@
 		online = false,
 		rule = null,
 		guess = false,
+		refused = false,
+		onretry,
 		onshape
 	}: {
-		src: string;
+		/**
+		 * The image. `null` while the reader is still fetching a page read online
+		 * into memory ($lib/reader/online-pages, c1038): the box waits, and the
+		 * element asks for nothing, so the source is asked once.
+		 */
+		src: string | null;
 		/** 1-based, as the reader names it. */
 		number: number;
 		w: number;
@@ -71,6 +78,10 @@
 		 * guess to wait for. Paged screens never pass it.
 		 */
 		guess?: boolean;
+		/** The reader's own fetch of a page read online failed: the page says so, and RETRY is `onretry`. */
+		refused?: boolean;
+		/** RETRY asks the reader again instead of the element (a page read online is the reader's to fetch). */
+		onretry?: () => void;
 		/**
 		 * The image arrived at this size. Asked of a page whose box was a
 		 * guess: one read from its source, which never says how big its pages
@@ -81,9 +92,36 @@
 	} = $props();
 	const name = $derived(chapter ? `${chapter} · P. ${number}` : `P. ${number}`);
 
-	let status = $state<'loading' | 'loaded' | 'failed'>('loading');
+	let shown = $state<'loading' | 'loaded' | 'failed'>('loading');
 	let attempt = $state(0);
-	const url = $derived(attempt ? `${src}${src.includes('?') ? '&' : '?'}retry=${attempt}` : src);
+	const url = $derived(
+		src && attempt ? `${src}${src.includes('?') ? '&' : '?'}retry=${attempt}` : src
+	);
+	const status = $derived(refused ? 'failed' : src === null ? 'loading' : shown);
+
+	/**
+	 * The image arrived. Also asked at mount: a page turned back to is a new
+	 * element whose image is often already complete, and its load event comes a
+	 * task later, after a frame of the loading box had been drawn (c1038).
+	 */
+	function arrived(img: HTMLImageElement) {
+		// A page the reader unmounted before its image came (a switch of
+		// mode) still fires its load: its shape is no longer this reader's
+		// to learn, and learning it moved a box with no strip keeping the
+		// place (c913).
+		if (!img.isConnected || shown === 'loaded') return;
+		shown = 'loaded';
+		// Learned wherever the box had no size of its own: read online, or a
+		// stored page the manifest could not measure (an AVIF or JXL, a JPEG
+		// whose frame header is past the head it reads), which otherwise
+		// stayed a guess for good (c913).
+		if ((online || guess || !(w > 0 && h > 0)) && img.naturalWidth > 0 && img.naturalHeight > 0)
+			onshape?.(img.naturalWidth, img.naturalHeight);
+	}
+	/** Mounted with its image already decoded: shown before the first paint, not a frame after. */
+	function complete(img: HTMLImageElement) {
+		if (img.complete && img.naturalWidth > 0) arrived(img);
+	}
 
 	// One component per page: the reader keys them by source, so a new page
 	// starts fresh and there is no reset to race a cached image's onload.
@@ -129,22 +167,9 @@
 		loading={lazy ? 'lazy' : undefined}
 		draggable="false"
 		class:hidden={status !== 'loaded'}
-		onload={(e) => {
-			const img = e.currentTarget as HTMLImageElement;
-			// A page the reader unmounted before its image came (a switch of
-			// mode) still fires its load: its shape is no longer this reader's
-			// to learn, and learning it moved a box with no strip keeping the
-			// place (c913).
-			if (!img.isConnected) return;
-			status = 'loaded';
-			// Learned wherever the box had no size of its own: read online, or a
-			// stored page the manifest could not measure (an AVIF or JXL, a JPEG
-			// whose frame header is past the head it reads), which otherwise
-			// stayed a guess for good (c913).
-			if ((online || guess || !(w > 0 && h > 0)) && img.naturalWidth > 0 && img.naturalHeight > 0)
-				onshape?.(img.naturalWidth, img.naturalHeight);
-		}}
-		onerror={() => (status = 'failed')}
+		use:complete
+		onload={(e) => arrived(e.currentTarget as HTMLImageElement)}
+		onerror={() => (shown = 'failed')}
 	/>
 	<!--
 		Where the image is actually drawn: `contain` letterboxes it whenever the
@@ -196,8 +221,9 @@
 					onpointerup={(e) => e.stopPropagation()}
 					onclick={(e) => {
 						e.stopPropagation();
-						status = 'loading';
-						attempt += 1;
+						shown = 'loading';
+						if (onretry) onretry();
+						else attempt += 1;
 					}}>RETRY</button
 				>
 			</div>

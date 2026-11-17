@@ -138,6 +138,26 @@ browsing record:
   route answers an online page `private, no-store` (its version starts
   `online-`), so neither the browser nor the service worker keeps it; the
   device cache keys on a file, which an online chapter hasn't got.
+- **The paged reader holds the pages near you in memory** (c1038,
+  `src/lib/reader/online-pages.ts`). No-store meant a turn back asked the
+  source again: each turn mounts a new element for the page turned to, and
+  the browser had nothing it was allowed to hand it, so a page just read
+  waited on the phone → workstation → engine → source round trip, longer on a
+  bad connection (the owner, 2026-11-16). A preloaded `Image` held in a map,
+  as downloaded pages are, did not help: measured in Chromium, the next
+  element fetched the page again once garbage collection had run, forward
+  turns too. So the reader fetches each online page itself, once, keeps it as
+  a Blob behind an object URL, and draws from that. The screen on show, the
+  ones `pagesAhead` names and the next chapter's first two near the end are
+  held; at most twelve, the oldest let go first, and every one when the
+  reader is left. They are kept across a chapter change, which rebuilds the
+  reader, so the next chapter opens on pages already fetched. Question 4
+  still holds: a Blob is this tab's memory, never the disk or a cache, gone
+  with the reader. A page the source refused says so with RETRY, which asks
+  the reader's copy again. A page refused while it was only near is asked
+  once more when a turn reaches it; while it stays near, it is not asked on
+  every turn. The vertical strip keeps its own way: its pages stay mounted,
+  so they never needed this.
 - **Waiting is the player's** (`OnlineWait.svelte`). The reader's page comes
   at once and the chapter streams in (`waiting`, in the read route's loader):
   ASKING THE SOURCE with its seconds; THE SOURCE IS CHECKING THE WORKSTATION

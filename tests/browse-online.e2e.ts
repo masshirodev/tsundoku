@@ -22,14 +22,15 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 	await expect(page.getByRole('region', { name: 'Chapters' }).locator('.head')).toContainText(
 		'3 · ALL ONLINE'
 	);
+	// The pages come from the source, through tsundoku, and are never kept:
+	// the reader holds them in memory only, as blob: URLs (c1038).
+	const first = page.waitForResponse((r) => /\/api\/entries\/\d+\/pages\/0\?/.test(r.url()));
 	await page.locator('.cta-go .cta').click();
 	await expect(page).toHaveURL(/\/read\/\d+/);
-
-	// The pages come from the source, through tsundoku, and are never kept.
 	const img = page.locator('.stage .screen:not([aria-hidden]) img').first();
 	await expect(img).toBeVisible({ timeout: 20_000 });
-	const src = await img.getAttribute('src');
-	const res = await page.request.get(src!);
+	await expect(img).toHaveAttribute('src', /^blob:/);
+	const res = await first;
 	expect(res.headers()['content-type']).toBe('image/png');
 	expect(res.headers()['cache-control']).toBe('private, no-store');
 	// Esc shows the controls (a click turns the page, as a mouse does).
@@ -162,4 +163,70 @@ test('a page read online takes its own shape once it arrives, paged and vertical
 		return (i.naturalHeight / i.naturalWidth) * r.width <= r.height + 1;
 	});
 	expect(drawn).toBe(true);
+});
+
+/**
+ * Turning back (c1038; the owner, 2026-11-16): a page read online is
+ * `no-store`, and a turn mounts a new element for the page turned to, so the
+ * browser asked the workstation, and the workstation the source, for a page
+ * that had just been on screen; a bad connection made the loading box stay.
+ * The reader now holds the pages near the one being read in memory
+ * ($lib/reader/online-pages): forward and back again asks for each page once,
+ * and a page drawn before is never drawn as its loading box again.
+ */
+test('turning back and forth on a chapter read online asks for each page once and never redraws its loading box (c1038)', async ({
+	page
+}) => {
+	test.setTimeout(90_000);
+	const asked = new Map<string, number>();
+	page.on('request', (r) => {
+		const m = new URL(r.url()).pathname.match(/^\/api\/entries\/(\d+)\/pages\/(\d+)$/);
+		if (m) asked.set(`${m[1]}/${m[2]}`, (asked.get(`${m[1]}/${m[2]}`) ?? 0) + 1);
+	});
+	await page.goto(`/browse/${SOURCES.open.id}`);
+	await page.locator('.grid .tile', { hasText: 'Open Source 1-6' }).click();
+	await page.locator('.cta-go .cta').click();
+	await expect(page).toHaveURL(/\/read\/\d+/);
+	const entry = new URL(page.url()).pathname.split('/').pop()!;
+	const main = (n: number) =>
+		page.locator(`.stage .screen:not([aria-hidden]) .page[data-page="${n}"] img:not(.hidden)`);
+	await expect(main(1)).toBeVisible({ timeout: 20_000 });
+	// Online pages draw from the reader's own copy.
+	await expect(main(1)).toHaveAttribute('src', /^blob:/);
+
+	// Every frame from here: a page drawn once must never show its loading box again.
+	await page.evaluate(() => {
+		const w = window as unknown as { __flashes: string[] };
+		w.__flashes = [];
+		const drawn = new Set<string>();
+		const look = () => {
+			for (const p of document.querySelectorAll<HTMLElement>('.stage .screen .page')) {
+				const n = p.dataset.page!;
+				const img = p.querySelector('img');
+				if (img && !img.classList.contains('hidden')) drawn.add(n);
+				else if (drawn.has(n) && p.querySelector('.loading')) w.__flashes.push(`p. ${n}`);
+			}
+			requestAnimationFrame(look);
+		};
+		requestAnimationFrame(look);
+	});
+	// R→L: ← is forward.
+	for (const [key, to] of [
+		['ArrowLeft', 2],
+		['ArrowRight', 1],
+		['ArrowLeft', 2],
+		['ArrowRight', 1]
+	] as const) {
+		await page.keyboard.press(key);
+		await expect(main(to)).toBeVisible({ timeout: 20_000 });
+		// Settled past the slide, so the next turn starts from rest.
+		await page.waitForTimeout(400);
+	}
+	expect(
+		await page.evaluate(() => (window as unknown as { __flashes: string[] }).__flashes)
+	).toEqual([]);
+	// Each page of the chapter was asked for once, however many turns reached it.
+	const mine = [...asked].filter(([k]) => k.startsWith(`${entry}/`));
+	expect(mine.length).toBeGreaterThanOrEqual(2);
+	expect(mine.filter(([, n]) => n !== 1)).toEqual([]);
 });

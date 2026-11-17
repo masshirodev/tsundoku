@@ -176,10 +176,22 @@ asked on 2026-09-23).
   first. Page URLs carry their version, so the browser keeps them as
   immutable; the reader holds the decoded images (a dozen at most) so a turn
   draws at once. That also means the neighbour sliding in beside a swipe is
-  usually already drawn.
+  usually already drawn. A chapter read online is `no-store`, which the
+  browser won't keep, so the reader holds those pages' bytes itself
+  ([`BROWSING.md`](BROWSING.md), "Manga online"; c1038).
+- **A page whose image is already there draws in the first frame.** A turn
+  mounts a new element for the page turned to, and the image's load event
+  comes a task after the element, so the loading box was drawn for a frame
+  first, on every turn back (c1038). `PageImage` now looks at the image when
+  it mounts and shows it straight away if it is already complete.
 - **Near a chapter's end** (its last two screens), the next chapter's first
   two pages are fetched too, so going on past the end page doesn't wait
   either. Not while offline.
+- **Each page is asked for once.** Until c1038 a second, older preloader
+  from the first reader (2026-09-23) also asked for the next screen on every
+  turn, keeping nothing. It was harmless for downloaded pages, which the
+  browser keeps, but for an online page it was another request to the source.
+  It is gone.
 - **Vertical** needs none of this: every page of the chapters on the strip is
   in the page and loads as it comes.
 

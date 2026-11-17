@@ -110,6 +110,7 @@
 	import { keepHistoryUrl } from '$lib/reader/history';
 	import { OnePointer } from '$lib/reader/pointer';
 	import PageImage from './PageImage.svelte';
+	import { isOnlineVersion, onlineHeld } from '$lib/reader/online-pages';
 	import Chrome from './Chrome.svelte';
 	import { drawUnderCamera } from '$lib/app/surface';
 	import ReadingSheet from './ReadingSheet.svelte';
@@ -751,8 +752,20 @@
 	// the images are held here so they stay decoded. Vertical has every page of
 	// its strip in the page already.
 	// Not state: nothing draws from it, it only keeps the images alive.
+	// A chapter read online is held by $lib/reader/online-pages instead (c1038):
+	// its pages are no-store, so an Image here kept nothing the next element
+	// could use, and each one was a second request to the source.
 	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const preloaded = new Map<string, HTMLImageElement>();
+	onMount(() => onlineHeld.hold());
+	/** What a paged screen draws for page `i`: a page read online comes from the reader's own copy. */
+	function shownPage(i: number): { src: string | null; refused: boolean } {
+		if (!data.manifest?.online) return { src: src(i), refused: false };
+		const h = onlineHeld.get(src(i));
+		return h?.state === 'ready'
+			? { src: h.url, refused: false }
+			: { src: null, refused: h?.state === 'failed' };
+	}
 	function preload(url: string) {
 		if (preloaded.has(url)) return;
 		const img = new Image();
@@ -768,7 +781,12 @@
 		if (mode === 'vertical' || !data.manifest || pages.length === 0) return;
 		const g = spreadOf(groups, at);
 		untrack(() => {
-			for (const i of pagesAhead(groups, g)) preload(src(i));
+			if (data.manifest?.online)
+				onlineHeld.keep(
+					(groups[g] ?? []).map((i) => src(i)),
+					pagesAhead(groups, g).map((i) => src(i))
+				);
+			else for (const i of pagesAhead(groups, g)) preload(src(i));
 			// The end in sight: the next chapter's first pages too.
 			const n = data.next;
 			if (!nearEnd(groups, g) || !n?.available || nextFirst === n.id || !offline.online) return;
@@ -776,7 +794,10 @@
 			void fetch(resolve('/api/entries/[id]/pages', { id: String(n.id) }))
 				.then((r) => (r.ok ? (r.json() as Promise<{ pages: Page[]; version: string }>) : null))
 				.then((m) => {
-					if (m) for (const i of [0, 1]) if (m.pages[i]) preload(pageSrc(n.id, m.version, i));
+					if (!m) return;
+					const first = [0, 1].filter((i) => m.pages[i]).map((i) => pageSrc(n.id, m.version, i));
+					if (isOnlineVersion(m.version)) onlineHeld.keep([], first);
+					else for (const u of first) preload(u);
 				})
 				.catch(() => undefined);
 		});
@@ -2389,15 +2410,6 @@
 		};
 	});
 
-	// Preload the next screen's pages so a turn is instant.
-	$effect(() => {
-		const g = spreadOf(groups, at);
-		for (const i of groups[g + 1] ?? []) {
-			const img = new Image();
-			img.src = src(i);
-		}
-	});
-
 	// ---- what the chrome says -----------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(data.series.id) }));
 	const workHref = $derived(data.work ? resolve('/work/[id]', { id: String(data.work.id) }) : '');
@@ -2623,8 +2635,11 @@
 						aria-hidden={sc.pos === 0 ? undefined : 'true'}
 					>
 						{#each sc.pages as i, k (src(i))}
+							{@const shown = shownPage(i)}
 							<PageImage
-								src={src(i)}
+								src={shown.src}
+								refused={shown.refused}
+								onretry={data.manifest?.online ? () => onlineHeld.retry(src(i)) : undefined}
 								number={i + 1}
 								chapter={i === 0 ? data.entry.name : ''}
 								w={shaped(data.entry.id, i, pages[i]).w}
