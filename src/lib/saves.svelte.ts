@@ -1,13 +1,12 @@
 /**
- * Writes that failed (Loading States 1o; doc/WAITING.md). A write shows its
- * result at once and saves behind it. When the save doesn't go through, the
- * new value stays -- drawn dashed, Index's "not stored yet" -- and a band
- * offers RETRY and PUT BACK. It also tries again by itself with the next
- * request that reaches the workstation. The value only changes back if the
- * owner asks.
+ * Writes that failed (doc/WAITING.md). A write shows its result at once and
+ * saves behind it. When the save doesn't go through, the new value stays --
+ * drawn dashed, "not stored yet" -- and a band offers RETRY and PUT BACK. It
+ * also tries again by itself with the next request that reaches the
+ * workstation. The value only changes back when asked to.
  *
  * Failures are held per save, so a second one never takes the first one's
- * way back (c739, c686). They live here, not on a page, so they outlive the
+ * way back. They live here, not on a page, so they outlive the
  * screen that raised them.
  */
 export type FailedSave = {

@@ -65,7 +65,7 @@ const shapeOf = (el: Element): SliderShape => ({
  * Whether the focused thing keeps this arrow for itself, so the layer leaves
  * it alone.
  *
- * A slider first (c259): the nearest `role="slider"`, native range or
+ * A slider first: the nearest `role="slider"`, native range or
  * `[data-focus-adjust]` around the target decides (`arrowKept`, keys.ts): the
  * arrows along its axis are its own and the others leave, on every device.
  *
@@ -73,8 +73,8 @@ const shapeOf = (el: Element): SliderShape => ({
  * single-line field, while ↑/↓ leave it; a textarea or a contenteditable
  * keeps all four. A `<select>` keeps ←/→ to change its value in place -- a
  * remote has no other key that would -- and lets ↑/↓ leave, or a D-pad would
- * be trapped in it. No screen draws one now: the library's SORT is a
- * ChoiceMenu (c432).
+ * be trapped in it. No screen draws one: the library's SORT is a
+ * ChoiceMenu.
  */
 export function keepsArrow(target: Element, direction: Direction): boolean {
 	const chain: SliderShape[] = [];

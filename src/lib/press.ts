@@ -1,11 +1,11 @@
 /**
- * Every tap is heard (doc/MOTION.md, "Pressing"; card c396).
+ * Every tap is heard (doc/MOTION.md, "Pressing").
  *
  * The design's press is an inversion: the cell flips to ink. Left to `:active`
- * it was drawn on a handful of components and seen on fewer, because a quick
- * tap on a phone ends before `:active` paints and iOS never applies it at all
- * without a touch listener. So the press is one layer for the whole app: a
- * pointer going down on anything pressable marks it `data-pressed`, the CSS in
+ * it would rarely be seen, because a quick tap on a phone ends before
+ * `:active` paints and iOS never applies it at all without a touch listener.
+ * So the press is one layer for the whole app: a pointer going down on
+ * anything pressable marks it `data-pressed`, the CSS in
  * src/lib/styles/motion.css draws it, and the mark is held long enough to be
  * seen. Small things also sink a little (`scale` 0.97).
  *

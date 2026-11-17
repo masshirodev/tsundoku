@@ -1,17 +1,17 @@
 /**
  * The vertical strip's block under a point: a page slot or a chapter band.
  *
- * Every element under the point is looked through, not only the topmost
- * (c568): READING's sheet, the controls, the lookup or a banner can cover the
+ * Every element under the point is looked through, not only the topmost:
+ * READING's sheet, the controls, the lookup or a banner can cover the
  * middle of the screen, and the strip's block under them is still the place
- * being read. Wave 24 traced the strip losing a chapter that way: VERTICAL
- * picked in READING's sheet, the chapter above arriving while the sheet still
+ * being read. Otherwise the strip loses a chapter: VERTICAL picked in
+ * READING's sheet, the chapter above arriving while the sheet still
  * covered the middle, `elementFromPoint` finding the sheet, and nothing kept.
  *
  * Only blocks inside the strip (`data-role="strip"`) count: the shared `Band`, `SaveBand` and
  * `Banner` also carry `.band`, and one drawn over the strip is not a place.
  * Nothing under the point (a gap, the end page) is `null`, and the caller
- * keeps nothing, as before.
+ * keeps nothing.
  */
 export const STRIP_SLOT = '[data-role="page"], .band';
 

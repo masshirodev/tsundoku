@@ -1,7 +1,7 @@
 import type { Token } from './types.ts';
 
 /**
- * The English half of a block, on the device (c198, doc/LANGUAGES.md).
+ * The English half of a block, on the device (doc/LANGUAGES.md).
  *
  * English needs no model to find its words: a word is letters with apostrophes
  * and hyphens inside it ("don't", "well-known", "1990s"), and everything
@@ -11,7 +11,7 @@ import type { Token } from './types.ts';
  * What English does need a dictionary for is the word *behind* the word: gave
  * is give, mice is mouse. Wiktionary lists those forms itself, so the pack
  * answers them from its own data rather than from a suffix stripper somebody
- * maintains by hand (c198).
+ * maintains by hand.
  */
 
 /**
@@ -56,7 +56,7 @@ export function segment(text: string): Token[] {
 /**
  * The words a lookup may run into, in order: the tapped one and up to two
  * after it. The server tries the longest phrase first ("give up" before
- * "give"), so the client only has to pass the text along (c198).
+ * "give"), so the client only has to pass the text along.
  */
 export const LOOKAHEAD = 2;
 

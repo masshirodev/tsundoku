@@ -84,7 +84,7 @@ export function backLink(a: HTMLAnchorElement) {
  * A back link's click, for code that leaves a screen by itself (the player's
  * BACK and Escape): back in history to `href`'s screen when the reader came
  * from it, else open it. Pushed instead, the left screen stays behind it and
- * the next BACK opens it again (2026-11-02: the player, from the TV's remote).
+ * the next BACK opens it again (the player, from the TV's remote).
  */
 export function goBackTo(href: string): void {
 	const steps = stepsBackTo(new URL(href, location.href));

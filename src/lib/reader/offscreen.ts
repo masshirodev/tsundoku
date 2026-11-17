@@ -1,9 +1,9 @@
 /**
  * Keep a block of a vertical strip out of the pad's reach while it is off
- * screen (c253; doc/READER.md, "On a TV and on a remote"). The focus layer
- * weighs every focusable in the page, on screen or not, so with a TV's chrome
- * up over a strip, ↓ from the bottom row found the end page's LIBRARY at the
- * foot of the chapter and scrolled thousands of pixels to it. While `active`
+ * screen (doc/READER.md, "On a TV and on a remote"). The focus layer weighs
+ * every focusable in the page, on screen or not, so with a TV's chrome up over
+ * a strip, ↓ from the bottom row would find the end page's LIBRARY at the foot
+ * of the chapter and scroll thousands of pixels to it. While `active`
  * (a TV with the chrome up) and the block is outside the viewport, it carries
  * `data-focus-skip`; once it is on screen it is an arrow stop as before, which
  * is how a remote reaches the end page's cells.

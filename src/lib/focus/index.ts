@@ -1,7 +1,7 @@
 /**
- * D-pad focus (card c234, doc/FOCUS.md): arrow keys move focus by geometry,
+ * D-pad focus (doc/FOCUS.md): arrow keys move focus by geometry,
  * a sheet is a scope, and focus comes back to where it was. The remote's own
- * keys (c235, doc/TV.md): OK held and MENU open the focused thing's options,
+ * keys (doc/TV.md): OK held and MENU open the focused thing's options,
  * BACK closes, climbs, then leaves.
  *
  * The root layout installs it; Sheet.svelte marks its panel a scope; a screen

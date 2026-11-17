@@ -1,5 +1,5 @@
 /**
- * What the SETTINGS page says, the pure part (doc/SETTINGS.md; card c171):
+ * What the SETTINGS page says, the pure part (doc/SETTINGS.md):
  * the lines a row derives from what's set, what stands in, and when.
  */
 
@@ -7,7 +7,7 @@ import { langName as trackLangName } from '$lib/library/streams';
 
 /**
  * A language as the page says it: "JAPANESE", "PORTUGUESE (BRAZIL)". The
- * player's one table names it (c419), so a variant, or any language the
+ * player's one table names it, so a variant, or any language the
  * player knows, reads as a name here too, never as its code.
  */
 export const langName = (code: string) => trackLangName(code).toUpperCase();
@@ -58,7 +58,7 @@ export function subsLine(
 	return `NONE SET · THE PLAYER'S LAST CHOICE STANDS IN: ${track(last.subs.v)}, ${def.size ?? last.size?.v ?? 'M'}`;
 }
 
-/** An override's line in the opened list (2A): "EN AUDIO · CHOSEN IN THE PLAYER, 12 OCT". */
+/** An override's line in the opened list: "EN AUDIO · CHOSEN IN THE PLAYER, 12 OCT". */
 export function overrideLine(
 	what: 'audio' | 'subs',
 	value: string | null,

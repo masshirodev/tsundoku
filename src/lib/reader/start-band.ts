@@ -1,15 +1,15 @@
 /**
- * The band at a chapter's start (c705; doc/TEXT-READER.md, "A chapter's
+ * The band at a chapter's start (doc/TEXT-READER.md, "A chapter's
  * start"): when it names the chapter's table-of-contents title, and when it
  * leaves it out because the book already prints it.
  *
- * The handoff's kicker was left out because a title from the table of
+ * A kicker is left out because a title from the table of
  * contents over the book's own heading printed "Chapter 1: The Article"
  * twice. The band keeps that: the title is drawn only when the chapter's
  * first heading (or, with none, its first short line) says something else
  * once case, punctuation, whitespace and a leading chapter number are folded
  * away. A chapter number counts in figures, kanji or English words, and a
- * short blockquote can be a title line too (c741). A web-novel chapter from a
+ * short blockquote can be a title line too. A web-novel chapter from a
  * source often has no heading at all, and there the band is the only place
  * its name is shown.
  *
@@ -39,13 +39,13 @@ export function leadLine(blocks: readonly LeadBlock[]): string | null {
 
 /**
  * Every line the book may print the chapter's title in. Usually that is
- * `leadLine` alone, and a short blockquote before it (c741: an epigraph reads
+ * `leadLine` alone, and a short blockquote before it (an epigraph reads
  * as a different line, so it costs nothing to look). A publisher's EPUB often
  * prints the number and the title in two blocks (`<h1>Chapter 1</h1><h2>The
  * Article</h2>`, two short paragraphs, `<h2>第一章</h2><h1>旅立ち</h1>`): when
  * the lead is only a chapter number, the line next to it is read as well, and
  * the two joined are a candidate too. That is the short paragraph right
- * before it (c741: the title line can stand over the number) and the next
+ * before it (the title line can stand over the number) and the next
  * block with text, if it is a heading or a short line inside the
  * `LEAD_BLOCKS`. Empty where `leadLine` is null.
  */

@@ -5,7 +5,7 @@ import type { PackId, Token } from './types.ts';
 
 /**
  * The packs the reader can ask, and what the panel needs to draw one
- * (doc/LANGUAGES.md, c195). A pack is the only place a language is known: the
+ * (doc/LANGUAGES.md). A pack is the only place a language is known: the
  * panel asks this registry for a face, a wording and a query, never whether it
  * is looking at Japanese.
  */
@@ -53,7 +53,7 @@ const en: Pack = {
 	segment: async (text) => segmentEn(text),
 	posLabel: (pos) => (pos[0] ? posLabelEn(pos[0]) : ''),
 	// The pack answers an inflection with its lemma, so that is what the line
-	// names: the panel's own `lemma` is only the surface lowercased (c198).
+	// names: the panel's own `lemma` is only the surface lowercased.
 	inflection: (surface, _lemma, headword) =>
 		headword && headword.toLowerCase() !== surface.toLowerCase() ? `${surface} ← ${headword}` : '',
 	query: (token, after) => new URLSearchParams({ surface: token.surface, after })

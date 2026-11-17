@@ -9,12 +9,12 @@
  * and gets back whatever it had before the first.
  *
  * `overflow: hidden` on the root is also what the focus layer reads as a
- * locked page (src/lib/focus/layer.ts, `stepScroll`, c618), so the arrow keys
+ * locked page (src/lib/focus/layer.ts, `stepScroll`), so the arrow keys
  * stop scrolling it too. `scrollbar-gutter: stable` keeps the space of a
  * desktop scrollbar while it is hidden, so the page doesn't shift sideways --
  * only where a scrollbar was taking space. On a page with none (a short one,
  * an overlay scrollbar, a TV) it added a gutter that wasn't there, and the
- * page and its sheets moved 10px left under the cover (c1033).
+ * page and its sheets moved 10px left under the cover.
  */
 let holders = 0;
 let before: { overflow: string; gutter: string } | null = null;
@@ -50,7 +50,7 @@ export function pageLocks(): number {
  * Holds the page still while `el` is drawn, and lets go while it isn't: for a
  * cover a media query can hide while it stays open. The desktop's top-bar
  * FILTER is hidden with its cell below 1024px, open or not, and a plain lock
- * left the page locked under nothing (c1033). A ResizeObserver hears the box
+ * left the page locked under nothing. A ResizeObserver hears the box
  * go to nothing and come back; the release lets go of the lock if it holds it.
  */
 export function lockPageWhileShown(el: Element): () => void {

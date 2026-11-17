@@ -160,12 +160,12 @@ export type ScrollMetrics = {
  * clientHeight` can fall short of `scrollHeight` by up to a pixel (MDN's own
  * test for "at the bottom" allows 1). The rects' `EPSILON` (half a pixel)
  * would call such a scroller movable, and ↓ would go to a scroller that
- * cannot move: the very bug c578 is.
+ * cannot move.
  */
 export const SCROLL_SLACK = 1;
 
 /**
- * Whether a vertical scroller can still move `direction` (c578): what
+ * Whether a vertical scroller can still move `direction`: what
  * `stepScroll` asks of each ancestor, so ↑ ↓ chain past a scroller at its end
  * to the next one out, and finally the page, as the browser's own arrow
  * scroll does. One with nothing to scroll is at both ends.
@@ -196,7 +196,7 @@ function jumpsPast(next: Rect, direction: 'up' | 'down', view: ScrollView): bool
 }
 
 /**
- * ↑ or ↓ from a stop in a section (c861): the section keeps them.
+ * ↑ or ↓ from a stop in a section: the section keeps them.
  *
  * The nearest stop of its own, unless the way there passes content the screen
  * never showed. Then, while its scroller can still move this way (`view` says

@@ -2,7 +2,7 @@ import { fileMeta } from '$lib/library/series';
 import type { SeriesEntry } from '$lib/library/series';
 
 /**
- * What on an end page is its own, so the page does not turn under it (c655):
+ * What on an end page is its own, so the page does not turn under it:
  * its controls, and DELETE's confirmation, which is drawn inside the page and
  * which a tap at the screen's edge would otherwise pass through to the reader.
  */
@@ -45,20 +45,19 @@ export function entriesLine(entries: SeriesEntry[]): string {
 }
 
 /**
- * The end page's library row (c655): which cells it draws.
+ * The end page's library row: which cells it draws.
  *
  * A browsing record is added through BROWSE's own `?/add`. A series in the
- * library is taken out through the series screen's own DELETE (the owner's
- * decision of 2026-11-07, on c655): `in_library` is not a flag over files
- * here, so taking a series out is deleting it, and the end page asks with the
- * series screen's own confirmation first.
+ * library is taken out through the series screen's own DELETE: `in_library`
+ * is not a flag over files here, so taking a series out is deleting it, and
+ * the end page asks with the series screen's own confirmation first.
  *
  * A part of a Work draws DELETE too, as the series screen does: the series
  * goes, the Work carries on with its other parts, and a Work left with one
  * ends (the trigger `series_deleted_ends_work`, `db.ts`).
  *
  * A hidden series is read only under `/reveal`, and its end page keeps UNHIDE
- * beside DELETE (c673): that is the series' own state (`seriesHidden`,
+ * beside DELETE: that is the series' own state (`seriesHidden`,
  * `data.series.hidden`), never this page's answer. A part draws no UNHIDE: a
  * Work is hidden whole, from its own screen (`?/hide` refuses a part).
  *
@@ -76,7 +75,7 @@ export function libraryCells(state: {
 	inLibrary: boolean;
 	/** The series is a part of a Work (the end page's `work`). */
 	inWork: boolean;
-	/** A browsing record's own `?/add` door is known. */
+	/** A browsing record's own `?/add` action is known. */
 	hasAddHref: boolean;
 	/** The series is hidden, and this page is being read under `/reveal`. */
 	seriesHidden: boolean;

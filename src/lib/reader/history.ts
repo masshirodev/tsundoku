@@ -7,9 +7,9 @@
  * finds there, not to `location` (`client.js:2883`). `replaceState` writes that
  * URL from `page.url`, which stays at the last *real* navigation, so a reader
  * that moves its place — or its chapter — in place leaves history naming the
- * old one. BACK into the entry then opened the first chapter, not the one read
- * on to (c623); and because a popstate navigation never rewrites the entry
- * (`client.js:1873`), the address bar kept saying the right thing while the
+ * old one. BACK into the entry would then open the first chapter, not the one
+ * read on to; and because a popstate navigation never rewrites the entry
+ * (`client.js:1873`), the address bar would say the right thing while the
  * page drew the wrong chapter.
  *
  * A full load's first entry has no `sveltekit:pageurl` (SvelteKit writes only

@@ -1,23 +1,22 @@
 /**
- * Zoom in the image reader, the pure part (doc/READER.md, "Zoom"; card c169,
- * asked for by the owner on 2026-10-29). A zoom is a factor of the page as
- * fitted: paged, the page box grows past the screen and scrolls; vertical,
- * the strip grows wider (or narrower) than the screen.
+ * Zoom in the image reader, the pure part (doc/READER.md, "Zoom"). A zoom is
+ * a factor of the page as fitted: paged, the page box grows past the screen
+ * and scrolls; vertical, the strip grows wider (or narrower) than the screen.
  *
  * A kept zoom is a default per reading mode and per screen class, on this
  * device: manga (paged) and manhwa (the strip) keep different values, and a
  * phone-width window keeps its own, so neither overwrites the other.
  *
  * A double page (one image wider than it is tall, shown whole) has a zoom of
- * its own, `double` (the owner, 2026-11-11): it fits at about half a single
- * page's scale, so the zoom a single page reads at overflows it, and zooming
- * out to read one used to throw the single pages' zoom away.
+ * its own, `double`: it fits at about half a single page's scale, so the zoom
+ * a single page reads at overflows it, and zooming out to read one would
+ * throw the single pages' zoom away.
  */
 
 /**
- * 20% to 500% (card c719, the owner on 2026-11-07: a friend wanted the strip
- * smaller than 50%). Until then 50% to 300%, which sits inside this range, so
- * a zoom kept under the old one reads back unchanged and nothing migrates.
+ * 20% to 500%: a strip may be read smaller than 50%. The earlier range, 50%
+ * to 300%, sits inside this one, so a zoom kept under it reads back unchanged
+ * and nothing migrates.
  */
 export const ZOOM_MIN = 0.2;
 export const ZOOM_MAX = 5;
@@ -78,11 +77,11 @@ export function keptZoom(raw: unknown): number | null {
 	return typeof raw === 'number' && raw >= ZOOM_MIN && raw <= ZOOM_MAX ? raw : null;
 }
 
-// ---- double tap (card c185) -----------------------------------------------------------
+// ---- double tap -----------------------------------------------------------------------
 
 /**
- * Where a double tap in the middle of the page goes (the owner's rule,
- * 2026-10-29): under 100% up to it, at 100% to 200%, over 100% back to it.
+ * Where a double tap in the middle of the page goes: under 100% up to it, at
+ * 100% to 200%, over 100% back to it.
  */
 export const doubleTapZoom = (z: number) => (Math.abs(z - 1) < 0.005 ? 2 : 1);
 

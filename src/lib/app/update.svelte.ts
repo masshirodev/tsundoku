@@ -11,9 +11,9 @@ const bridge = (): UpdateBridge | null =>
 	(window as unknown as { TsundokuTV?: UpdateBridge }).TsundokuTV ?? null;
 
 /**
- * The app's update in this page (c614; doc/UPDATES.md, "The Android apps"): a
+ * The app's update in this page (doc/UPDATES.md, "The Android apps"): a
  * module's state, so SETTINGS, the modal and the library's band read the same
- * one. A browser has no bridge, an app older than c614 has no `appUpdate`, and
+ * one. A browser has no bridge, an older app has no `appUpdate`, and
  * in both `state` stays null and nothing is drawn.
  */
 class AppUpdater {

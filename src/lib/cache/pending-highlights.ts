@@ -1,5 +1,5 @@
 /**
- * Highlights made offline (c842; doc/OFFLINE.md, "Writes that wait"). A highlight
+ * Highlights made offline (doc/OFFLINE.md, "Writes that wait"). A highlight
  * that can't reach the workstation waits in this browser's IndexedDB, survives
  * the app being closed, and is sent at the next connection with no further
  * press: the app's layout starts the send, so it doesn't depend on a reader
@@ -16,7 +16,7 @@
  *
  * It is the first queued write that isn't reading progress, and it is built as
  * the mechanism rather than for one caller: an item names its own address and
- * body, so a page (H3) and a quote (H2) go through the same door, and a rating
+ * body, so a page and a quote go through the same queue, and a rating
  * or FAV could later.
  *
  * **It sends once** by two things together. One row per [key] here, so two
@@ -32,7 +32,7 @@ import { mergeNotes } from '$lib/library/highlights';
 export type RefusedWhy = 'gone' | 'source' | 'refused';
 
 /**
- * A quote a press took in while it waited (c702's round 3), carried on the
+ * A quote a press took in while it waited, carried on the
  * press's item so a refusal of that press can put it back. The words are the
  * book's, so it lives only as long as the item that covers it.
  */
@@ -42,7 +42,7 @@ export interface CoveredHighlight {
 	body: Record<string, unknown>;
 	entry: number;
 	label: string;
-	/** What the reader changed while it waited (N7), carried to the item put back. */
+	/** What the reader changed while it waited, carried to the item put back. */
 	revised?: string[];
 	/** A covered join's own covers, so a chain of joins keeps them all. */
 	covers?: CoveredHighlight[];
@@ -63,13 +63,13 @@ export interface QueuedHighlight {
 	after?: number;
 	/** Set when the workstation refused it: kept only until the reader has been told. */
 	refused: RefusedWhy | null;
-	/** Which of the body's fields the reader changed while it waited (Novel N7). */
+	/** Which of the body's fields the reader changed while it waited. */
 	revised?: string[];
-	/** What this item took in as a join: put back if the join itself is refused (c702). */
+	/** What this item took in as a join: put back if the join itself is refused. */
 	covers?: CoveredHighlight[];
 }
 
-/** A quote's item (H2), told from a page's by its key: each reader tells only its own. */
+/** A quote's item, told from a page's by its key: each reader tells only its own. */
 export const QUOTE_KEY_PREFIX = 'quote:';
 export const isQuoteKey = (key: string) => key.startsWith(QUOTE_KEY_PREFIX);
 export const quoteKey = (
@@ -169,7 +169,7 @@ let store: QueueStore = indexedStore;
  * Items a later press covers, and which incarnation of each: its key and the
  * `at` that names that very item. A take-back is not always "not wanted":
  * a selection joining a waiting quote removes it because the press that covers
- * it is sent by its own door (c702). The POST already out for the removed item
+ * it is sent by its own request. The POST already out for the removed item
  * may still make a row, and the workstation folds that row into the covering
  * one, keeping its id — so a DELETE there would take the join, note and all.
  */
@@ -186,7 +186,7 @@ function remember(item: QueuedHighlight) {
 	if (item.refused) remembered.delete(item.key);
 	else remembered.set(item.key, item);
 }
-/** What the queue last knew under [key]: a joining press carries its fields on (c702). */
+/** What the queue last knew under [key]: a joining press carries its fields on. */
 export function carriedBy(key: string): QueuedHighlight | undefined {
 	return remembered.get(key);
 }
@@ -246,7 +246,7 @@ function stopTrying() {
 }
 
 /**
- * One store mutation at a time per key (c702's round 2): `keepSpan` takes a
+ * One store mutation at a time per key: `keepSpan` takes a
  * waiting quote back and then writes the press that covers it in the same
  * tick, without awaiting the first. Both read and write the one key, so a press
  * started before the take-back's removal is done would find the item it is
@@ -306,7 +306,7 @@ export function queueHighlight(h: NewHighlight, now = Date.now()): Promise<boole
 
 /**
  * A press that covers waiting items goes on the device, and only then do they
- * leave it (c702's round 4): a device that will not keep the press keeps what
+ * leave it: a device that will not keep the press keeps what
  * it covers, so nothing waiting is lost to a refused write. `covered` are the
  * keys the press takes in; the press's own key among them is the exact re-press
  * of that item, which this write replaces whole (one `put`, so the item is never
@@ -346,7 +346,7 @@ function replaceHighlight(h: NewHighlight, now: number): Promise<boolean> {
 }
 
 /**
- * A change to something still waiting (Novel N7: its note and colour can be
+ * A change to something still waiting (its note and colour can be
  * changed before it goes): the item's body, merged. Nothing is told to the
  * workstation, since it hasn't heard of the highlight yet. `false`: nothing
  * took the change (it was sent in the moment, or storage refused), so the
@@ -370,7 +370,7 @@ export function reviseHighlight(key: string, patch: Record<string, unknown>): Pr
 /**
  * Taken back before it was sent, and not wanted. Nothing was asked of the
  * workstation. Hands back the item it removed: an UNDO has to restore what the
- * DELETE took, covers and `revised` included (c702), not a body rebuilt from
+ * DELETE took, covers and `revised` included, not a body rebuilt from
  * the page, which cannot say what waited inside it.
  */
 export function takeBackHighlight(key: string): Promise<QueuedHighlight | undefined> {
@@ -438,14 +438,14 @@ type RowAnswer = {
 	made?: boolean;
 };
 
-/** A highlight's own address, beside the door that made it: `/api/highlights/<id>`. */
+/** A highlight's own address, beside the address that made it: `/api/highlights/<id>`. */
 const rowUrl = (item: QueuedHighlight, id: number) => item.url.replace(/\/[^/]*$/, `/${id}`);
 
 /**
  * What the reader changed that the answer doesn't say (a note typed during the
  * POST, a colour chosen for a row that was already there): the row's fields
  * to set. A note the POST itself wrote is replaced, since that's still the
- * reader's draft; a note the row had first is merged with it, as the door would.
+ * reader's draft; a note the row had first is merged with it, as the server would.
  */
 function unsaid(
 	posted: QueuedHighlight,
@@ -473,7 +473,7 @@ const NOT_DONE = Symbol('not done');
  * sent after it. `NOT_DONE`: a change couldn't be sent, so the item goes on
  * waiting and the next pass carries it; or it was taken back meanwhile, and
  * what the press made has been set aside again. (`null` is a real answer: a
- * body that wasn't JSON, from a door that kept the highlight.)
+ * body that wasn't JSON, from an address that kept the highlight.)
  */
 async function landed(item: QueuedHighlight, answer: unknown): Promise<unknown> {
 	const a = answer as RowAnswer | null;
@@ -567,7 +567,7 @@ async function sendAll(): Promise<void> {
 			await store.put(later).catch(() => undefined);
 			remember(later);
 		} else {
-			// A join covers the waiting quotes it took in (c702's round 3): a
+			// A join covers the waiting quotes it took in: a
 			// refusal of the join must not lose them, notes included. Put each
 			// back as `queueHighlight` would (which clears the record its
 			// take-back left) before the join is stored refused. A cover under

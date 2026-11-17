@@ -3,11 +3,10 @@ import { resolve } from '$app/paths';
 /**
  * While a page waits on a source, asks once a second whether that site's
  * browser check is being passed (`/api/browse/check`; doc/BROWSE.md, "A
- * site's check"; cards c143 and c152), and keeps a clock of how long it has
+ * site's check"), and keeps a clock of how long it has
  * asked. The engine says for an extension, and the app itself for a novel,
- * whose check it solves. The page names the check at once (Browse Calls, "A
- * site's check is named at once") instead of waiting ten seconds to say it's
- * slow.
+ * whose check it solves. The page names the check at once instead of waiting
+ * ten seconds to say it's slow.
  */
 export class SiteCheck {
 	/** When the engine started passing the check; null while it isn't. */

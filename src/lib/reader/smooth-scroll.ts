@@ -1,8 +1,8 @@
 /**
  * Smooth scrolling for the vertical strip on a PC (doc/READER.md, "Scrolling
- * on a PC"; card c192). A mouse wheel's notch, and ↑ / ↓ by a screen, ease the
- * strip toward where they aim instead of jumping there: the owner, 2026-10-30,
- * "can we make it smooth, like Mihon, without losing responsiveness".
+ * on a PC"). A mouse wheel's notch, and ↑ / ↓ by a screen, ease the strip
+ * toward where they aim instead of jumping there: smooth, like Mihon, without
+ * losing responsiveness.
  *
  * Responsiveness is the constraint, so it's an exponential approach, not a
  * timed tween: every frame covers the same share of what's left, so it moves
@@ -61,19 +61,16 @@ export function wheelPixels(
 
 /**
  * Ctrl + ↑ / ↓: a nudge, to bring a panel the screen cut in two into view
- * without the mouse (the owner, 2026-10-30). The owner, 2026-11-06: "we can
- * up the amoun a ctrl+arrow or side arrow moves too". It also sets how far
- * ← / → pan a strip zoomed wider than the screen.
+ * without the mouse. It also sets how far ← / → pan a strip zoomed wider than
+ * the screen.
  */
 export const NUDGE = 100;
 
 /**
  * How long a key's move takes. The wheel's approach starts at full speed so a
- * notch feels instant, which over a whole screen was a lurch (the owner,
- * 2026-10-30: "its attacking my anxiety"): keys glide instead, starting
- * gently and settling, the longer the move the longer the glide. The owner,
- * 2026-11-06, seeing it on a PC whose animations had been off: "i think 320ms
- * is too much now", so a screen takes 220 ms.
+ * notch feels instant, which over a whole screen is a lurch: keys glide
+ * instead, starting gently and settling, the longer the move the longer the
+ * glide. 320 ms for a screen reads as slow, so a screen takes 220 ms.
  */
 export const GLIDE_SCREEN = 220;
 export const GLIDE_NUDGE = 160;
@@ -130,15 +127,15 @@ export class SmoothScroll {
 		ease: (p: number) => number;
 	} | null = null;
 	/**
-	 * A held key while one is down (c668): its speed in px per ms, signed, as a
-	 * ramp from the speed the strip had to the steady one (c692). Null when
+	 * A held key while one is down: its speed in px per ms, signed, as a
+	 * ramp from the speed the strip had to the steady one. Null when
 	 * nothing is held and when a glide is a press's own.
 	 */
 	private held: Ramp | null = null;
 	constructor(private host: Host) {}
 	/**
 	 * Where the strip is going: the glide's target while it moves, else where
-	 * it is. A key step is measured from here, as `glide` adds to it (c913).
+	 * it is. A key step is measured from here, as `glide` adds to it.
 	 */
 	get aim(): number {
 		return this.moving ? this.target : this.host.y;
@@ -172,11 +169,11 @@ export class SmoothScroll {
 	}
 
 	/**
-	 * A key held down (c668): its repeats must not stack steps, or the aim runs
+	 * A key held down: its repeats must not stack steps, or the aim runs
 	 * far ahead of the strip and it keeps travelling after the key comes up.
 	 * The strip moves at the speed one press covers in its glide — `by` over
-	 * `ms`, not a new number — until `letGo`, reaching it over that same `ms`
-	 * (c692): at full speed from the first repeat, a screen's start read as the
+	 * `ms`, not a new number — until `letGo`, reaching it over that same `ms`:
+	 * at full speed from the first repeat, a screen's start read as the
 	 * lurch keys were given a glide to avoid.
 	 *
 	 * Called on every repeat, so one that finds its own ramp leaves it alone, or
@@ -206,7 +203,7 @@ export class SmoothScroll {
 	 * `GLIDE_NUDGE` long. A cubic ease-out starts at three times its average
 	 * speed, so a third of the speed times the glide keeps the speed it had and
 	 * stops 33 px (a nudge's) later for a 100 px nudge. The speed it **had**: a
-	 * key up mid-ramp (c692) has not reached the held speed, and easing out from
+	 * key up mid-ramp has not reached the held speed, and easing out from
 	 * that would be a shove forward.
 	 */
 	letGo() {
@@ -241,12 +238,12 @@ export class SmoothScroll {
 	 * The strip kept its place (a chapter or a reshaped page arrived above, the
 	 * window resized): the window moved with the content, nothing moved on
 	 * screen. An ease in flight moves with it, rather than stopping as it would
-	 * for a scroll from anything else, which lost the notch (c192).
+	 * for a scroll from anything else, which would lose the notch.
 	 *
 	 * `moved` is how far the content moved, which differs from the app's scroll
 	 * when the browser had already scrolled part of the way: a strip window that
 	 * drops a chapter above gets shorter than the scroll position, so Chromium
-	 * clamps it before the correction runs (c668's crossing). The window's own
+	 * clamps it before the correction runs. The window's own
 	 * position is the truth after the app's scroll, so `shown` takes it; the
 	 * ease's timeline takes the content's move, or the strip would end that
 	 * much short of its aim.
@@ -271,7 +268,7 @@ export class SmoothScroll {
 		if (h !== null) {
 			// The held key's scroll: what the ramp covers between the two frames,
 			// so its shape does not depend on the frame rate. Clamped at 0 like a
-			// glide's p (c568, c668): a frame is stamped when it began, which
+			// glide's p: a frame is stamped when it began, which
 			// under load is before the key, and a negative delta ran a held arrow
 			// the wrong way on its first frame.
 			const a = Math.max(0, this.last - h.t0);
@@ -300,7 +297,7 @@ export class SmoothScroll {
 		const g = this.glider;
 		const y = g
 			? (() => {
-					// Clamped at 0 too (c568): a frame is stamped when it began, which
+					// Clamped at 0 too: a frame is stamped when it began, which
 					// under load can be before the key, and a negative p eased the
 					// strip the wrong way first.
 					const p = Math.min(1, Math.max(0, (t - g.t0) / g.ms));

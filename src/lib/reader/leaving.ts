@@ -6,14 +6,14 @@ import { isReaderPath } from './reader';
  * The path a reader moved the window to in place. It lasts until a real
  * navigation, which the reader reports with `forgetReaderMove`. Not keyed on
  * `page.url`: an invalidation gives that a new object for the same entry, so
- * the record would be lost while the reader was still reading (wave 25, r2).
+ * the record would be lost while the reader was still reading.
  */
 let moved: string | null = null;
 
 /**
  * Say that a reader moved the window to `path` itself with `replaceState`: the
- * text reader opens the next chapter in place and writes `/read/<its id>`
- * (c565, round 2). Call it right after the write.
+ * text reader opens the next chapter in place and writes `/read/<its id>`.
+ * Call it right after the write.
  */
 export function readerMovedTo(path: string): void {
 	moved = path;
@@ -30,7 +30,7 @@ function ownPath(): string {
 }
 
 /**
- * Whether the reader is on its way out (c565): a navigation to another screen
+ * Whether the reader is on its way out: a navigation to another screen
  * has begun, or the window already shows another one.
  *
  * A reader stays mounted while the screen it is going to loads, and any timer
@@ -49,8 +49,8 @@ function ownPath(): string {
  * alone: SvelteKit's `replaceState` sets only `page.state` and leaves
  * `page.url` at the last real navigation, and the text reader moves between
  * chapters in place, writing `/read/<next id>` with `replaceState`. Measured
- * against `page.url` alone (round 2 of wave 25): after the first settle in the
- * second chapter every later settle read as leaving, so `?at=` froze and no
+ * against `page.url` alone, after the first settle in the second chapter
+ * every later settle read as leaving, so `?at=` froze and no
  * more progress was sent until the reader was left. So a reader that moves the
  * window itself says so with `readerMovedTo`.
  */

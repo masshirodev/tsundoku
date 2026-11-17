@@ -1,11 +1,11 @@
 import type { TextSpan } from '$lib/library/highlights';
 
 /**
- * The text reader's marks (Highlights H2, c702; doc/TEXT-READER.md,
- * "Highlights"): the marker and the selection, drawn into the book's blocks
- * as spans around pieces of their text nodes. Wrapping leaves a block's
- * `textContent` as it was, which is what every saved position
- * (`src/lib/reader/text-dom.ts`) counts in, so a mark never moves a place.
+ * The text reader's marks (doc/TEXT-READER.md, "Highlights"): the marker and
+ * the selection, drawn into the book's blocks as spans around pieces of their
+ * text nodes. Wrapping leaves a block's `textContent` as it was, which is what
+ * every saved position (`src/lib/reader/text-dom.ts`) counts in, so a mark
+ * never moves a place.
  *
  * Two kinds of number are in play. A **position** counts every character of
  * `textContent`, furigana and a wide block's own head included: it is what

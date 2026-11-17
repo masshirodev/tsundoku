@@ -30,7 +30,6 @@ export const EDGE = 0.16;
 /**
  * A novel's strips are wider (doc/TEXT-READER.md, "Touch"): text has no panel
  * to tap into, so the middle only has to be big enough to reach the controls.
- * The owner asked for this on 2026-10-22.
  */
 export const TEXT_EDGE = 0.3;
 
@@ -122,7 +121,7 @@ export type Page = { w: number; h: number };
  * So the shape its image had once it loaded (`learned`), or else the last
  * shape any page of this reader loaded with (`last`), on the bet that a
  * chapter's pages are mostly alike: a manhwa's tall slices above all, which a
- * manga-shaped guess drew as a narrow column (2026-10-29). Neither, and it
+ * manga-shaped guess drew as a narrow column. Neither, and it
  * stays unknown, which PageImage draws as a manga page.
  */
 export function shapeOf(p: Page, learned?: Page | null, last?: Page | null): Page {
@@ -276,10 +275,10 @@ export function scrubPage(fraction: number, total: number, mode: Mode): number {
  * a page overnight is not eight hours of reading.
  *
  * The cap is the longest a page can plausibly hold someone, so it is the
- * medium's (card c443). Each reader is one medium and chooses its own: the
+ * medium's. Each reader is one medium and chooses its own: the
  * text reader passes `IDLE_CAPS.text`, the image reader takes the default.
  *
- * - **pages**: 2 minutes, as since the log began. A manga page or a strip's
+ * - **pages**: 2 minutes. A manga page or a strip's
  *   screen is read in seconds.
  * - **text**: 5 minutes. A page of prose at the default size holds 352 words
  *   on a tablet held upright and 391 on one held sideways (two columns),
@@ -315,7 +314,7 @@ export class ProgressClock {
 }
 
 /**
- * Watching time (card c443): only what actually played. The player reports
+ * Watching time: only what actually played. The player reports
  * each `timeupdate` -- the wall clock and the position -- and a step counts
  * only when the position moved forward about as far as the clock did:
  *
@@ -338,8 +337,8 @@ export const STEP_SLACK_MS = 1_000;
 export const WATCH_LAP_CAP_MS = 60_000;
 
 /**
- * Whether a `timeupdate` counts as watching, for `WatchClock.tick` (c443,
- * c481): playing, not in a seek, and on a page someone can see, unless the
+ * Whether a `timeupdate` counts as watching, for `WatchClock.tick`:
+ * playing, not in a seek, and on a page someone can see, unless the
  * picture is in a floating window (Document or the video's own
  * picture-in-picture), which is seen while the page is hidden.
  */
@@ -459,7 +458,7 @@ export const HOVER_EDGE = 56;
  *
  * Not over the end of a chapter (`overEnd`): that page has its own cells
  * along the bottom (← SERIES, LIBRARY, NEXT), and the bars came up over them
- * as the pointer went to click one (the owner, 2026-11-01). Over it, the
+ * as the pointer went to click one. Over it, the
  * pointer brings nothing up and puts away what it brought.
  */
 export function hoverAction(
@@ -534,14 +533,13 @@ export function isReaderPath(pathname: string, prefix: string): boolean {
 }
 
 /**
- * The cursor's idle hide (c678; the owner, 2026-11-06: "can we add an option to
- * hide the cursor after a few seconds of inactivity? inside the reader").
+ * The cursor's idle hide.
  * Three seconds without the mouse moving hides it over the reader; any move
  * or press brings it back at once, a key and the wheel do not, and it never
  * hides while the bars, a sheet, the page menu or the end page is open. The
  * option is one device setting shared by both readers
  * (`tsundoku.reader.cursor`), off by default. The player has its own key, on by
- * default (`./cursor.ts`, c713).
+ * default (`./cursor.ts`).
  */
 export const CURSOR_IDLE_MS = 3000;
 export const CURSOR_KEY = 'tsundoku.reader.cursor';

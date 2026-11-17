@@ -4,11 +4,11 @@ import { getLocale } from './paraglide/runtime.js';
 import { upper } from './i18n/format.ts';
 
 /**
- * A new version, told in the browser (doc/UPDATES.md): the modal on entry
- * (Getting Started handoff, board 4; card c208), the library's bands, and
- * SETTINGS › UPDATES. The words and the rules for when it asks are here,
- * pure; `installAndWait` is the one loop both SETTINGS and the modal run.
- * The words are the reader's language (doc/I18N.md), made when asked for.
+ * A new version, told in the browser (doc/UPDATES.md): the modal on entry,
+ * the library's bands, and SETTINGS › UPDATES. The words and the rules for
+ * when it asks are here, pure; `installAndWait` is the one loop both
+ * SETTINGS and the modal run. The words are the reader's language
+ * (doc/I18N.md), made when asked for.
  */
 
 /** The server's view, as GET /api/updates and the layout give it (server/updates.ts). */
@@ -28,13 +28,12 @@ export type UpdateView = {
 };
 
 /**
- * LATER snoozes the modal for a day, for that version (the owner, 2026-10-30:
- * "later can mean a day... they can still update through the settings").
- * The handoff drew "quiet until the next version"; the owner's call wins.
+ * LATER snoozes the modal for a day, for that version, not until the next
+ * version: SETTINGS › UPDATES still offers it meanwhile.
  */
 export const SNOOZE_MS = 24 * 60 * 60 * 1000;
 export const LATER_KEY = 'tsundoku.update.later';
-/** The Android app's LATER (c614): a different release from the computer's. */
+/** The Android app's LATER: a different release from the computer's. */
 export const APP_LATER_KEY = 'tsundoku.app-update.later';
 /** The version UPDATE was pressed for, so the reload onto it can say UPDATED TO. */
 export const DONE_KEY = 'tsundoku.update.done';
@@ -92,7 +91,7 @@ export function offerMeta(v: Pick<UpdateView, 'available' | 'how' | 'platform'>)
 
 /**
  * "76 OF 182 MB · 41%": what's come counted in the total's own unit, whole
- * where the total is, so the two read alike (board 4A).
+ * where the total is, so the two read alike.
  */
 export function downloadLine(i: { bytes: number; total: number }): string {
 	const pct = i.total > 0 ? Math.floor((i.bytes / i.total) * 100) : 0;
@@ -119,7 +118,7 @@ export function clock(ms: number): string {
 }
 
 /**
- * The library's band while an UPDATE runs with its modal hidden (board 4F):
+ * The library's band while an UPDATE runs with its modal hidden:
  * what it's doing, in two lines. Null when nothing runs.
  */
 export function runningBand(i: Install | null): { title: string; detail: string } | null {

@@ -2,7 +2,7 @@ import { m } from '$lib/paraglide/messages';
 import type { Install, UpdateView } from '$lib/updates';
 
 /**
- * The Android app's own update, as its bridge tells it (c614; doc/UPDATES.md,
+ * The Android app's own update, as its bridge tells it (doc/UPDATES.md,
  * "The Android apps"; the app's Updater.State.toJson). The app decides
  * everything: it checks the release, downloads it and installs it. These only
  * say so, in the shapes the computer's update already draws.

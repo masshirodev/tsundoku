@@ -111,7 +111,7 @@ export function deviceOf(w: number, h: number): Device {
 }
 
 /**
- * The page's frame, from the handoff's three devices: tablet portrait
+ * The page's frame on the three devices: tablet portrait
  * (72px sides, 88px top and bottom, 20/1.6), landscape (72/64, 19/1.6, two
  * columns 96px apart) and phone (24/56, 18/1.55). MARGINS scales the sides.
  */
@@ -138,13 +138,11 @@ const SIDE: Record<Margins, number> = { narrow: 2 / 3, normal: 1, wide: 14 / 9 }
 export const baseFontSize = (device: Device) => BASE[device].fs;
 
 /**
- * WIDTH (card c437; doc/TEXT-READER.md, "WIDTH"): how much of the screen's
+ * WIDTH (doc/TEXT-READER.md, "WIDTH"): how much of the screen's
  * width the text takes, or PAGE, a page of A4's proportion (1 : √2) as tall
- * as the text area, centred. 100% is the column every device drew before
- * WIDTH (the screen less MARGINS), so it is the default and nobody's page
- * changed on upgrade. The owner, 2026-11-03: "in case you want a A4 page on
- * center or the content area with text"; on a PC the whole screen less its
- * margins was a line too long to read.
+ * as the text area, centred. 100% is the screen less MARGINS, the default, so
+ * a page with no WIDTH chosen keeps its column. On a PC the whole screen less
+ * its margins is a line too long to read.
  */
 export type TextWidth = 50 | 65 | 80 | 100 | 'page';
 export const TEXT_WIDTHS: readonly [TextWidth, string][] = [
@@ -227,14 +225,14 @@ export function frame(
 		gap,
 		fontSize,
 		lineHeight: s.line ?? b.lh,
-		// Headings keep the handoff's proportion to the body (30 to 20).
+		// Headings keep the design's proportion to the body (30 to 20).
 		headSize: s.size === null ? b.hs : Math.round(fontSize * 1.5)
 	};
 }
 
 /**
  * The READING cell in the controls: "PAGED · SERIF 20 · DARK", and "PAGED R→L ·
- * …" when a horizontal book's pages turn right to left (c440).
+ * …" when a horizontal book's pages turn right to left.
  */
 export function settingsLabel(o: {
 	layout: Layout;
@@ -251,7 +249,7 @@ export function settingsLabel(o: {
 }
 
 /**
- * Which way a horizontal book's paged pages turn (card c440): L→R, reading on
+ * Which way a horizontal book's paged pages turn: L→R, reading on
  * to the right, or R→L, reading on to the left. Never how the text runs. The
  * series' own, else L→R; vertical Japanese and SCROLL don't use it.
  */
@@ -269,7 +267,7 @@ export const textDirectionName = (d: TextDirection) => TEXT_DIRECTIONS.find(([v]
 /**
  * The reader's touch mode: turning left-to-right, right-to-left, or none.
  * SCROLL never turns; vertical Japanese always turns right to left; a
- * horizontal book in PAGED turns the way its DIRECTION says (c440).
+ * horizontal book in PAGED turns the way its DIRECTION says.
  */
 export function textMode(
 	layout: Layout,
@@ -292,12 +290,12 @@ export const isVerticalBook = (language: string, rtl: boolean) =>
 /**
  * The place a text reader's URL keeps (`?at=`; doc/TEXT-READER.md,
  * "Position"): the paragraph and the character, and in SCROLL how far below
- * the top of the screen that character's line stood (c554), so a reload puts
- * the line back where it was rather than on the top margin, up to a line off.
- * `?at=12.340` (paragraph 12, character 340) is the form every link and
- * history entry made before c554 has, and still opens as it did: on the
- * margin. The offset is CSS px on the screen, which means the same at any
- * WIDTH or size: the line holding the character goes back to that height.
+ * the top of the screen that character's line stood, so a reload puts the
+ * line back where it was rather than on the top margin, up to a line off.
+ * `?at=12.340` (paragraph 12, character 340), without the offset, is also
+ * read, and opens on the margin. The offset is CSS px on the screen, which
+ * means the same at any WIDTH or size: the line holding the character goes
+ * back to that height.
  */
 export type TextPlace = { block: number; offset: number; y: number | null };
 export function parseAt(raw: string | null | undefined): TextPlace | null {

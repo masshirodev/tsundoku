@@ -1,7 +1,6 @@
 /**
- * The lookup panel's rules (doc/JAPANESE.md, "Lookup"), from
- * `Index Japanese.dc.html`. Pure: the panel component and the readers draw
- * from these.
+ * The lookup panel's rules (doc/JAPANESE.md, "Lookup"). Pure: the panel
+ * component and the readers draw from these.
  */
 
 export type Placement =
@@ -53,7 +52,7 @@ export function wordCells(tokens: { lookupable: boolean }[]): WordCell[] {
 	return tokens.map((t, i) => ({ i, word: t.lookupable }));
 }
 
-/** The token first selected: the first word, as the handoff opens on it. */
+/** The token first selected: the first word. */
 export function firstWord(tokens: { lookupable: boolean }[]): number {
 	const i = tokens.findIndex((t) => t.lookupable);
 	return i < 0 ? 0 : i;

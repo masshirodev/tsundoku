@@ -4,7 +4,7 @@ import { isTsundokuApp } from '$lib/settings/catalog';
  * FULL SCREEN in the readers (doc/READER.md, "Full screen"): the browser's
  * bars gone while reading. A phone over home Wi-Fi gets plain http, where a
  * browser won't install tsundoku as an app (doc/WIFI.md), so this is how it
- * loses the browser's frame (the owner, 2026-10-30). Android's browsers do
+ * loses the browser's frame. Android's browsers do
  * it over http; an iPhone's Safari can't (only for video), and there the
  * control isn't offered.
  *

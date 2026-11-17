@@ -7,7 +7,7 @@
  * by putting `data-focus-off` on its root, and a sheet is a scope by putting
  * `use:focusScope` on its own element.
  *
- * The remote's own three verbs are here too (doc/TV.md, c235): OK held or MENU
+ * The remote's own three verbs are here too (doc/TV.md): OK held or MENU
  * opens the focused thing's long-press options through the same `contextmenu`
  * its pointer path listens for, and BACK closes what is open, then climbs, then
  * leaves -- `window.tsundokuBack()` for the app, which a WebView hands BACK to
@@ -36,7 +36,7 @@ type Scope = {
 
 declare global {
 	interface Window {
-		/** BACK in the page, for the Android app (doc/TV.md, c236's contract). */
+		/** BACK in the page, for the Android app (doc/TV.md). */
 		tsundokuBack?: () => boolean;
 	}
 }
@@ -45,7 +45,7 @@ const scopes: Scope[] = [];
 const SAVED = 'tsundoku.focus';
 
 /**
- * The row each section was left from (c861), which ← or → coming back lands
+ * The row each section was left from, which ← or → coming back lands
  * on. Keyed by the section's element and holding the row's, so a screen that
  * is gone takes its entries with it. Nothing clears it: a row the next series
  * replaced is refused by `rowLeftIn`, and each crossing writes its section's
@@ -86,14 +86,14 @@ function take(el: HTMLElement): void {
 /**
  * Keep the focused thing on screen. `nearest` moves the least it can, which in
  * a uniform grid is a whole row; the TV's own header and focus line are the
- * layout's business (c238).
+ * layout's business.
  *
  * `nearest` counts a thing under a pinned bar as shown: the TV's KIND band
  * stays at the top of the screen, and going ↑ through the grid put each row
- * under it, focused and out of sight (2026-11-02, the first real TV). So
+ * under it, focused and out of sight. So
  * after it, whatever a pinned bar still covers is made up.
  *
- * By the thing's own scrollers first, innermost out, and the page last (c861):
+ * By the thing's own scrollers first, innermost out, and the page last:
  * the series screen's columns scroll themselves, so the page cannot move and a
  * row left under the bar or the list's sticky head stayed there. Each takes
  * what it can and the next one out takes the rest, as the browser's own
@@ -217,7 +217,7 @@ function inViewport(el: HTMLElement): boolean {
 /**
  * A scope's own start, where its markup cannot say `data-focus-start`: a
  * panel that hosts another screen's list (the text reader's CONTENTS hosts the
- * series' EntryList, c250) names the row to land on. Selectors are tried in
+ * series' EntryList) names the row to land on. Selectors are tried in
  * order; the first that finds a stop wins, and none falls through to the
  * markup's own start.
  */
@@ -263,7 +263,7 @@ function move(el: HTMLElement): void {
 /**
  * Where one arrow goes instead of the nearest thing that way. A control can
  * name it with `data-focus-up` (and the other three): the player's seek bar
- * sends ↑ back to the card it sits under (c296), where the two buttons above
+ * sends ↑ back to the card it sits under, where the two buttons above
  * it are equally near and the geometry would pick STAY rather than PLAY NOW.
  * The value is a selector inside the scope; a selector that matches nothing
  * lets the geometry decide.
@@ -347,12 +347,12 @@ function sendEscape(node: HTMLElement): void {
 }
 
 /**
- * BACK climbs before it leaves (TV Calls, "BACK climbs before it leaves"): to
+ * BACK climbs before it leaves: to
  * the KIND band's chosen cell from a library grid (its container names the
  * target: `data-back-climb`), else to the screen's own start, else nowhere and
  * the screen is left.
  *
- * Only to a place out of sight (the owner's call, 2026-11-02): the climb is
+ * Only to a place out of sight: the climb is
  * the way back up a long screen. Where it would land is already in full view
  * (the series' ▶ CONTINUE above a short panel, the pinned KIND band's chosen
  * cell), BACK leaves at once instead of costing a press to move focus.
@@ -424,7 +424,7 @@ const LINE_STEP = 40;
 
 /**
  * An arrow with nothing that way, on a TV: the step the browser would have
- * scrolled, but instant, as every scroll of the layer's is (c543). The
+ * scrolled, but instant, as every scroll of the layer's is. The
  * browser's own keyboard scroll is animated, and `climb()`'s instant
  * `scrollTo(0)` does not stop it: BACK pressed while it was still moving put
  * the library at the top, and the animation's remaining distance was then
@@ -439,19 +439,19 @@ const LINE_STEP = 40;
  *
  * The scroller is what the browser would scroll: the nearest ancestor of the
  * focused thing that scrolls vertically **and can still move that way**, else
- * the page (c578). One at its end in the key's direction is passed over, as
+ * the page. One at its end in the key's direction is passed over, as
  * Chromium's own arrow scroll chains to the next scroller out; so is one
  * with `overflow: hidden` or `visible`, which a key never scrolls, and one
  * with nothing to scroll. "At its end" allows `SCROLL_SLACK` (`canScroll`,
  * geometry.ts). The page at its own end scrolls nowhere, which is no error.
- * Until c578 the nearest scroller was taken whether or not it could move, so
- * ↓ in a list at its end inside a longer page did nothing at all.
+ * Taking the nearest scroller whether or not it could move would leave ↓ in a
+ * list at its end inside a longer page doing nothing at all.
  *
- * A page a screen has locked is left alone too (c618). `overflow: hidden` is
+ * A page a screen has locked is left alone too. `overflow: hidden` is
  * still a scroller a script can move, where Chromium's own arrow chain stops,
- * so the fallback below scrolled the image reader's strip under its lookup
+ * so the fallback below would scroll the image reader's strip under its lookup
  * panel, which locks the page with `html.style.overflow = 'hidden'` while it
- * or the page menu is open. `overflow: clip` is the same lock (c647): on the
+ * or the page menu is open. `overflow: clip` is the same lock: on the
  * viewport Chromium computes it as `clip` and a script's `scrollBy` still
  * moves it, so it has to be checked beside `hidden`.
  */
@@ -513,7 +513,7 @@ function rowLeftIn(section: HTMLElement): HTMLElement | null {
  * element's, except that CSS gives it to the first body child when the root
  * says `visible` (the root's `overflow` propagates to the viewport, and a
  * visible one hands that on). A screen locks one or the other, so both read
- * as the page's lock here. A lock is `hidden` or `clip` (c647): Chromium
+ * as the page's lock here. A lock is `hidden` or `clip`: Chromium
  * computes the latter as `clip`, and a script's `scrollBy` still moves it,
  * which is what makes it a lock worth checking for here.
  */
@@ -582,7 +582,7 @@ function handleKeydown(e: KeyboardEvent): void {
 	}
 
 	// ▶❚❚ on a remote resumes the focused CONTINUE card there and then, without
-	// the series screen (TV Calls, "the remote"). Everywhere else the key is
+	// the series screen. Everywhere else the key is
 	// the player's own.
 	if (e.key === 'MediaPlayPause') {
 		const el = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -802,7 +802,7 @@ export function installFocusLayer(): () => void {
 	window.addEventListener('keyup', keyup, true);
 	window.addEventListener('pointerdown', notePointer, true);
 	window.addEventListener('blur', blur);
-	// A WebView hands BACK to the app, not the page (doc/TV.md, c236's contract).
+	// A WebView hands BACK to the app, not the page (doc/TV.md).
 	window.tsundokuBack = back;
 	return () => {
 		window.removeEventListener('keydown', keydown, true);
@@ -820,7 +820,7 @@ export function installFocusLayer(): () => void {
  * screen owns its keys, unless the sheet says `force` -- a dialog the pad has
  * to reach even over a page that reads its own arrows.
  *
- * It closes when it starts to leave, not when it is gone (c445). A sheet with
+ * It closes when it starts to leave, not when it is gone. A sheet with
  * `out:leave` stays in the page for its exit, and Svelte makes it `inert` the
  * moment it starts: from then on it takes nothing, so it must not keep the
  * keys, and the screen under it may already have placed focus (the text
@@ -878,8 +878,8 @@ export function focusScope(
 	const leaving = new MutationObserver(() => {
 		if (node.inert) close();
 		else if (node.isConnected && !scopes.includes(entry)) {
-			// Opened again before it was gone, maybe by another door (MORE after
-			// the library bar's server cell, c261): focus goes back to what
+			// Opened again before it was gone, maybe from another control (MORE
+			// after the library bar's server cell): focus goes back to what
 			// opened it this time, not the first time.
 			entry.restoreTo = opener() ?? entry.restoreTo;
 			open();

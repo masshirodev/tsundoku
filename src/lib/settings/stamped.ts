@@ -2,7 +2,7 @@ import { valueDef, type Json, type ValueId, type Values } from './catalog.ts';
 
 /**
  * A device's settings as the workstation keeps them (doc/SETTINGS.md,
- * "Devices"; the owner's answer to question 1): each storage key with the
+ * "Devices"): each storage key with the
  * value it holds and when it was set. The browser keeps the same record
  * beside its storage, so either side can be newer: a reader changed offline,
  * or this page changing another device's settings. The newer stamp wins, key

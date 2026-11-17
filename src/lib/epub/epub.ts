@@ -216,7 +216,7 @@ export function parsePackage(xml: string, opfPath: string): Package {
 
 /**
  * The pages a package offers as its cover when the package itself names no
- * cover image (c835): a toc entry called Cover (Haibara's EPUBs), then a
+ * cover image: a toc entry called Cover (Haibara's EPUBs), then a
  * manifest document named `cover.xhtml`. Most likely first.
  */
 export function coverPages(pkg: Package, toc: TocPoint[]): string[] {

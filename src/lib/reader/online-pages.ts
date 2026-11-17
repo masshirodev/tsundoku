@@ -2,19 +2,19 @@ import { SvelteMap } from 'svelte/reactivity';
 
 /**
  * The pages of a chapter read online, held in memory near the page being read
- * (c1038; doc/READING-ONLINE.md, "Manga online").
+ * (doc/READING-ONLINE.md, "Manga online").
  *
  * An online page is answered `private, no-store`, so the browser keeps nothing
  * it can hand a new `<img>`: a turn mounts a fresh element for the page turned
- * to, and the browser asked the workstation for it again, which asked the
- * engine, which asked the source. Holding a preloaded `Image` does not help:
- * measured in Chromium (c1038), a no-store image held that way was fetched
+ * to, and the browser asks the workstation for it again, which asks the
+ * engine, which asks the source. Holding a preloaded `Image` does not help:
+ * measured in Chromium, a no-store image held that way was fetched
  * again by the next element anyway, forward turns included, whenever garbage
  * collection had run. So the reader holds the bytes itself: each page near the
  * one being read is fetched once, kept as a Blob behind an object URL, and the
  * page draws from that.
  *
- * Nothing is written anywhere (the owner's answer to question 4 still holds):
+ * Nothing is written anywhere:
  * a Blob lives in this tab's memory, at most `ONLINE_HELD` of them, the oldest
  * let go as new ones come, and all of them when the reader is left.
  *

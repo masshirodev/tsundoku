@@ -1,5 +1,5 @@
 /**
- * Every setting, once (doc/SETTINGS.md; card c171, Settings.dc.html): where
+ * Every setting, once (doc/SETTINGS.md): where
  * it's kept, what it starts as, and how the SETTINGS page draws it. Pure, so
  * the page, the readers and the server agree on one list.
  *
@@ -9,7 +9,7 @@
  *   (ALL DEVICES), or a default a series can differ from (DEFAULT · EVERY
  *   DEVICE).
  * - **device**: this browser's storage, mirrored on the workstation per
- *   device (the owner's answer to question 1), so the page can show and
+ *   device, so the page can show and
  *   change another device's.
  * - **episode**: SPEED, which every episode starts at 1×; listed, not set.
  */
@@ -86,7 +86,7 @@ export const VALUES = {
 	// The tap zones over the page as a paged chapter opens (doc/READER.md, "Touch").
 	'reader.zones': { where: 'device', key: 'tsundoku.reader.zones', def: true, label: onOff },
 	'reader.blocks': { where: 'device', key: 'tsundoku.reader.blocks', def: 'controls' },
-	// Both readers', off by default (c678). The player has its own below (c713).
+	// Both readers', off by default. The player has its own below.
 	'reader.cursor': { where: 'device', key: 'tsundoku.reader.cursor', def: false, label: onOff },
 	// Shared by both readers: it's about the room, not the book.
 	'reader.dim': { where: 'device', key: 'tsundoku.reader.dim', def: 0, label: pct },
@@ -134,15 +134,15 @@ export const VALUES = {
 	// Null: the highest the server offers.
 	'anime.quality': { where: 'device', key: 'tsundoku:anime:quality', def: null },
 	'anime.dim': { where: 'device', key: 'tsundoku:anime:dim', def: 0, label: pct },
-	// What the next episode starts at (c385): 0 to 1, as a <video>'s volume. Mute
+	// What the next episode starts at: 0 to 1, as a <video>'s volume. Mute
 	// is never kept, so a muted episode can't leave the next one silent.
 	'anime.volume': { where: 'device', key: 'tsundoku:anime:volume', def: 1, label: pct },
 	// Its own key because the player's default is on and the readers' off: one key
-	// with two defaults is what made SETTINGS say OFF while the player hid it (c713).
+	// with two defaults is what made SETTINGS say OFF while the player hid it.
 	'anime.cursor': { where: 'device', key: 'tsundoku:anime:cursor', def: true, label: onOff },
 	// 04 — downloading
 	'dl.quality': { where: 'library', key: 'anime_download_quality', def: '1080' },
-	// The languages kept beside the original; '' keeps every one (c160).
+	// The languages kept beside the original; '' keeps every one.
 	'dl.audio': {
 		where: 'library',
 		key: 'anime_download_audio',
@@ -524,7 +524,7 @@ export const SECTIONS: SectionDef[] = [
 							opts: [
 								{ value: 'serif', label: 'PLEX SERIF' },
 								{ value: 'sans', label: 'PLEX SANS' },
-								// The text reader's TEXT_FONTS, in its order (c442).
+								// The text reader's TEXT_FONTS, in its order.
 								{ value: 'opendyslexic', label: 'OPENDYSLEXIC' }
 							]
 						}
@@ -791,7 +791,7 @@ export const SECTIONS: SectionDef[] = [
 				},
 				meta: 'A FOLDED BOOK OPENS IN THIS LANGUAGE · WITHOUT IT, IN THE ONE LAST READ'
 			},
-			// Import-Doors C and D (c438): a later import, with when the last came
+			// A later import, with when the last came
 			// in; on a TV, no button (the TV never imports).
 			{
 				id: 'import',
@@ -808,7 +808,7 @@ export const SECTIONS: SectionDef[] = [
 		title: 'CATALOGUES',
 		words: ['catalogues', 'anilist', 'mal', 'ranobe', 'tracking', 'tmdb', 'key', 'films', 'shows'],
 		rows: [
-			// TMDB first (c993; Keys-Rows 2E): films and shows, a key and no sign-in.
+			// TMDB first: films and shows, a key and no sign-in.
 			{ id: 'tmdb', label: 'TMDB', where: 'all', control: { type: 'account', id: 'tmdb' } },
 			{
 				id: 'anilist',
@@ -964,7 +964,7 @@ export const movesLine = (moves: Move[]) =>
 
 export type DeviceKind = 'phone' | 'tablet' | 'desktop' | 'tv';
 
-/** Every kind a device may be: what `/api/devices/sync` accepts and `devices.kind` allows (rung 59). */
+/** Every kind a device may be: what `/api/devices/sync` accepts and `devices.kind` allows (migration 59). */
 export const DEVICE_KINDS: readonly DeviceKind[] = ['phone', 'tablet', 'desktop', 'tv'];
 
 /** THIS TABLET, or THE DESKTOP when the page shows another device's. */
@@ -988,15 +988,15 @@ export const isTvApp = (ua: string) => /TsundokuTV\//i.test(ua);
 
 /**
  * tsundoku's own Android app, on a TV (`TsundokuTV/<version>`) or on a phone or
- * tablet (`TsundokuApp/<version>`, c521; doc/ANDROID.md). Being the app is a
+ * tablet (`TsundokuApp/<version>`; doc/ANDROID.md). Being the app is a
  * flag beside the device's kind, never a kind of its own: a phone in the app
  * is still a phone, as its screen says.
  */
 export const isTsundokuApp = (ua: string) => /Tsundoku(?:TV|App)\//i.test(ua);
 
 /**
- * Which device the app's own pages are talking to, for their words and layout
- * (c521): `/pair/tv` is the TV's and the phone app's 9C and 9E. Only the phone
+ * Which device the app's own pages are talking to, for their words and layout:
+ * `/pair/tv` is both the TV's and the phone app's. Only the phone
  * app's token makes a phone or a tablet, told apart as `pairedLabel` does (an
  * Android WebView says Mobile on a phone, never on a tablet); the TV app, and
  * anything else that opens the page, is the TV the page was drawn for.
@@ -1015,11 +1015,11 @@ export const appVersion = (ua: string) => /Tsundoku(?:TV|App)\/([^\s;)]+)/i.exec
  * Whether a DEVICES row's stored label is the app's: what deviceLabel writes
  * for it ("Android phone · app 2026.11.05"). The label is the server's own
  * words, so this reads back exactly what it wrote, and an older row (a
- * browser's, or the TV's "Android TV · Chrome" from before c521) is not.
+ * browser's, or the TV's "Android TV · Chrome") is not.
  */
 export const isAppLabel = (label: string) => / · app(?: |$)/.test(label);
 
-/** A DEVICES row's label cell: the kind, plus · APP for the app's (PHONE · APP, TV · APP; c521). */
+/** A DEVICES row's label cell: the kind, plus · APP for the app's (PHONE · APP, TV · APP). */
 export const deviceWord = (kind: DeviceKind, label: string) =>
 	isAppLabel(label) ? `${kind.toUpperCase()} · APP` : kind.toUpperCase();
 
@@ -1039,9 +1039,8 @@ export function deviceKind(o: { width: number; coarse: boolean; ua?: string }): 
  * "Android tablet · Chrome", from the browser's own words. `tv` is the TV
  * app's own user agent (doc/ANDROID.md), so a paired or synced TV reads as a TV
  * in DEVICES. The app, on any screen, says the app and its version where a
- * browser's name would be: "Android phone · app 2026.11.05" (c521; the design's
- * DEVICES, PhoneApp-Calls.dc.html), since inside the app the browser is the
- * WebView, which is no browser anybody chose.
+ * browser's name would be: "Android phone · app 2026.11.05", since inside the
+ * app the browser is the WebView, which is no browser anybody chose.
  */
 export function deviceLabel(ua: string, kind: DeviceKind): string {
 	const os = /Android/i.test(ua)

@@ -1,5 +1,5 @@
 /**
- * One finger turns a page (c515; doc/READER.md, "Turning pages", and
+ * One finger turns a page (doc/READER.md, "Turning pages", and
  * doc/TEXT-READER.md, "Touch"). A reader's press -- a tap, a drag that turns,
  * a long press -- belongs to the pointer that began it. A second pointer going
  * down while it is under way (a pinch's second finger) ends it as the browser's

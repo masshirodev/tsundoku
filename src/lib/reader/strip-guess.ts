@@ -1,6 +1,6 @@
 /**
- * A key step on the strip over pages still guessing their size (c913;
- * doc/READER.md, "A page still guessing its size").
+ * A key step on the strip over pages still guessing their size
+ * (doc/READER.md, "A page still guessing its size").
  *
  * A page whose size the reader does not know (read online, or stored but not
  * measurable by the manifest) is drawn at another page's shape until its image

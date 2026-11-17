@@ -1,5 +1,5 @@
 /**
- * What a language pack answers, in one shape (doc/LANGUAGES.md, c195; c198).
+ * What a language pack answers, in one shape (doc/LANGUAGES.md).
  *
  * The reader and the lookup panel draw these and never ask which language
  * produced them: Japanese fills a reading and ruby, English fills a phrase and
@@ -28,7 +28,7 @@ export type Token = {
 	segments: RubySegment[];
 };
 
-/** The languages a gloss may be written in (c200: English, PT-BR, or both). */
+/** The languages a gloss may be written in (English, PT-BR, or both). */
 export type GlossLang = 'en' | 'pt';
 
 export type Gloss = { lang: GlossLang; text: string };

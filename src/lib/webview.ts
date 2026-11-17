@@ -4,7 +4,7 @@
  * engine runs extensions that use `android.webkit.WebView` in a Chromium
  * nobody sees, downloaded the first time one needs it, when the launcher starts
  * it with `ENGINE_WEBVIEW=on`. Off by default: it runs sites' scripts in
- * Chromium 111, unsandboxed (card c978), so an install turns it on in SETTINGS.
+ * Chromium 111, unsandboxed, so an install turns it on in SETTINGS.
  *
  * Pure, so the server, the pages and the tests share one reading of the
  * engine's answers and one set of words for them.

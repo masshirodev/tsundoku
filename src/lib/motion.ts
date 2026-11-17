@@ -1,7 +1,7 @@
 import type { TransitionConfig } from 'svelte/transition';
 
 /**
- * Motion's shared pieces (doc/MOTION.md, card c396): the curves as functions
+ * Motion's shared pieces (doc/MOTION.md): the curves as functions
  * Svelte's transitions can use, how something on screen leaves, and which way
  * one screen gives way to the next. The values are the tokens in
  * src/lib/styles/spacing.css; keep the two in step.
@@ -54,8 +54,8 @@ export const LEAVE_MS = 180;
  * Where a thing goes when it leaves: the way it came.
  *
  * - `fade`: scrims, tap zones, anything that only faded in (`.appear`).
- * - `up`: a bar on the top edge (the readers' top bars): it hides up and away
- *   (c427). Always up, a TV's too: a bar isn't a sheet.
+ * - `up`: a bar on the top edge (the readers' top bars): it hides up and away.
+ *   Always up, a TV's too: a bar isn't a sheet.
  * - `down`: a bottom sheet (`.rise`), or a bar on the bottom edge. A sheet on a
  *   TV, where every sheet is a panel from the right, leaves to the right
  *   instead; a bar still goes down.
@@ -70,7 +70,7 @@ const LEAVES: readonly Leave[] = ['fade', 'up', 'down', 'right', 'pop'];
  * The kind a `leave` was given. A bare `out:leave` is handed `{}`, not
  * `undefined` (Svelte calls `transition(node, params?.() ?? {})`), so a default
  * parameter never applied, and every bare caller slid down off the screen:
- * the image reader's top bar fell through the page as it hid (c427).
+ * the image reader's top bar fell through the page as it hid.
  */
 export function leaveKind(param: unknown): Leave {
 	return LEAVES.includes(param as Leave) ? (param as Leave) : 'fade';

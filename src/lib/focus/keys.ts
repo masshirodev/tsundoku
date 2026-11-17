@@ -15,7 +15,7 @@ export const HOLD_MS = 450;
 /**
  * BACK in the page: Escape for a keyboard, and the two names browsers give the
  * back button's own key. A WebView hands BACK to the app rather than the page,
- * which is why `window.tsundokuBack()` exists (c236's contract).
+ * which is why `window.tsundokuBack()` exists (the app's contract).
  */
 export function isBackKey(key: string): boolean {
 	return key === 'Escape' || key === 'BrowserBack' || key === 'GoBack';
@@ -59,8 +59,8 @@ export class OkPress {
 	 *
 	 * A keydown while OK is already down is a repeat, whatever its `repeat`
 	 * says: Android TV's WebView sends a held D-pad centre as a stream of
-	 * keydowns, and restarting the hold on each one meant it never fired
-	 * (2026-11-02, the first real TV; MENU, one key, worked).
+	 * keydowns, and restarting the hold on each one means it never fires (on a
+	 * real TV; MENU, one key, works).
 	 */
 	down(repeat: boolean): boolean {
 		if (repeat || this.#armed) return this.#armed;
@@ -110,15 +110,15 @@ export type SliderShape = {
 
 /**
  * Whether the thing keeps this arrow for its own value rather than letting the
- * pad move on (c259; doc/FOCUS.md, "Within it").
+ * pad move on (doc/FOCUS.md, "Within it").
  *
  * - A slider (`role="slider"`, or a native range) keeps the two arrows along
  *   its axis and lets the other two leave, with no attribute: ← → on a
  *   horizontal one, ↑ ↓ on one that says `aria-orientation="vertical"`. A
  *   remote has no other keys for the value, and no other way out of a row.
  * - `data-focus-adjust` says the same of anything else (the TV's rating, a
- *   ruled row of buttons, c238): ← → are its own, ↑ ↓ leave. On a slider it
- *   wins over the slider's axis, as it did before c259.
+ *   ruled row of buttons): ← → are its own, ↑ ↓ leave. On a slider it
+ *   wins over the slider's axis.
  * - `data-focus-adjust="none"` is the way out: a slider that must not
  *   adjust under the pad (its value moved some other way) lets all four go.
  */

@@ -2,8 +2,8 @@ import { DEVICE_KEYS, deviceKind, type DeviceKind, type Json } from './catalog.t
 import type { Stamped } from './stamped.ts';
 
 /**
- * This device's settings, in its browser (doc/SETTINGS.md, "Devices"; card
- * c171). Every reader reads and writes them here, so each change is stamped
+ * This device's settings, in its browser (doc/SETTINGS.md, "Devices").
+ * Every reader reads and writes them here, so each change is stamped
  * and the workstation's copy follows: the readers keep working offline, and
  * the SETTINGS page can show and change another device's. Storage can be
  * refused (a private window): a setting then lasts the visit, as before.
@@ -11,7 +11,10 @@ import type { Stamped } from './stamped.ts';
 
 const ID_KEY = 'tsundoku.device';
 const STAMPS_KEY = 'tsundoku.device.stamps';
-/** What a browser kept before c171, for the workstation to take once (anime/choices.ts). */
+/**
+ * What a browser kept under the older, unstamped keys, for the workstation
+ * to take once (anime/choices.ts).
+ */
 const LEGACY = /^tsundoku:anime:(?:\d+:)?(audio|subs|subsize)$/;
 
 function get(key: string): string | null {
@@ -89,7 +92,7 @@ export function thisKind(): DeviceKind {
 	});
 }
 
-/** Every device key as stored here, with its stamp; a value kept before c171 has stamp 0. */
+/** Every device key as stored here, with its stamp; an unstamped value has stamp 0. */
 export function localStamped(): Stamped {
 	const at = stamps();
 	const out: Stamped = {};

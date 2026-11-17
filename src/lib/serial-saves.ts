@@ -1,16 +1,16 @@
 /**
- * One save in flight per field, the last tap's value winning (c566,
- * doc/SERIES.md, "FAV and the rating").
+ * One save in flight per field, the last tap's value winning (doc/SERIES.md,
+ * "FAV and the rating").
  *
  * The series screen shows a tap at once and saves behind it. Two quick taps
- * used to post together, so the server could store them in either order, and
- * the first answer's reload put the stored value back over the second tap
- * (`series-flow`'s "rating fills up…", red under load in wave 24). Here a
- * tap's save waits for the one before it on the same key, and each answer
- * says whether a newer tap is queued behind it: a superseded save leaves the
- * reload, and any failure band, to the newest.
+ * posted together could be stored in either order, and the first answer's
+ * reload would put the stored value back over the second tap (`series-flow`'s
+ * "rating fills up…" under load). So a tap's save waits for the one before it
+ * on the same key, and each answer says whether a newer tap is queued behind
+ * it: a superseded save leaves the reload, and any failure band, to the
+ * newest.
  *
- * A latest turn's reload is part of its turn (round 2): the next save on the
+ * A latest turn's reload is part of its turn: the next save on the
  * key waits until that turn has settled, not merely answered, so a tap made
  * during the reload posts only once the reload has landed, and is judged
  * against the value it brought (what is stored, PUT BACK's label). A save
@@ -137,10 +137,10 @@ export class SerialSaves {
 }
 
 /**
- * The app's save queue, shared by the series screen and the library tile
- * (c658). One for the whole app, not one per panel: a panel mounted again (out
- * to the library and back within a slow save) must still wait for the save the
- * last one started, and a tile tap and a series-screen tap on one series wait
+ * The app's save queue, shared by the series screen and the library tile.
+ * One for the whole app, not one per panel: a panel mounted again (out to the
+ * library and back within a slow save) must still wait for the save the last
+ * one started, and a tile tap and a series-screen tap on one series wait
  * for each other too. Only ever run from a tap, so the server's copy of this
  * module never holds anything.
  */

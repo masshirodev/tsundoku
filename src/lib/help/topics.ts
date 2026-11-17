@@ -1,14 +1,13 @@
 /**
- * HELP's topics (doc/HELP.md; card c208; the HELP handoff,
- * `doc/design/handoff/Help*.dc.html`): data, not prose files, because each
- * topic has a shape (an In short of three lines, numbered parts, a ruled table
- * where a part explains a screen's words), and a "?" opens the same In short
- * in a sheet: one source for both, so the sheet and the page can't drift.
+ * HELP's topics (doc/HELP.md): data, not prose files, because each topic has
+ * a shape (an In short of three lines, numbered parts, a ruled table where a
+ * part explains a screen's words), and a "?" opens the same In short in a
+ * sheet: one source for both, so the sheet and the page can't drift.
  *
- * Series kept private, and the way to show them, are never mentioned here
- * (the owner's rule), and a test holds it (tests/help-domain.spec.ts). The
- * words are written for friends, not the owner, in the reader's language
- * (doc/I18N.md): `topics()` builds them per call, never at import.
+ * Series kept private, and the way to show them, are never mentioned here,
+ * and a test holds it (tests/help-domain.spec.ts). The words are written for
+ * friends who read here, not for whoever runs the library, in the reader's
+ * language (doc/I18N.md): `topics()` builds them per call, never at import.
  */
 
 import { m } from '../paraglide/messages.js';
@@ -26,7 +25,7 @@ export type HelpPart = {
 	table?: [string, string][];
 };
 
-/** Where GET STARTED walks through a topic (FirstRead board 4C): a bold line under IN SHORT. */
+/** Where GET STARTED walks through a topic: a bold line under IN SHORT. */
 export type HelpPointer = { text: string; label: string; href: string };
 
 export type HelpTopic = {
@@ -43,7 +42,7 @@ export type HelpTopic = {
 	parts: HelpPart[];
 };
 
-/** What an install is, for a topic that can't apply on it (board 1E). */
+/** What an install is, for a topic that can't apply on it. */
 export type HelpPlace = { updater: boolean; overWifi: boolean };
 
 export function topics(): HelpTopic[] {
@@ -123,7 +122,7 @@ export function topics(): HelpTopic[] {
 							repositories: m.name_repositories_tab(),
 							available: m.name_available_tab()
 						}),
-						// Both doors (c725): where it lives, and SETTINGS' row that opens it.
+						// Both ways in: where it lives, and SETTINGS' row that opens it.
 						m.help_downloading_extensions_para_3({ extensions, browse, settings })
 					]
 				},
@@ -168,7 +167,7 @@ export function topics(): HelpTopic[] {
 					paras: [
 						m.help_phone_wifi_para_1({ settings, devices }),
 						m.help_phone_wifi_para_2(),
-						// A firewall on the computer (c721; doc/WIFI.md).
+						// A firewall on the computer (doc/WIFI.md).
 						m.help_phone_wifi_para_3({ settings, devices })
 					],
 					table: [
@@ -267,7 +266,7 @@ export function neighbours(slug: string): { prev: HelpTopic | null; next: HelpTo
 	return { prev: i > 0 ? all[i - 1] : null, next: i >= 0 ? (all[i + 1] ?? null) : null };
 }
 
-/** A topic that can't apply on this install: its band, or null (board 1E). The topic still opens. */
+/** A topic that can't apply on this install: its band, or null. The topic still opens. */
 export function notHere(slug: string, at: HelpPlace): { a: string; b: string } | null {
 	if (slug === 'updates' && !at.updater)
 		return { a: m.help_not_here_updates_a(), b: m.help_not_here_updates_b() };
