@@ -56,7 +56,7 @@ const SUBS = [
 	'Thai',
 	'Turkish',
 	// A second English, as a source lists full subtitles beside signs and
-	// songs: trackCodes makes it EN-2, a code of its own (round 2).
+	// songs: trackCodes makes it EN-2, a code of its own.
 	'English (Full)'
 ];
 
@@ -154,7 +154,7 @@ async function openSheet(page: Page) {
 	return sheet;
 }
 
-test.describe('the settings sheet with many languages, tablet landscape (c386)', () => {
+test.describe('the settings sheet with many languages, tablet landscape', () => {
 	// The service worker answers a page it controls itself, past page.route,
 	// and the second episode's answer would come back unwidened.
 	test.use({ viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' });
@@ -240,7 +240,7 @@ test.describe('the settings sheet with many languages, tablet landscape (c386)',
 			]);
 			await expect(sheet.getByRole('button', { name: 'Chinese (Traditional)' })).toHaveClass(/on/);
 
-			// The second English, from MORE (round 2, review finding 1): the
+			// The second English, from MORE (review finding 1): the
 			// track that is on is its own cell, on and focused, and the next
 			// episode starts on it, not on the first English.
 			await sheet.getByRole('button', { name: /^MORE · / }).click();

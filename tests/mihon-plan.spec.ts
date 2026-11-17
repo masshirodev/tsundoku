@@ -162,7 +162,7 @@ describe('the rules', () => {
 		['Jr., Sato', ['Jr.', 'Sato']],
 		['Oda, Eiichiro', ['Oda', 'Eiichiro']]
 	];
-	it('splits people as the preview does, a generational suffix kept with its name (c508)', () => {
+	it('splits people as the preview does, a generational suffix kept with its name', () => {
 		for (const [raw, want] of PEOPLE) {
 			expect(people(raw), raw).toEqual(want);
 			expect(people(people(raw).join(', ')), raw).toEqual(want);

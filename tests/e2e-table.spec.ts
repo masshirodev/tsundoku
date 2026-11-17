@@ -23,7 +23,7 @@ import {
 
 /**
  * doc/TESTING.md's e2e table against Playwright's own list of files and
- * projects (c348): a spec file without a row, a row for a file that is gone,
+ * projects: a spec file without a row, a row for a file that is gone,
  * or a "Runs on" the config no longer says fails here, and
  * `yarn run e2e:table` writes the fix.
  */
@@ -131,7 +131,7 @@ describe('the e2e table', () => {
 	});
 
 	it('the doc’s skip expression names only tests that exist', { timeout: 120_000 }, () => {
-		// The doc is the one copy (c478): this spec kept an older one of its own,
+		// The doc is the one copy: this spec kept an older one of its own,
 		// which went on skipping tests wave 19 had already fixed.
 		// Vacuous while no red is filed (wave 21: none), since there is no
 		// expression to check; a form documentedSkip() cannot read throws above
@@ -159,7 +159,7 @@ describe('the e2e table', () => {
 				'e.e2e.ts':
 					"import { expect } from './fixtures';\nimport { test } from '@playwright/test';",
 				'f.spec.ts': "import { test } from './fixtures';",
-				// Prettier's wrap of an import past the print width (c562).
+				// Prettier's wrap of an import past the print width.
 				'g.e2e.ts':
 					"import {\n\texpect,\n\tscreenSettled,\n\ttest,\n\ttype Page\n} from './fixtures';",
 				'h.e2e.ts': "import {\n\thydrated,\n\ttest\n} from './helpers/hydrated';\n",
@@ -237,7 +237,7 @@ describe('the e2e table', () => {
 	});
 
 	it('the doc’s loop asks rg the generator’s own pattern', () => {
-		// Two copies of one pattern drift (c562: both missed a wrapped import).
+		// Two copies of one pattern drift (both missed a wrapped import).
 		const line = `for f in tests/*.e2e.ts; do rg -UPq '${FIXTURE_PATTERN}' "$f" || echo "$f"; done`;
 		expect(readFileSync('doc/TESTING.md', 'utf8').split('\n')).toContain(line);
 	});
@@ -261,7 +261,7 @@ describe('the e2e table', () => {
 	});
 
 	it('the fixtures’ count in the doc is what the generator writes from the files', () => {
-		// It was a hand-typed "77 of the 94" (wave 21), which the sibling slots'
+		// It was a hand-typed "77 of the 94", which the sibling slots'
 		// new files falsified before it could merge (e2e r2): now it is written.
 		const { stale } = fixtureProblems(readFileSync('doc/TESTING.md', 'utf8'), fixtureUse());
 		expect(stale, 'run `yarn run e2e:table`').toEqual([]);
@@ -270,7 +270,7 @@ describe('the e2e table', () => {
 	it('every file the doc names as off the fixtures on purpose still is', () => {
 		const { deliberate } = fixtureProblems(readFileSync('doc/TESTING.md', 'utf8'), fixtureUse());
 		// The bullet must be there, so a renamed one is not read as "none on
-		// purpose"; it may name no file (c562).
+		// purpose"; it may name no file.
 		expect(readFileSync('doc/TESTING.md', 'utf8')).toContain(DELIBERATE);
 		expect(deliberate, 'doc/TESTING.md, "On purpose": take it off the list').toEqual([]);
 	});

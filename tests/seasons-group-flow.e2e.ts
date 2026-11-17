@@ -10,7 +10,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { revealOn } from './helpers/reveal';
 
 /**
- * GROUP AS ONE SHOW end to end (c283, S2; doc/WORKS.md, "Per-season sources"):
+ * GROUP AS ONE SHOW end to end (S2, doc/WORKS.md, "Per-season sources"):
  * the AS row's ONE SHOW default on an anime selection, the NAME without its
  * trailing "Season 2", SEASONS' numbering, MERGE, the band and its UNDO, and
  * that an ordinary anime with seasons never offers UNGROUP.
@@ -290,7 +290,7 @@ test('UNDO puts the three seasons back under their own tiles', async ({ page }) 
 		.all();
 	after.close();
 
-	// The band's form says it is undoing a merge (round 2). A second press, or a
+	// The band's form says it is undoing a merge. A second press, or a
 	// tab left on the band's URL, reaches the action after the journal is gone;
 	// the first season's series still exists, so it must be a no-op redirect,
 	// never the books' take-out that would break the anime into doujin singles.
@@ -311,7 +311,7 @@ test('UNDO puts the three seasons back under their own tiles', async ({ page }) 
 	expect(refused.status()).toBe(400);
 
 	// The stale band's URL after an undo draws no band at all, including the
-	// books' `SERIES CREATED` band, whose UNDO the server refuses (round 2), and
+	// books' `SERIES CREATED` band, whose UNDO the server refuses, and
 	// the series keeps every episode it had.
 	await page.goto(`/series/${first}?created=3&merge=1`);
 	await expect(page.locator('.band')).toHaveCount(0);
@@ -373,7 +373,7 @@ test('the server refuses a show from a selection that is not all anime', async (
 	expect(JSON.stringify(body.data)).toContain('ONLY ANIME');
 });
 
-test('ONE SHOW is offered only for what can be merged (round 2)', async ({ page }) => {
+test('ONE SHOW is offered only for what can be merged', async ({ page }) => {
 	const db = new Database(dbPath);
 	const now = Date.UTC(2026, 10, 9);
 	const root = (db.prepare(`SELECT id FROM roots ORDER BY id LIMIT 1`).get() as { id: number }).id;
@@ -466,15 +466,13 @@ test('ONE SHOW is offered only for what can be merged (round 2)', async ({ page 
 });
 
 /**
- * A season the load's first page did not draw (round 2): `groupFacts` answers
+ * A season the load's first page did not draw: `groupFacts` answers
  * only the tiles the load sent, and GROUP's sheet can hold a season from a page
  * after it. The page reads those rows' facts through `/series/facts` (the same
  * ask a by-id selection makes), so both rows draw `<SOURCE> · … · HERE` rather
  * than the library's `ANIME · … WATCHED` line.
  */
-test('a season selected past the first page draws the same show line (round 2)', async ({
-	page
-}) => {
+test('a season selected past the first page draws the same show line', async ({ page }) => {
 	const db = new Database(dbPath);
 	const now = Date.UTC(2026, 10, 9);
 	const root = (db.prepare(`SELECT id FROM roots ORDER BY id LIMIT 1`).get() as { id: number }).id;
@@ -587,7 +585,7 @@ test.describe('the row’s meta line at 360 px', () => {
 });
 
 /**
- * GROUP opened before a page's show facts have answered (round 3): the sheet
+ * GROUP opened before a page's show facts have answered: the sheet
  * takes its rows once, on open (`GroupSheet`'s reset), so a row whose
  * `/series/facts` ask is still out would keep the library's `ANIME · … WATCHED`
  * line for the whole sheet. The page's `fill` waits for those asks, bounded, and
@@ -696,9 +694,7 @@ const rowIn = (page: Page, sheet: ReturnType<typeof groupSheet>, title: string) 
 		.locator('.rows.grows .row')
 		.filter({ has: page.locator('.a', { hasText: new RegExp(`^${title}$`) }) });
 
-test('GROUP waits for a page’s show facts, however late they answer (round 3)', async ({
-	page
-}) => {
+test('GROUP waits for a page’s show facts, however late they answer', async ({ page }) => {
 	seedTaus();
 	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
 	const facts = await factsUnderControl(page, 'hold');
@@ -721,9 +717,7 @@ test('GROUP waits for a page’s show facts, however late they answer (round 3)'
 	await sheet.getByRole('button', { name: 'CANCEL' }).click();
 });
 
-test('a show-facts ask that answers after the list changed is not drawn (round 3)', async ({
-	page
-}) => {
+test('a show-facts ask that answers after the list changed is not drawn', async ({ page }) => {
 	seedTaus();
 	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
 	const facts = await factsUnderControl(page, 'hold');
@@ -750,7 +744,7 @@ test('a show-facts ask that answers after the list changed is not drawn (round 3
 	}
 });
 
-test('a show-facts ask that fails: GROUP still opens, with the line the row has (round 3)', async ({
+test('a show-facts ask that fails: GROUP still opens, with the line the row has', async ({
 	page
 }) => {
 	seedTaus();
@@ -770,7 +764,7 @@ test('a show-facts ask that fails: GROUP still opens, with the line the row has 
 	}
 });
 
-test('a show-facts ask that never answers: GROUP opens anyway, after its wait (round 3)', async ({
+test('a show-facts ask that never answers: GROUP opens anyway, after its wait', async ({
 	page
 }) => {
 	seedTaus();
@@ -791,7 +785,7 @@ test('a show-facts ask that never answers: GROUP opens anyway, after its wait (r
 
 /**
  * The page's `/series/facts` asks, answered at the ask and delivered only when
- * told (round 4). `factsUnderControl` above defers the fetch itself, so a held
+ * told. `factsUnderControl` above defers the fetch itself, so a held
  * answer it releases is the world at release time; this one sends the request
  * at the ask, so a held answer is the world then and can be stale. `log` names
  * each ask and delivery, in order, so a case can prove which landed first.
@@ -846,7 +840,7 @@ async function factsHeld(page: Page) {
 
 /**
  * The show facts a page asked for before the list changed are dropped, not
- * drawn on the new list (round 4). This is the `generation` guard's only
+ * drawn on the new list. This is the `generation` guard's only
  * observable decision: the answer is not wrong about the series, but it was
  * asked for a list that is gone, so a value it names (HERE) can be older than
  * the world it would be drawn beside. That the row then keeps the library's
@@ -860,7 +854,7 @@ async function factsHeld(page: Page) {
  * `/series/facts` value: the facts carry SOURCE, YEAR and HERE. So a stale
  * answer can only be shown as a stale HERE.
  */
-test('a show-facts answer asked for the old list is dropped after the filter changes (round 4)', async ({
+test('a show-facts answer asked for the old list is dropped after the filter changes', async ({
 	page
 }) => {
 	seedTaus();
@@ -896,7 +890,7 @@ test('a show-facts answer asked for the old list is dropped after the filter cha
 
 /**
  * The page's `/series/facts` asks, where the **first** one is stalled on the
- * wire and every later one is not (round 2, the review's medium). `signal`'s
+ * wire and every later one is not (the review's medium). `signal`'s
  * abort rejects the held promise, the way a real stalled request bounded by its
  * own caller ends, so only a caller that bounds its read can settle the chain.
  * `bodies` keeps each ask's body, so a case can prove which series a later ask
@@ -935,14 +929,12 @@ async function factsFirstHangs(page: Page) {
 
 /**
  * A `/series/facts` ask that never answers must not wedge the chain of asks
- * behind it (round 2, the review's medium). The page's asks are one chain, so a
+ * behind it (the review's medium). The page's asks are one chain, so a
  * first ask that never settles used to queue every later one behind it for the
  * life of the page: a page loaded afterwards never got its show line, and every
  * sheet then waited out its 3 s on a chain that would not move.
  */
-test('a show-facts ask that never answers does not hold the one behind it (round 2)', async ({
-	page
-}) => {
+test('a show-facts ask that never answers does not hold the one behind it', async ({ page }) => {
 	seedTaus();
 	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);
 	const facts = await factsFirstHangs(page);
@@ -994,12 +986,12 @@ test('a show-facts ask that never answers does not hold the one behind it (round
 });
 
 /**
- * The other half of the same fix (round 2): a selection nothing a `/series/facts`
+ * The other half of the same fix: a selection nothing a `/series/facts`
  * read could describe -- a manga is not a show (`kindFacts`' medium) -- must not
  * wait on the chain at all. Every ask here hangs, and the sheet still opens at
  * once instead of on the 3 s bound.
  */
-test('a sheet on a selection no show line could describe does not wait for one (round 2)', async ({
+test('a sheet on a selection no show line could describe does not wait for one', async ({
 	page
 }) => {
 	await page.context().addCookies([{ name: 'tsundoku_grid_page', value: '2', url: base }]);

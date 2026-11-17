@@ -108,7 +108,7 @@ beforeAll(() => {
 	ep = episode(shown, 'ep1.webm');
 });
 
-describe('a downloaded episode’s sprite (c385)', () => {
+describe('a downloaded episode’s sprite', () => {
 	it('is one sheet of a frame every 10 s, 160 x 90, ten to a row', async () => {
 		const made = await sprites.makeSprite(ep, 1_800_000_000_000);
 		expect(made).toEqual({

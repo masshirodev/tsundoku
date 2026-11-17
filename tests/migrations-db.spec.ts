@@ -6,7 +6,7 @@ import { climb } from '$lib/server/db';
  * Rungs that move data, run against a database stopped at the rung before,
  * filled the way it was then.
  */
-describe('rung 29: ratings out of 10 (c67)', () => {
+describe('rung 29: ratings out of 10', () => {
 	const old = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 28);
@@ -93,7 +93,7 @@ describe('rung 36: an arrival already read is not new', () => {
 	});
 });
 
-describe('rung 60: an episode’s marks (c239)', () => {
+describe('rung 60: an episode’s marks', () => {
 	it('keeps the source endings rung 47 already stored', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 59);
@@ -124,7 +124,7 @@ describe('rung 60: an episode’s marks (c239)', () => {
 	});
 });
 
-describe('rung 55: a season the series named, not its episodes (c219)', () => {
+describe('rung 55: a season the series named, not its episodes', () => {
 	it('stamps the episodes of an anime kept as its own season, and leaves the rest alone', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 54);
@@ -156,7 +156,7 @@ describe('rung 55: a season the series named, not its episodes (c219)', () => {
 	});
 });
 
-describe('rung 61: Works (c275)', () => {
+describe('rung 61: Works', () => {
 	it('adds the three tables and moves no row of the library', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 60);
@@ -248,7 +248,7 @@ describe('rung 61: Works (c275)', () => {
 	});
 });
 
-describe('rung 66: IMPORT A BACKUP and its log (c438)', () => {
+describe('rung 66: IMPORT A BACKUP and its log', () => {
 	it('adds the two tables to a v65 library and moves no row of it', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 65);
@@ -293,9 +293,9 @@ describe('rung 66: IMPORT A BACKUP and its log (c438)', () => {
 	});
 });
 
-// Rung 67 (c463) has its own file, tests/aniskip-rung67-db.spec.ts, and rung
-// 68 (c383) its own through the app's doors, tests/legacy-anime-rung68-db.spec.ts.
-describe('rung 68: a link from before rung 62 becomes its season’s row (c383)', () => {
+// Rung 67 has its own file, tests/aniskip-rung67-db.spec.ts, and rung
+// 68 its own through the app's doors, tests/legacy-anime-rung68-db.spec.ts.
+describe('rung 68: a link from before rung 62 becomes its season’s row', () => {
 	it('moves an anime’s one link onto its first season and leaves a manga’s alone', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 67);
@@ -333,7 +333,7 @@ describe('rung 68: a link from before rung 62 becomes its season’s row (c383)'
 	});
 });
 
-describe('rung 69: a novel’s reading direction, its own column (c440)', () => {
+describe('rung 69: a novel’s reading direction, its own column', () => {
 	it('adds text_direction as NULL for every series and keeps every direction stored', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 68);
@@ -367,7 +367,7 @@ describe('rung 69: a novel’s reading direction, its own column (c440)', () => 
 	});
 });
 
-describe('rung 70: a comic’s link keeps its country and start year (c520)', () => {
+describe('rung 70: a comic’s link keeps its country and start year', () => {
 	it('adds both as NULL to every link and moves nothing stored', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 69);
@@ -394,7 +394,7 @@ describe('rung 70: a comic’s link keeps its country and start year (c520)', ()
 	});
 });
 
-describe('rung 71: a job keeps the Works its folds dropped (c570)', () => {
+describe('rung 71: a job keeps the Works its folds dropped', () => {
 	it('gives every job already stored an empty list, and moves nothing else', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 70);
@@ -423,7 +423,7 @@ describe('rung 71: a job keeps the Works its folds dropped (c570)', () => {
 	});
 });
 
-describe('rung 72: highlights, a copy and a pointer (c701)', () => {
+describe('rung 72: highlights, a copy and a pointer', () => {
 	it('adds the table to a v71 library, moves no row of it, and nothing cascades into it', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 71);
@@ -511,7 +511,7 @@ describe('rung 72: highlights, a copy and a pointer (c701)', () => {
 	});
 });
 
-describe('rung 73: an anime’s relation graph, cached (c358)', () => {
+describe('rung 73: an anime’s relation graph, cached', () => {
 	it('adds the table to a v72 library empty, moves no row of it, and goes with its series', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 72);
@@ -572,7 +572,7 @@ describe('rung 73: an anime’s relation graph, cached (c358)', () => {
 	});
 });
 
-describe('rung 74: an anime keeps no mirror of its first season (c467)', () => {
+describe('rung 74: an anime keeps no mirror of its first season', () => {
 	const link = (conn: Database.Database, id: number, anilist: number) =>
 		conn
 			.prepare(
@@ -645,7 +645,7 @@ describe('rung 74: an anime keeps no mirror of its first season (c467)', () => {
 	});
 });
 
-describe('rung 75: a series’ sources, a season at a time (c282)', () => {
+describe('rung 75: a series’ sources, a season at a time', () => {
 	const stopped = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 74);
@@ -712,7 +712,7 @@ describe('rung 75: a series’ sources, a season at a time (c282)', () => {
 	});
 });
 
-describe('rung 77: what a merged show was (c283)', () => {
+describe('rung 77: what a merged show was', () => {
 	const stopped = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 76);
@@ -762,7 +762,7 @@ describe('rung 77: what a merged show was (c283)', () => {
 		expect(conn.prepare(`SELECT COUNT(*) AS n FROM season_merges`).get()).toEqual({ n: 0 });
 	});
 
-	it('holds an absorbed id open, and lets it go when the merge does (round 2)', () => {
+	it('holds an absorbed id open, and lets it go when the merge does', () => {
 		const conn = stopped();
 		climb(conn, 77);
 		conn.pragma('foreign_keys = ON');

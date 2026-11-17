@@ -69,7 +69,7 @@ const tint = (page: Page, selector: string) =>
 		.first()
 		.evaluate((el) => getComputedStyle(el).backgroundImage);
 
-test('the image reader: hovering the page tints nothing, its controls still tint (c485)', async ({
+test('the image reader: hovering the page tints nothing, its controls still tint', async ({
 	page
 }, info) => {
 	test.skip(info.project.name !== 'desktop', 'hover exists only on a fine pointer');
@@ -98,7 +98,7 @@ test('the image reader: hovering the page tints nothing, its controls still tint
 	await expect.poll(() => tint(page, '.cells button')).toContain('linear-gradient');
 });
 
-test('the text reader: hovering the page tints nothing, its controls still tint (c485)', async ({
+test('the text reader: hovering the page tints nothing, its controls still tint', async ({
 	page
 }, info) => {
 	test.skip(info.project.name !== 'desktop', 'hover exists only on a fine pointer');
@@ -133,7 +133,7 @@ test('the text reader: hovering the page tints nothing, its controls still tint 
  * phone had it; the head is asserted at the sheet's own top after the scroll,
  * not merely visible somewhere.
  */
-test.describe('the sheets keep their ✕ while their rows scroll (c679)', () => {
+test.describe('the sheets keep their ✕ while their rows scroll', () => {
 	async function opened(page: Page, title: string, text = false) {
 		await openSeries(page, title);
 		if (text) await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15_000 });
@@ -168,7 +168,7 @@ test.describe('the sheets keep their ✕ while their rows scroll (c679)', () => 
 		return sheet;
 	}
 
-	test('the image reader’s READING (c679)', async ({ page }) => {
+	test('the image reader’s READING', async ({ page }) => {
 		const sheet = await openedAndScrolled(page, 'Sousou no Frieren');
 		const close = sheet.getByRole('button', { name: 'Close' });
 		await expect(close).toBeVisible();
@@ -176,7 +176,7 @@ test.describe('the sheets keep their ✕ while their rows scroll (c679)', () => 
 		await expect(sheet).toHaveCount(0);
 	});
 
-	test('the text reader’s READING (c679)', async ({ page }) => {
+	test('the text reader’s READING', async ({ page }) => {
 		const sheet = await openedAndScrolled(page, 'Mushoku Tensei', true);
 		const close = sheet.getByRole('button', { name: 'Close' });
 		await expect(close).toBeVisible();
@@ -184,7 +184,7 @@ test.describe('the sheets keep their ✕ while their rows scroll (c679)', () => 
 		await expect(sheet).toHaveCount(0);
 	});
 
-	test('a focused row lands under the head, not behind it (c679)', async ({ page }) => {
+	test('a focused row lands under the head, not behind it', async ({ page }) => {
 		// The sheet's `scroll-padding-top` is what keeps a keyboard's or a
 		// remote's focus walk from stopping beneath the sticky head. The walk
 		// has to come from below: a row scrolled to the top edge is the one that
@@ -212,7 +212,7 @@ test.describe('the sheets keep their ✕ while their rows scroll (c679)', () => 
  * phone and a tablet (and on a TV, where `pointer: none`; the `tv` project does
  * not collect this file, and `tv-reader`/`tv-text-reader` walk the sheets).
  */
-test.describe('CURSOR (c678)', () => {
+test.describe('CURSOR', () => {
 	const cursor = (page: Page) =>
 		page
 			.locator('.reader, .text-reader')
@@ -232,7 +232,7 @@ test.describe('CURSOR (c678)', () => {
 		await expect(sheet).toHaveCount(0);
 	}
 
-	test('the image reader hides it after the wait; a move, a press and the overlays bring it back (c678)', async ({
+	test('the image reader hides it after the wait; a move, a press and the overlays bring it back', async ({
 		page
 	}, info) => {
 		test.skip(info.project.name !== 'desktop', 'a cursor exists only under a fine pointer');
@@ -300,7 +300,7 @@ test.describe('CURSOR (c678)', () => {
 		expect(await cursor(page)).toBe('auto');
 	});
 
-	test('the text reader hides it after the wait, and the sheet keeps it shown (c678)', async ({
+	test('the text reader hides it after the wait, and the sheet keeps it shown', async ({
 		page
 	}, info) => {
 		test.skip(info.project.name !== 'desktop', 'a cursor exists only under a fine pointer');
@@ -322,7 +322,7 @@ test.describe('CURSOR (c678)', () => {
 		expect(await cursor(page)).toBe('auto');
 	});
 
-	test('the row is left out where there is no mouse (c678)', async ({ page }, info) => {
+	test('the row is left out where there is no mouse', async ({ page }, info) => {
 		test.skip(info.project.name === 'desktop', 'the fine pointer has its own cases above');
 		await openSeries(page, 'Sousou no Frieren');
 		await readerReady(page);

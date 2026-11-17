@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
 
-// AniSkip (doc/ANIME.md, "Openings and endings"; card c239): the MAL id and
+// AniSkip (doc/ANIME.md, "Openings and endings"): the MAL id and
 // episode number go out, the opening and ending come back. A hidden series is
 // never asked about, nor one with no MAL link; a 404 is remembered for a week.
 const calls: string[] = [];
@@ -182,7 +182,7 @@ describe('AniSkip', () => {
 		expect(calls).toEqual([]);
 	});
 
-	it('asks each season’s own MAL entry: season 2’s EP. 3 is season 2’s, season 1’s EP. 3 season 1’s (c349)', async () => {
+	it('asks each season’s own MAL entry: season 2’s EP. 3 is season 2’s, season 1’s EP. 3 season 1’s', async () => {
 		// The fake answers any id with an opening, so the id asked is the proof.
 		const show = series({ mal: null });
 		const s1 = [1, 2, 3].map((n) => episode(show, { position: n, season: 1, number: n }));
@@ -197,7 +197,7 @@ describe('AniSkip', () => {
 		]);
 	});
 
-	it('reads the season’s MAL id from the database it is handed, as it reads the episode (round 2)', async () => {
+	it('reads the season’s MAL id from the database it is handed, as it reads the episode', async () => {
 		const show = series({ mal: null });
 		const s2 = [1, 2, 3].map((n) => episode(show, { position: 3 + n, season: 2, number: n }));
 		expect(seasons.linkSeason(show, 2, 1, entryOf(1102, 552), 'review', 0)).toBe(true);
@@ -215,7 +215,7 @@ describe('AniSkip', () => {
 		}
 	});
 
-	it('asks for a season linked alone, with no mirror, and never for a season with no link (c349)', async () => {
+	it('asks for a season linked alone, with no mirror, and never for a season with no link', async () => {
 		const show = series({ mal: null });
 		const s1 = episode(show, { position: 1, season: 1, number: 3 });
 		const s2 = episode(show, { position: 2, season: 2, number: 3 });
@@ -234,7 +234,7 @@ describe('AniSkip', () => {
 		expect(asked()).toEqual([[602, 3]]);
 	});
 
-	it('asks a season’s part 2 for its own episodes, numbered within it (c349)', async () => {
+	it('asks a season’s part 2 for its own episodes, numbered within it', async () => {
 		// One season the catalogues split 12 + 11: the season's EP. 13 is part 2's EP. 1.
 		const show = series({ mal: null });
 		const ep = (n: number) => episode(show, { position: n, season: 1, number: n });
@@ -254,7 +254,7 @@ describe('AniSkip', () => {
 		]);
 	});
 
-	it('asks a flat list’s own season-0 row (c349), and keeps the anime-only rule on it (c395)', async () => {
+	it('asks a flat list’s own season-0 row, and keeps the anime-only rule on it', async () => {
 		const show = series({ mal: null });
 		const id = episode(show, { position: 5, season: null, number: null });
 		expect(seasons.linkSeason(show, 0, 1, entryOf(1301, 801), 'review', 0)).toBe(true);
@@ -343,7 +343,7 @@ describe('AniSkip', () => {
 		expect(chosen(id).ending).toEqual({ start: 1400, end: 1440 });
 	});
 
-	it('a link set after a negative clears it, so the next resolve asks again (c299)', async () => {
+	it('a link set after a negative clears it, so the next resolve asks again', async () => {
 		const show = series();
 		const id = episode(show, { duration: 1440 });
 		// Asked with the wrong link (a manga's MAL id), and answered 404: kept.
@@ -423,7 +423,7 @@ describe('AniSkip', () => {
 		expect(marks.markTriedAt(id, 'aniskip')).toBeNull();
 	});
 
-	it('unlinking clears AniSkip’s ending from where watching counts (round 2)', async () => {
+	it('unlinking clears AniSkip’s ending from where watching counts', async () => {
 		const show = series();
 		const id = episode(show, { duration: 1440 });
 		await lookupAniSkip(id);
@@ -437,7 +437,7 @@ describe('AniSkip', () => {
 		});
 	});
 
-	it('a relink leaves the fingerprint’s ending where AniSkip’s was (round 2)', async () => {
+	it('a relink leaves the fingerprint’s ending where AniSkip’s was', async () => {
 		const show = series();
 		const id = episode(show, { duration: 1440 });
 		await lookupAniSkip(id);
@@ -477,7 +477,7 @@ describe('AniSkip', () => {
 		});
 	});
 
-	it('a Mihon tracker that moves to another MAL entry clears the old one’s answers (c338)', async () => {
+	it('a Mihon tracker that moves to another MAL entry clears the old one’s answers', async () => {
 		// The import's door: one call per tracked series, inside its transaction.
 		// A moved tracker must not keep the old entry's week-long negative, nor
 		// the ending the old entry gave.
@@ -486,7 +486,7 @@ describe('AniSkip', () => {
 		const negative = episode(show, { position: 2, number: 2 });
 		cat.linkFromTracker(db, show, { id: 41, score: 0 }, 9_200);
 		// A tracker's link learns its format in the resolve pass; until then
-		// AniSkip is not asked (c395).
+		// AniSkip is not asked.
 		const resolved = () =>
 			db.prepare(`UPDATE series_links SET format = 'TV' WHERE series_id = ?`).run(show);
 		resolved();
@@ -523,8 +523,8 @@ describe('AniSkip', () => {
 		expect(asked().at(-1)).toEqual([42, 2]);
 	});
 
-	it('a Mihon tracker’s first link clears an answer kept from before it (c338)', () => {
-		// A row with no series link above it: a season linked alone (c349) can
+	it('a Mihon tracker’s first link clears an answer kept from before it', () => {
+		// A row with no series link above it: a season linked alone can
 		// leave one, and the tracker's entry is a different question.
 		const show = series({ mal: null });
 		const id = episode(show);
@@ -537,7 +537,7 @@ describe('AniSkip', () => {
 		expect(marks.markTriedAt(id, 'aniskip')).toBeNull();
 	});
 
-	it('writes nothing for a series with no AniSkip row, and nothing at all for a manga (c299)', () => {
+	it('writes nothing for a series with no AniSkip row, and nothing at all for a manga', () => {
 		const changes = () => (db.prepare(`SELECT total_changes() AS n`).get() as { n: number }).n;
 		// An anime no finder has reached yet: the DELETE matches nothing, so no
 		// ending_at can have moved. `linkFromTracker` runs this per tracked series
@@ -586,9 +586,9 @@ describe('AniSkip', () => {
 		coverUrl: ''
 	});
 
-	it('is never asked under a link to a manga’s entry, and remembers nothing (c395)', async () => {
+	it('is never asked under a link to a manga’s entry, and remembers nothing', async () => {
 		// Through the app's own door: LINK takes the entry it is given, and a
-		// wrong-kind one is flagged on the series, not refused (c298).
+		// wrong-kind one is flagged on the series, not refused.
 		const show = series({ mal: null });
 		const id = episode(show);
 		expect(cat.link(show, ranma('MANGA'), 'review', 9_100)).toBe(true);
@@ -610,7 +610,7 @@ describe('AniSkip', () => {
 		expect(calls[0]).toContain('/skip-times/58616/');
 	});
 
-	it('is asked under an anime’s format and no other, an unknown one included (c395)', async () => {
+	it('is asked under an anime’s format and no other, an unknown one included', async () => {
 		// Every format AniList gives (MediaFormat), and the two a link without
 		// one carries: the whole domain, not a hand-picked part of it.
 		const asked: Record<string, boolean> = {};

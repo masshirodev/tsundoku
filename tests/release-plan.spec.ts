@@ -52,7 +52,7 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		expect(p.engine.env).toMatchObject({ ENGINE_HOST: '127.0.0.1', ENGINE_TOKEN: 'eng' });
 	});
 
-	it('signs in with a password, unless the data folder names a token (the workstation, c228)', () => {
+	it('signs in with a password, unless the data folder names a token (the workstation)', () => {
 		const friend = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux' });
 		expect(friend.server.env.TSUNDOKU_LOGIN).toBe('password');
 		const workstation = plan({
@@ -154,7 +154,7 @@ describe('the pinned files (ops/release/versions.json)', () => {
 				expect(pin.sha256, `${name} ${platform}`).toMatch(/^[0-9a-f]{64}$/);
 			}
 		}
-		// c297's premise was false (c299): a bundle fingerprints through its own
+		// c297's premise was false: a bundle fingerprints through its own
 		// ffmpeg's chromaprint muxer, so no fpcalc is pinned or shipped.
 		expect(pins.fpcalc).toBeUndefined();
 	});
@@ -209,7 +209,7 @@ describe('updates (doc/UPDATES.md)', () => {
 		expect(solverSetAside('C:/h/flaresolverr', 'win32', () => true)).toEqual([]);
 	});
 
-	it('sets FlareSolverr’s half of NSS aside with its readline, so Chrome’s NSS is the system’s whole (c492)', () => {
+	it('sets FlareSolverr’s half of NSS aside with its readline, so Chrome’s NSS is the system’s whole', () => {
 		const dir = '/h/flaresolverr/_internal';
 		const bundled = ['libreadline.so.8', ...SOLVER_NSS].map((n) => `${dir}/${n}`);
 		expect(solverSetAside('/h/flaresolverr', 'linux', (f) => bundled.includes(f))).toEqual(
@@ -224,7 +224,7 @@ describe('updates (doc/UPDATES.md)', () => {
 	});
 });
 
-describe('the WebView switch (doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions"; card c978)', () => {
+describe('the WebView switch (doc/EXTENSION-ENGINE.md, "WebView support")', () => {
 	it('starts the engine with ENGINE_WEBVIEW=on only when the switch is on', () => {
 		const on = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux', webview: true });
 		expect(on.engine.env.ENGINE_WEBVIEW).toBe('on');

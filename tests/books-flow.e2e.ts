@@ -173,7 +173,7 @@ test('a tap on a book opens its pages on the series screen, and ← goes back to
 	const books = page.getByRole('region', { name: 'Books' });
 	// Both are client-side navigations, and the URL moves only once the
 	// series' data has loaded: waited on as navigations, not on expect's 5 s,
-	// which a loaded run's ← ran out of with the book still open (c439).
+	// which a loaded run's ← ran out of with the book still open.
 	await books.getByRole('button', { name: /Laundry Duty/ }).click();
 	await page.waitForURL(new RegExp(`^${series}\\?(.*&)?book=\\d+`));
 	await expect(page.getByText('01 — PAGES')).toBeVisible();
@@ -243,7 +243,7 @@ test('grouping from a single book’s own screen, then back: where it was opened
 	await expect(page).toHaveURL(new RegExp(`${CIRCLE.replace(/[?]/g, '\\?')}$`));
 	// The real grid, not the arriving screen's outline of one, which is also a
 	// \`.grid\` (aria-hidden) while the screen slides in: strict mode saw both in a
-	// loaded run (c439).
+	// loaded run.
 	await expect(page.locator('.grid:not([aria-hidden="true"])')).toBeVisible();
 
 	// Put back for the rest of the file.
@@ -263,13 +263,13 @@ test('grouping from a single book’s own screen, then back: where it was opened
  * inserted into this run's own database (the one `yarn run seed` wrote) and
  * removed again in a finally, so nothing a later case reads changes.
  */
-test('a hand-made extra beside a doujin is drawn apart, is not counted, and opens its pages (c650)', async ({
+test('a hand-made extra beside a doujin is drawn apart, is not counted, and opens its pages', async ({
 	page
 }) => {
 	await reveal(page);
 	const db = new Database(process.env.PLAYWRIGHT_DATABASE_PATH!);
 	// Both extras sort **before** their books (a front-matter row's natural
-	// place), so the screen must pick the book, not the first entry (c650).
+	// place), so the screen must pick the book, not the first entry.
 	const addExtra = (seriesTitle: string, title: string, position = -1) =>
 		Number(
 			db
@@ -322,12 +322,12 @@ test('a hand-made extra beside a doujin is drawn apart, is not counted, and open
 		await expect(page.locator('.names .meta')).toContainText('4 BOOKS');
 		await expect(page.getByRole('region', { name: 'Books' })).toBeVisible();
 		await expect(page.getByRole('region', { name: 'Books' }).locator('.cell')).toHaveCount(4);
-		// Drawn twice with the panel's TAGS, and CSS shows one (c556, c837, doc/SERIES.md).
+		// Drawn twice with the panel's TAGS, and CSS shows one (doc/SERIES.md).
 		await expect(
 			page.getByText('FROM ITS 4 BOOKS · EACH KEEPS ITS OWN').filter({ visible: true })
 		).toBeVisible();
 		await expect(page.locator('a[data-extra]')).toHaveText([/A Second Extra/]);
-		// A book's sheet numbers it among the books, not the extra (c650).
+		// A book's sheet numbers it among the books, not the extra.
 		const books = page.getByRole('region', { name: 'Books' });
 		await longPress(page, books.getByRole('button', { name: /Laundry Duty/ }));
 		const sheet = page.getByRole('dialog', { name: /Laundry Duty/ });

@@ -11,7 +11,7 @@ import {
 } from '../src/lib/motion';
 import { pressMode, SINK_MAX_W } from '../src/lib/press';
 
-/** Motion's decisions (doc/MOTION.md, card c396); the feel itself is motion.e2e.ts's. */
+/** Motion's decisions (doc/MOTION.md); the feel itself is motion.e2e.ts's. */
 
 describe('cubicBezier', () => {
 	it('starts at 0 and ends at 1, whatever is asked outside', () => {
@@ -66,7 +66,7 @@ describe('leaveFrame', () => {
 		expect(leaveFrame('pop', 1, false, false)).toBe('opacity: 0; scale: 0.96;');
 	});
 
-	it("slides a top bar up and away, a TV's too (c427)", () => {
+	it("slides a top bar up and away, a TV's too", () => {
 		expect(leaveFrame('up', 0.5, false, false)).toBe('translate: 0 -50%;');
 		expect(leaveFrame('up', 1, false, true)).toBe('translate: 0 -100%;');
 	});
@@ -85,7 +85,7 @@ describe('leave', () => {
 	const frame = (n: Element, param?: unknown) =>
 		leave(n, param as never).css!(0.5, 0.5).replace(' pointer-events: none;', '');
 
-	it('fades a bare out:leave, which Svelte hands {} rather than nothing (c427)', () => {
+	it('fades a bare out:leave, which Svelte hands {} rather than nothing', () => {
 		expect(leaveKind({})).toBe('fade');
 		expect(leaveKind(undefined)).toBe('fade');
 		expect(leaveKind('sideways')).toBe('fade');

@@ -30,7 +30,7 @@ import {
 	type QueueSeries
 } from '$lib/library/downloads';
 
-// The one block below calls the real downloader (c613): the smallest database
+// The one block below calls the real downloader: the smallest database
 // the other downloads specs use, in memory, before `db.ts` is first imported.
 process.env.DATABASE_PATH = ':memory:';
 const { getDb } = await import('$lib/server/db');
@@ -182,7 +182,7 @@ describe('the DOWNLOAD row', () => {
 		expect(off.cells.map((c) => c.label)).toEqual(['NEXT 10', 'ALL 20']);
 	});
 
-	it('offers REFRESH where the series has a source, dimmed when it cannot be asked (c220)', () => {
+	it('offers REFRESH where the series has a source, dimmed when it cannot be asked', () => {
 		const states = chapterStates(entries, urls, chapters, []);
 		expect(
 			downloadRow(entries, { kind: 'ok', states }, true, clock, null, clock, undefined, true).cells
@@ -218,7 +218,7 @@ describe('the DOWNLOAD row', () => {
 	});
 });
 
-describe('DOWNLOAD on a preview (c205)', () => {
+describe('DOWNLOAD on a preview', () => {
 	it('offers FIRST and ALL as the library row does, and says it adds first', () => {
 		const r = previewDownload(143);
 		expect(r.a).toBe('143 unread chapters not downloaded');
@@ -434,7 +434,7 @@ describe('searching the sources', () => {
 	});
 });
 
-describe('DOWNLOAD FIRST 10 on a series (c613)', () => {
+describe('DOWNLOAD FIRST 10 on a series', () => {
 	const db = getDb();
 	const root = Number(
 		db.prepare(`INSERT INTO roots (name, path, hidden) VALUES ('Manga', '/nowhere', 0)`).run()
@@ -514,7 +514,7 @@ describe('DOWNLOAD FIRST 10 on a series (c613)', () => {
 	});
 });
 
-describe('SEARCH THE SOURCES’ KIND band (c699)', () => {
+describe('SEARCH THE SOURCES’ KIND band', () => {
 	const src = (id: string, kind: (typeof KINDS)[number] | null) => ({
 		id,
 		name: id,
@@ -541,7 +541,7 @@ describe('SEARCH THE SOURCES’ KIND band (c699)', () => {
 
 	// The whole domain, written out rather than derived from the registry the
 	// code reads: every library kind against each source family alone, and
-	// against all of them (c736).
+	// against all of them.
 	const ASKS: Record<SourceFamily | 'every', Record<(typeof KINDS)[number], string | null>> = {
 		mihon: {
 			manga: 'manga',
@@ -581,7 +581,7 @@ describe('SEARCH THE SOURCES’ KIND band (c699)', () => {
 		}
 	};
 
-	it('a library kind asks the source kind serving its medium, for every kind and family (c736)', () => {
+	it('a library kind asks the source kind serving its medium, for every kind and family', () => {
 		for (const family of SOURCE_FAMILIES) {
 			const served = kindsServed([src('s', SOURCE_KINDS[family])]);
 			for (const k of KINDS)

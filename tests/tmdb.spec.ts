@@ -3,7 +3,7 @@ import { catalogueConfigured } from '$lib/server/catalogues';
 import { NoTmdbKey, setTmdbFetch, tmdbById, tmdbSearch } from '$lib/server/tmdb';
 
 /**
- * The TMDB client (card c989): the install's own key, the v4 token before the
+ * The TMDB client: the install's own key, the v4 token before the
  * v3 key, and a film and a show as tsundoku needs them. No network: the fetch
  * is a stub, as the AniList specs do it.
  */

@@ -33,7 +33,7 @@ describe('a novel’s reading direction', () => {
 		expect(dir.textDirectionOf(id)).toBe('ltr');
 	});
 
-	it('keeps R→L, and REMEMBER L→R stores L→R as a choice (c617)', () => {
+	it('keeps R→L, and REMEMBER L→R stores L→R as a choice', () => {
 		const id = idOf('Mushoku Tensei');
 		const layout = getDb().prepare(`SELECT direction FROM series WHERE id = ?`).get(id);
 		dir.setTextDirection(id, 'rtl');
@@ -56,7 +56,7 @@ describe('a novel’s reading direction', () => {
 	});
 });
 
-describe('a novel’s reading direction through GROUP and TAKE OUT (c551)', () => {
+describe('a novel’s reading direction through GROUP and TAKE OUT', () => {
 	const books = () => import('$lib/server/books');
 	const novels = ['Villainess Level 99', 'Tensei Shitara Ken Deshita', 'Honzuki no Gekokujou'];
 	// Each case on a fresh seed: GROUP and TAKE OUT rename and re-make series.

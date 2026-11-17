@@ -2,14 +2,14 @@ package dev.masshiro.tsundoku.tv
 
 /**
  * Which server's main-frame load just failed, so that its `onPageFinished`
- * does not make it the one in use (c261, wave 21's round 2; c532).
+ * does not make it the one in use (wave 21's round 2).
  *
  * WebView calls `onPageFinished` for a URL whose load failed too, after
  * `onReceivedError`. Counted as a visit, a server opened from SERVERS that
  * does not answer would become the last used, and the next launch would try
  * the dead one first.
  *
- * The mark is ended two ways (c532, wave 22's round 2). The failed load's
+ * The mark is ended two ways (wave 22's round 2). The failed load's
  * own finish consumes it, so every order WebView can report a failed load in
  * (started, error, finished; or a committed error page's error, started,
  * finished) skips exactly one finish. And the app's next attempt at that
@@ -37,7 +37,7 @@ class FailedLoad {
 	private var failed: String? = null
 
 	/**
-	 * A main-frame load for [origin] started. It ends nothing (c532): WebView
+	 * A main-frame load for [origin] started. It ends nothing: WebView
 	 * may report a committed error page's start after its error. Kept, and
 	 * called, so the order each test drives is the order WebView reports.
 	 */

@@ -2,7 +2,7 @@ import { test as plain, type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * The library's top bar (c431, c105; doc/LIBRARY.md, "The top bar"). Runs on
+ * The library's top bar (doc/LIBRARY.md, "The top bar"). Runs on
  * every device project, each checking its own arrangement of cells. Reads the
  * seed only: nothing here writes.
  */
@@ -59,7 +59,7 @@ test('every pair of cells in the top bar has one hairline between them, FILTER a
 
 // The plain runner's goto, not the fixture's: that one waits for the network
 // to go quiet, which is exactly the hydration this case must beat.
-plain('FILTER tapped before the page hydrates stays open (c105)', async ({ page }) => {
+plain('FILTER tapped before the page hydrates stays open', async ({ page }) => {
 	// Hold the app's scripts back, so the server's markup is all there is.
 	let release!: () => void;
 	const held = new Promise<void>((r) => (release = r));

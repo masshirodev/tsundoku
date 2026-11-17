@@ -5,7 +5,7 @@ import { makeLogin, writeLogin } from '../src/lib/server/login.ts';
 import { FRIEND_HOME } from './friend-world';
 
 /**
- * SAVE A REPORT (doc/LOGS.md; card c193), on the friend project's install: a
+ * SAVE A REPORT (doc/LOGS.md), on the friend project's install: a
  * log carrying what must never leave the house, and the report that leaves
  * without it. Hidden means hidden.
  */

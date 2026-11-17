@@ -338,7 +338,7 @@ describe('the TRACKING line', () => {
 		expect(lines({ configured: false })).toBeNull();
 	});
 
-	it('says a comic waits on its chapter count, and what a refusal was (c98)', () => {
+	it('says a comic waits on its chapter count, and what a refusal was', () => {
 		expect(lines({ comic: true, edition: false, counted: false })?.lines.map((l) => l.l)).toEqual([
 			'RANOBE · WAITING ON ITS CHAPTER COUNT',
 			'RANOBE DOESN’T COUNT THIS WORK’S CHAPTERS YET · READS GO ONCE IT DOES'
@@ -381,7 +381,7 @@ describe('the TRACKING line', () => {
 	});
 });
 
-describe('suggesting a novel (c72)', () => {
+describe('suggesting a novel', () => {
 	it('reads a language from a script, and from an EPUB’s tag', () => {
 		expect(scriptLang('백덕수')).toBe('ko');
 		expect(scriptLang('香月美夜')).toBe('zh');
@@ -487,7 +487,7 @@ describe('suggesting a novel (c72)', () => {
 	});
 });
 
-describe('comics, against the work (c98)', () => {
+describe('comics, against the work', () => {
 	const entry = (id: number, label: string, matter = ''): MappedEntry => ({
 		id,
 		label,
@@ -502,7 +502,7 @@ describe('comics, against the work (c98)', () => {
 		expect(searchKinds('manga')).toBe('manga,manhwa,manhua');
 		expect(searchKinds('novel')).toBe('light_novel,web_novel');
 		// An anime is one work for the whole show, its episodes counted straight
-		// through the seasons (c240).
+		// through the seasons.
 		expect(byWork('anime')).toBe(true);
 		expect(searchKinds('anime')).toBe('anime,donghua');
 	});
@@ -580,7 +580,7 @@ describe('comics, against the work (c98)', () => {
 	});
 });
 
-describe('searchKinds asks the kind registry (wave 17)', async () => {
+describe('searchKinds asks the kind registry', async () => {
 	const { searchKinds } = await import('$lib/library/ranobe');
 	const { KINDS } = await import('$lib/library/kinds');
 	it('names Ranobe’s kinds for every tsundoku kind', () => {

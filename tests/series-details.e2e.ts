@@ -8,7 +8,7 @@ import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-w
  * one 64px line, closed by default and remembered for the device; SHELVES
  * and ABOUT stay above it, and ABOUT clamps to three lines. Everywhere else
  * these projects run (the tablet in both orientations, the desktop) nothing
- * folds, and ABOUT and TAGS stand under REFRESH and FOLLOW (c837). A plain
+ * folds, and ABOUT and TAGS stand under REFRESH and FOLLOW. A plain
  * `*.e2e.ts`, so it runs on the four device projects; the TV's stop is
  * tv-series-details.e2e.ts'.
  *
@@ -165,9 +165,7 @@ test.describe('on a phone', () => {
 		await expect(page.locator('.file-row')).toBeHidden();
 	});
 
-	test('TAGS stays inside DETAILS (1A, 1C), under SOURCE’s place, drawn once (c837)', async ({
-		page
-	}) => {
+	test('TAGS stays inside DETAILS (1A, 1C), under SOURCE’s place, drawn once', async ({ page }) => {
 		await openSeries(page, 'Tower of God');
 		await expect(page.locator('.panel .tags:visible')).toHaveCount(0);
 		await toggle(page, true);
@@ -257,9 +255,7 @@ test.describe('where nothing folds', () => {
 		);
 	});
 
-	test('no DETAILS line, and ABOUT and TAGS stand above the other rows (c837)', async ({
-		page
-	}) => {
+	test('no DETAILS line, and ABOUT and TAGS stand above the other rows', async ({ page }) => {
 		await openSeries(page, 'Tower of God');
 		await expect(line(page)).toBeHidden();
 		await expect(page.locator('.file-row')).toBeVisible();
@@ -291,7 +287,7 @@ test.describe('where nothing folds', () => {
  * Tags go in through the EDIT sheet, the owner's own door, on a world of its
  * own, in order: one series grows past the cap as the cases run.
  */
-test.describe('every tag can be read and opened (c837)', () => {
+test.describe('every tag can be read and opened', () => {
 	test.describe.configure({ mode: 'serial' });
 	const LONG = 'a-tag-with-no-spaces-in-it-'.repeat(8) + 'end';
 	/** With a series' own genre, five namespaces: each case takes its own series. */

@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 import { devices, type Page } from '@playwright/test';
 
 /**
- * Picture-in-picture with subtitles (c388, doc/ANIME.md "The player"). Where
+ * Picture-in-picture with subtitles (doc/ANIME.md "The player"). Where
  * Document Picture-in-Picture exists, PIP moves the picture layer -- the
  * <video> and tsundoku's drawn subtitles -- into a floating window with the
  * page's styles, and every way out puts it back. Where only a video's own
@@ -72,7 +72,7 @@ const inWindow = (page: Page) =>
 	});
 
 test.describe('Document Picture-in-Picture (Chromium)', () => {
-	test('PIP moves the picture and its subtitles into the window, and closing puts them back (c388)', async ({
+	test('PIP moves the picture and its subtitles into the window, and closing puts them back', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -139,7 +139,7 @@ test.describe('Document Picture-in-Picture (Chromium)', () => {
 		await expect(page.getByRole('button', { name: 'Picture in picture' })).toHaveText('PIP');
 	});
 
-	test('the window answers on its own: a click on the picture and the keys play and pause (c388)', async ({
+	test('the window answers on its own: a click on the picture and the keys play and pause', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -200,7 +200,7 @@ test.describe('Document Picture-in-Picture (Chromium)', () => {
 		await expect.poll(paused).toBe(!before);
 	});
 
-	test('PIP again, and NEXT, close the window: none is left empty (c388)', async ({ page }) => {
+	test('PIP again, and NEXT, close the window: none is left empty', async ({ page }) => {
 		test.setTimeout(90_000);
 		await openEpisode(page);
 		// The player drawn by the server too (a reload, a link): its PiP doors
@@ -272,7 +272,7 @@ async function pageCuesInvisible(page: Page): Promise<boolean> {
 }
 
 test.describe('a video’s own picture-in-picture (no Document PiP: Safari’s case)', () => {
-	test('the native track shows always, drawn invisibly on the page except while the browser says PiP has it (c388)', async ({
+	test('the native track shows always, drawn invisibly on the page except while the browser says PiP has it', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);

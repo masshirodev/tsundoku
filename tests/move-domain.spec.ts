@@ -12,7 +12,7 @@ import {
 } from '$lib/library/move';
 
 /**
- * MOVE's rules (doc/MOVE.md; card c139): the by-number map, every odd case
+ * MOVE's rules (doc/MOVE.md): the by-number map, every odd case
  * the handoff draws, and the counts "WHAT THE MOVE DOES" promises. Pure, so
  * every case is a list in and rows out.
  */
@@ -376,7 +376,7 @@ describe('titles and numbers', () => {
 	});
 });
 
-describe('the words MOVE prints for a kind (K4, c304)', () => {
+describe('the words MOVE prints for a kind', () => {
 	/**
 	 * The route's three words used to be spelled from the kind's name. Each
 	 * now asks the registry (series/[id]/move-words.ts), and must print what

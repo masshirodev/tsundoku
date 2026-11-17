@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 
 /**
- * Why this machine cannot fingerprint, or null when it can (c915).
+ * Why this machine cannot fingerprint, or null when it can.
  *
  * The app has two routes to chromaprint (`src/lib/server/anime/fingerprint.ts`):
  * ffmpeg's own muxer, or `fpcalc` (FPCALC, else on PATH). A box with neither

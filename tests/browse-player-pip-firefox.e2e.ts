@@ -114,7 +114,7 @@ const inWindow = (page: Page) =>
 		};
 	});
 
-test('PIP opens Firefox’s Document Picture-in-Picture with the drawn subtitles, and it answers clicks and keys (c388)', async ({
+test('PIP opens Firefox’s Document Picture-in-Picture with the drawn subtitles, and it answers clicks and keys', async ({
 	page
 }) => {
 	test.setTimeout(90_000);
@@ -152,7 +152,7 @@ test('PIP opens Firefox’s Document Picture-in-Picture with the drawn subtitles
 	await expect(page.locator('.player > .stage video')).toHaveCount(1);
 });
 
-test('the native track shows all the time, drawn invisibly on the page, for Firefox’s own PiP toggle (c388)', async ({
+test('the native track shows all the time, drawn invisibly on the page, for Firefox’s own PiP toggle', async ({
 	page
 }) => {
 	test.setTimeout(90_000);
@@ -173,7 +173,7 @@ test('the native track shows all the time, drawn invisibly on the page, for Fire
 	expect((await track(page)).modes).toEqual(['showing']);
 });
 
-test('subtitles off is no track, and on again is a showing one (c388)', async ({ page }) => {
+test('subtitles off is no track, and on again is a showing one', async ({ page }) => {
 	test.setTimeout(90_000);
 	await openEpisode(page);
 	await expect.poll(async () => (await track(page)).modes).toEqual(['showing']);

@@ -21,7 +21,7 @@ import {
 	variantsOf
 } from '$lib/library/streams';
 
-// An episode's streams, the pure part (doc/ANIME.md, "Streams"; card c155).
+// An episode's streams, the pure part (doc/ANIME.md, "Streams").
 describe('the engine’s videos', () => {
 	const videos = [
 		{ quality: 'Kwik - 720p', videoUrl: 'https://k/720.m3u8' },
@@ -197,7 +197,7 @@ describe('quality names (2026-10-29)', () => {
 	});
 });
 
-// The sheet's languages (doc/ANIME.md, "The settings sheet"; card c386).
+// The sheet's languages (doc/ANIME.md, "The settings sheet").
 describe('a track’s language: one short code, the name in full beside it', () => {
 	it('names every language of the table by its code, its name and every alias', () => {
 		// The whole table, not a sample: an alias that two languages share
@@ -212,7 +212,7 @@ describe('a track’s language: one short code, the name in full beside it', () 
 		expect(wrong).toEqual([]);
 		const codes = LANGS.map(([c]) => c);
 		expect(new Set(codes).size).toBe(codes.length);
-		// No name the table lacks takes a code it has (c417): each of these
+		// No name the table lacks takes a code it has: each of these
 		// cuts to another language's ISO 639-2 alias (Chichewa to CHI, which
 		// is Chinese's), and took ZH from the Chinese track beside it.
 		const known = new Set(codes.map((c) => c.toUpperCase()));
@@ -277,7 +277,7 @@ describe('a track’s language: one short code, the name in full beside it', () 
 			['Latin American Spanish', 'ES-419', 'Spanish (Latin America)'],
 			['es-419', 'ES-419', 'Spanish (Latin America)'],
 			['Español (España)', 'ES', 'Spanish'],
-			// Crunchyroll's (c417): 'latina' and 'américa' were no ES-419 word,
+			// Crunchyroll's: 'latina' and 'américa' were no ES-419 word,
 			// so the pair was ES and ES-2 in the order the source listed them.
 			['Español (América Latina)', 'ES-419', 'Spanish (Latin America)'],
 			['Spanish (America)', 'ES-419', 'Spanish (Latin America)'],
@@ -439,7 +439,7 @@ describe('a track’s language: one short code, the name in full beside it', () 
 		const withPt = [...many, 'PT-BR'];
 		expect(langRow(withPt, ['PT', 'EN']).shown).toEqual(['EN', 'PT-BR']);
 		// The track that is on is a cell, though it is the second of its
-		// language or a code its source made up (round 2).
+		// language or a code its source made up.
 		const dup = trackCodes([
 			...LANGS.slice(0, 15).map(([, name]) => name),
 			'English (Full)',

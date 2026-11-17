@@ -130,7 +130,7 @@ test.afterEach(() => {
 	at = null;
 });
 
-test('Linux, no firewall found: the general line, and the two commands with the real port and home network (c721)', async ({
+test('Linux, no firewall found: the general line, and the two commands with the real port and home network', async ({
 	page,
 	request
 }) => {
@@ -175,7 +175,7 @@ for (const [probe, name] of [
 	['ufw', 'UFW'],
 	['firewalld', 'FIREWALLD']
 ] as const)
-	test(`Linux with ${name} on: it is named, with its one line to copy (c721)`, async ({
+	test(`Linux with ${name} on: it is named, with its one line to copy`, async ({
 		page,
 		request
 	}) => {
@@ -195,7 +195,7 @@ for (const [probe, name] of [
 		await expect(fw.getByRole('button')).toHaveCount(0);
 	});
 
-test("Windows: its dialog named, and PHONE CAN'T CONNECT? with the fix (c721)", async ({
+test("Windows: its dialog named, and PHONE CAN'T CONNECT? with the fix", async ({
 	page,
 	request
 }) => {
@@ -215,7 +215,7 @@ test("Windows: its dialog named, and PHONE CAN'T CONNECT? with the fix (c721)", 
 	await expect(fw).toContainText('Private network');
 });
 
-test('the general line in Portuguese, for a browser that reads it (c721)', async ({
+test('the general line in Portuguese, for a browser that reads it', async ({
 	browser,
 	request
 }) => {
@@ -244,7 +244,7 @@ test('the general line in Portuguese, for a browser that reads it (c721)', async
  * sign-in page a typed address opens counts, since it proves the firewall
  * lets a phone in. The wait is 4 s here, not 30, by the seam.
  */
-test('NO PHONE HAS REACHED THIS COMPUTER YET appears while the code waits, and clears when a phone reaches it (c721)', async ({
+test('NO PHONE HAS REACHED THIS COMPUTER YET appears while the code waits, and clears when a phone reaches it', async ({
 	page,
 	request,
 	playwright
@@ -288,7 +288,7 @@ const noPhoneYet = async (request: APIRequestContext, at: Install) =>
  * are what ask again: OFF and ON forget the reach, and with no phone paired
  * the code still up asks at once.
  */
-test('a phone that reached this computer before NEW CODES: no NO PHONE HAS REACHED after the wait, until OFF and ON (round 2)', async ({
+test('a phone that reached this computer before NEW CODES: no NO PHONE HAS REACHED after the wait, until OFF and ON', async ({
 	page,
 	request,
 	playwright

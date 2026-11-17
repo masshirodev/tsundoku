@@ -10,7 +10,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { startPreview } from './highlights-preview';
 
 /**
- * Highlights H1 end to end (c701; doc/HIGHLIGHTS.md): the sidebar's and
+ * Highlights H1 end to end (doc/HIGHLIGHTS.md): the sidebar's and
  * MORE's HIGHLIGHTS row with its count, /highlights (the list by day, the
  * filters, the search, the open item, a note, a colour, DELETE and UNDO, the
  * orphans and the disk line), /highlights in the search bar, the series

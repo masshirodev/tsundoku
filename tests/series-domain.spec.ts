@@ -215,7 +215,7 @@ describe('metadata', () => {
 		expect(more).toBe(2);
 	});
 
-	it('hands back the namespaces past the cap in order, counting their values (c837)', () => {
+	it('hands back the namespaces past the cap in order, counting their values', () => {
 		const ns = ['genre', 'circle', 'artist', 'language', 'source', 'alpha', 'zeta'];
 		const tags = ns.flatMap((namespace, i) =>
 			Array.from({ length: i + 1 }, (_, v) => ({ namespace, value: `${namespace}${v}` }))
@@ -233,7 +233,7 @@ describe('metadata', () => {
 		);
 	});
 
-	it('has nothing to open at exactly four namespaces, or with no tags (c837)', () => {
+	it('has nothing to open at exactly four namespaces, or with no tags', () => {
 		const four = ['genre', 'circle', 'artist', 'language'].map((namespace) => ({
 			namespace,
 			value: 'x'
@@ -347,7 +347,7 @@ describe('volumes of a novel', () => {
 	});
 });
 
-describe('SerialSaves: one save in flight per field, the last tap winning (c566)', () => {
+describe('SerialSaves: one save in flight per field, the last tap winning', () => {
 	/** A save the test answers by hand, in any order it likes. */
 	function held() {
 		const order: string[] = [];
@@ -476,7 +476,7 @@ describe('SerialSaves: one save in flight per field, the last tap winning (c566)
 		expect(await c).toMatchObject({ ok: false, latest: true, earlierStored: false });
 	});
 
-	it('a tap during the latest turn’s reload is not sent until that turn settles, and its failure is the newest’s (round 2)', async () => {
+	it('a tap during the latest turn’s reload is not sent until that turn settles, and its failure is the newest’s', async () => {
 		const q = new SerialSaves();
 		const h = held();
 		const one = q.run('fav:1', h.save('1'));
@@ -546,7 +546,7 @@ describe('SerialSaves: one save in flight per field, the last tap winning (c566)
 	});
 });
 
-describe('markThroughFacts: what an UNDO of MARK READ THROUGH may post back (c666)', () => {
+describe('markThroughFacts: what an UNDO of MARK READ THROUGH may post back', () => {
 	const own = new Set([1, 2]);
 	const facts = { at: 500, places: [{ id: 1, place: 7, offset: 12 }] };
 

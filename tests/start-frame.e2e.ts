@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures';
 
 /**
- * GET STARTED's SET UP part (the Getting Started handoff, board 1; card c208), in a real
+ * GET STARTED's SET UP part (the Getting Started handoff, board 1), in a real
  * browser, on /start: the same list the empty library shows, which the shared
  * seeded server can't (its library isn't empty). The holds table's rows and
  * the list's own frame are left out: both are closed blocks now

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Candidate } from '$lib/library/catalogue';
 
 /**
- * The relation cache (c358; doc/LINKS.md, "The relation cache"; rung 73):
+ * The relation cache (doc/LINKS.md, "The relation cache", rung 73):
  * filled by the link pass from a stand-in AniList, read by the series screen
  * without asking anything, and every event that makes it stale -- a relink,
  * UNLINK, a season linked, the series deleted or MOVEd, a refresh that fails,
@@ -253,11 +253,11 @@ afterEach(() => {
 	cat.setAnilistFetch(null);
 });
 
-describe('the pass fills the cache, and the screen reads it without asking (c358)', () => {
+describe('the pass fills the cache, and the screen reads it without asking', () => {
 	it('is the link pass’s last step, from the seasons’ own links, and the screen asks nothing', async () => {
 		const s4 = series('Lantern Keeper Season 4', 'anime', [4]);
 		link(s4, 4, 104);
-		// A series_links row naming another show: the walk never reads it (c467).
+		// A series_links row naming another show: the walk never reads it.
 		db.prepare(
 			`INSERT INTO series_links (series_id, anilist_id, via, linked_at) VALUES (?, 201, 'review', 0)`
 		).run(s4);
@@ -351,7 +351,7 @@ describe('the pass fills the cache, and the screen reads it without asking (c358
 	});
 });
 
-describe('the loop through the undated announced sequel, held from season 2 (c358)', () => {
+describe('the loop through the undated announced sequel, held from season 2', () => {
 	it('draws season 1 alone before it, season 3 after, and never the announced one as earlier', async () => {
 		const s2 = series('Lantern Keeper 2nd Season', 'anime', [2]);
 		link(s2, 2, 102);
@@ -366,7 +366,7 @@ describe('the loop through the undated announced sequel, held from season 2 (c35
 	});
 });
 
-describe('what makes the cache stale (c358)', () => {
+describe('what makes the cache stale', () => {
 	async function cachedS4() {
 		const s4 = series('Lantern Keeper Season 4', 'anime', [4]);
 		link(s4, 4, 104);

@@ -11,7 +11,7 @@ import {
 	type BandShelf
 } from '$lib/library/add-shelf';
 
-/** PUT ON A SHELF in the ADD band (card c724; doc/BROWSE.md, "Shelves in the ADD band"): the band's rules. */
+/** PUT ON A SHELF in the ADD band (doc/BROWSE.md, "Shelves in the ADD band"): the band's rules. */
 
 const shelf = (id: number, name = `Shelf ${id}`): BandShelf => ({ id, name });
 const ids = (xs: readonly BandShelf[]) => xs.map((s) => s.id);

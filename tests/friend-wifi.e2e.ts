@@ -4,7 +4,7 @@ import { FRIEND_HOME, FRIEND_PORT } from './friend-world';
 import { hydrated } from './helpers/hydration';
 
 /**
- * Reading on a phone over home Wi-Fi (doc/WIFI.md; card c188), on the friend
+ * Reading on a phone over home Wi-Fi (doc/WIFI.md), on the friend
  * project's own install, served by scripts/serve.ts (tests/friend-setup.ts),
  * so the Wi-Fi listeners are the real ones on this machine's home-network
  * address. "The phone" is a second browser context opening that address. In
@@ -25,7 +25,7 @@ test.beforeAll(() => {
 test('WI-FI is off until switched on, and says who it lets in', async ({ page }) => {
 	await page.goto('/settings#s-devices');
 	// ON, OFF and NEW CODE are clicked: a click before hydration lands on
-	// server-rendered markup with no handler (seen under load, wave 21).
+	// server-rendered markup with no handler (seen under load).
 	await hydrated(page);
 	const seg = page.getByRole('group', { name: 'Other devices on this Wi-Fi' });
 	await expect(seg.getByRole('button', { name: 'OFF' })).toHaveAttribute('aria-pressed', 'true');
@@ -58,7 +58,7 @@ test('ON shows a code, the address in text, and what typing it does', async ({ p
 	expect((await box('.wifi-seg')).height).toBe(52);
 	expect((await box('.pair-foot')).height).toBeGreaterThanOrEqual(52);
 	await expect(page.getByText(/GOOD FOR \d MIN · EACH SIGNS IN ONE DEVICE, ONCE/)).toBeVisible();
-	// The app's six digits beside the browser's QR (c236, c521): two threes,
+	// The app's six digits beside the browser's QR: two threes,
 	// under a FOR THE APP label, with a countdown of its own.
 	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 	const threes = page.locator('.pair-tv .tvcode span');
@@ -68,7 +68,7 @@ test('ON shows a code, the address in text, and what typing it does', async ({ p
 	const w = await wifi(request);
 	expect(w.on).toBe(true);
 	expect(w.phone).toMatch(new RegExp(`^http://(10|172|192)\\.[\\d.]+:${FRIEND_PORT}$`));
-	// The address is written as the app types it, without the scheme (c521).
+	// The address is written as the app types it, without the scheme.
 	await expect(page.locator('.pair-addr .paddr')).toHaveText(w.phone!.replace(/^http:\/\//, ''));
 	await expect(page.locator('.pair-addr .pnote')).toHaveText(
 		'THE APP TAKES ITS LAST NUMBER · A BROWSER TAKES ALL OF IT'
@@ -80,13 +80,13 @@ test('ON shows a code, the address in text, and what typing it does', async ({ p
 });
 
 /**
- * A TV's six digits burned by five wrong tries while the panel is open (c460).
+ * A TV's six digits burned by five wrong tries while the panel is open.
  * The panel polls `/api/wifi` every 5 s, and that poll once replaced a burned
  * code, so anyone on the Wi-Fi got five more guesses every 5 s. The poll now
  * reads the code as it is: BURNED, and the same code on the server two polls
  * later, until NEW CODE.
  */
-test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE (c460)', async ({
+test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE', async ({
 	page,
 	playwright,
 	request
@@ -193,7 +193,7 @@ test('the phone scans it, is signed in, and the computer lists it with SIGN OUT'
 
 /**
  * SETTINGS opened by a paired phone over Wi-Fi reads the codes and never makes
- * one (c460, round 2): its load passes `renew` only at the computer
+ * one: its load passes `renew` only at the computer
  * (`settings/+page.server.ts`). Were it to renew, anyone with a paired phone
  * could reopen SETTINGS to swap a TV code five wrong tries burned for a fresh
  * one, and buy five more. A case of its own, with no computer page open:
@@ -201,7 +201,7 @@ test('the phone scans it, is signed in, and the computer lists it with SIGN OUT'
  * load renewed until c531 (doc/WIFI.md), which would have replaced the burn
  * under the test.
  */
-test('a paired phone opening SETTINGS over Wi-Fi leaves a burned TV code burned (c460)', async ({
+test('a paired phone opening SETTINGS over Wi-Fi leaves a burned TV code burned', async ({
 	browser,
 	playwright,
 	request
@@ -277,7 +277,7 @@ test('OFF stops listening on the Wi-Fi; the computer goes on', async ({
 	await hydrated(page);
 	// OFF's answer is the page's own state: the panel goes when /api/wifi has
 	// answered, after the Wi-Fi listeners have closed, which on a loaded box
-	// took longer than expect's 5 s (wave 23's loaded whole run; c439).
+	// took longer than expect's 5 s (wave 23's loaded whole run).
 	const answered = page.waitForResponse(
 		(r) => r.url().endsWith('/api/wifi') && r.request().method() === 'POST'
 	);

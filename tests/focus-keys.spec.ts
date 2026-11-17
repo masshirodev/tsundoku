@@ -12,7 +12,7 @@ import {
 import type { Direction } from '$lib/focus/geometry';
 
 /**
- * The remote's keys, as decisions (card c235, doc/TV.md): which key is BACK,
+ * The remote's keys, as decisions (doc/TV.md): which key is BACK,
  * which is MENU, and what a held OK does that a short one does not. The DOM
  * wiring is tests/tv-keys.e2e.ts; this is the part a browser cannot pin.
  */
@@ -114,7 +114,7 @@ describe('OkPress', () => {
 });
 
 /**
- * A slider is a slider without being told (c259; doc/FOCUS.md, "Within it"):
+ * A slider is a slider without being told (doc/FOCUS.md, "Within it"):
  * the arrows along its axis are its own, the others leave. Every shape, every
  * direction, so a shape added later cannot fall between two cases.
  */

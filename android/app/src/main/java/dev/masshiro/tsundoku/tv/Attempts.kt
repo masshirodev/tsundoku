@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * "Only the current attempt's answer counts" (c306), the activity's half of
+ * "Only the current attempt's answer counts", the activity's half of
  * the rule the pairing page already keeps for its own probes.
  *
  * Two doors put a page in the WebView at launch: `onCreate`'s probe of the

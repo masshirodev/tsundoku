@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures';
 
 /**
- * A HELP topic (the HELP handoff, board 1A; card c208), in a real browser, at
+ * A HELP topic (the HELP handoff, board 1A), in a real browser, at
  * tablet-portrait: the article's parts and STILL STUCK (the topics' index
  * beside it shows from 1024 px, which no frame project is).
  *

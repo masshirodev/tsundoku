@@ -16,7 +16,7 @@ describe('status', () => {
 		expect(statusFrom('anilist', 'REPEATING')).toBe('reading');
 		expect(statusFrom('anilist', 'PAUSED')).toBe('on_hold');
 		expect(statusFrom('mal', 'plan_to_read')).toBe('planning');
-		// MAL's anime list says the same statuses in its own words (c298).
+		// MAL's anime list says the same statuses in its own words.
 		expect(statusFrom('mal', 'watching')).toBe('reading');
 		expect(statusFrom('mal', 'plan_to_watch')).toBe('planning');
 		expect(statusFrom('mal', null)).toBeNull();
@@ -24,7 +24,7 @@ describe('status', () => {
 		expect(statusTo('mal', 'planning')).toBe('plan_to_read');
 	});
 
-	it('writes an anime to MAL in its anime list’s words (c240)', () => {
+	it('writes an anime to MAL in its anime list’s words', () => {
 		expect(statusTo('mal', 'reading', 'anime')).toBe('watching');
 		expect(statusTo('mal', 'planning', 'anime')).toBe('plan_to_watch');
 		// Everything else is the same word on both lists.
@@ -70,7 +70,7 @@ describe('progress', () => {
 		).toBeNull();
 	});
 
-	it('finishes the entry with its last counted episode, once (c240)', () => {
+	it('finishes the entry with its last counted episode, once', () => {
 		// The season's last episode: the progress and COMPLETED in one send.
 		expect(progressToSend({ reached: 12, remote: null, waiting: null, complete: true })).toEqual({
 			progress: 12,
@@ -131,7 +131,7 @@ describe('progress', () => {
 	});
 });
 
-describe('a season (c240)', () => {
+describe('a season', () => {
 	const ep = (season: number, number: number, readAt: number | null, note: '' | 'recap' = '') => ({
 		id: number * 100 + season,
 		number,
@@ -175,7 +175,7 @@ describe('a season (c240)', () => {
 			{ part: 2, from: 13, to: 23 }
 		]);
 		expect(partsOf([{ part: 1, episodes: 24 }], 24)).toEqual([{ part: 1, from: 1, to: 24 }]);
-		// A later part alone (part 1 unlinked) has no recorded start (c592): part
+		// A later part alone (part 1 unlinked) has no recorded start: part
 		// 1's count is what places it, and its own count cannot, because `of` is
 		// only what the list holds -- 18 of a 23-episode season starts the guess
 		// inside part 1. It gets the empty span and sends nothing.
@@ -253,7 +253,7 @@ describe('the TRACKING row’s clock', () => {
 	});
 });
 
-describe('the trackers’ contract (c993)', () => {
+describe('the trackers’ contract', () => {
 	it('offers MAL for comics and anime, never a film or a show', async () => {
 		const { trackersFor, TRACKERS } = await import('$lib/library/tracking');
 		expect(trackersFor('movie')).toEqual(['trakt']);

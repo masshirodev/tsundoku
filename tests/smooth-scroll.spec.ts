@@ -50,11 +50,11 @@ function fake(end = 10_000, round = false) {
 
 /** The held speed of a screen's move (765 px over 220 ms), in px per ms. */
 const FULL = 765 / 220;
-/** How far a hold from rest has gone `ms` after it began: the ramp's own integral (c692). */
+/** How far a hold from rest has gone `ms` after it began: the ramp's own integral. */
 const held = (ms: number, full = FULL, ramp = 220) =>
 	ms < ramp ? (full * ms * ms) / (2 * ramp) : full * (ms - ramp / 2);
 
-describe('smooth scrolling on a PC (c192)', () => {
+describe('smooth scrolling on a PC', () => {
 	it('moves at once and settles a notch in about 120 ms', () => {
 		expect(approach(0, 100, 16)).toBeGreaterThan(30);
 		expect(approach(0, 100, 120)).toBeGreaterThan(94);
@@ -121,7 +121,7 @@ describe('smooth scrolling on a PC (c192)', () => {
 		expect(f.at()).toBe(765 * 3);
 	});
 
-	it('holds a key at a steady speed, and a repeat adds no step to the aim (c668)', () => {
+	it('holds a key at a steady speed, and a repeat adds no step to the aim', () => {
 		const f = fake();
 		const s = new SmoothScroll(f.host);
 		s.hold(765, 220);
@@ -137,7 +137,7 @@ describe('smooth scrolling on a PC (c192)', () => {
 		expect(f.at()).toBeLessThan(765);
 	});
 
-	it('eases a released hold to a stop within a short distance (c668)', () => {
+	it('eases a released hold to a stop within a short distance', () => {
 		const f = fake();
 		const s = new SmoothScroll(f.host);
 		// Past the ramp, so the key comes up at the full speed.
@@ -157,7 +157,7 @@ describe('smooth scrolling on a PC (c192)', () => {
 		expect(f.at()).toBe(stopped);
 	});
 
-	describe('a held key ramps up (c692)', () => {
+	describe('a held key ramps up', () => {
 		it('starts from rest and reaches the full speed over the glide’s own length', () => {
 			const f = fake();
 			const s = new SmoothScroll(f.host);
@@ -426,7 +426,7 @@ describe('smooth scrolling on a PC (c192)', () => {
 		});
 	});
 
-	it('a fresh press after a hold still adds a whole step (c668)', () => {
+	it('a fresh press after a hold still adds a whole step', () => {
 		const f = fake();
 		const s = new SmoothScroll(f.host);
 		s.hold(100, 160);
@@ -442,7 +442,7 @@ describe('smooth scrolling on a PC (c192)', () => {
 		expect(f.at()).toBeCloseTo(stopped + 200, 6);
 	});
 
-	it('never glides the wrong way first, when a frame is stamped before the key (c568)', () => {
+	it('never glides the wrong way first, when a frame is stamped before the key', () => {
 		// A frame's timestamp is when the frame began, and under load that can be
 		// before the key's performance.now(): wave 24 measured the strip moving
 		// -33 px on a nudge, then +85 on the reverse, so a nudge read as lost.
@@ -479,7 +479,7 @@ describe('smooth scrolling on a PC (c192)', () => {
 		expect(Math.max(...seen)).toBeLessThanOrEqual(600);
 	});
 
-	it('never holds the wrong way first, when a frame is stamped before the key (c668)', () => {
+	it('never holds the wrong way first, when a frame is stamped before the key', () => {
 		// The held path's delta is a rAF timestamp minus start()'s now(), which
 		// under load can be negative: 12 ms before the key moved a downward hold
 		// -41.7 px (the review's reproduction), and in Chromium a held ↑ went
@@ -539,7 +539,7 @@ describe('smooth scrolling on a PC (c192)', () => {
 	});
 });
 
-describe('keeping the place across a clamp (c691)', () => {
+describe('keeping the place across a clamp', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
 	/** A window whose position a shrinking document has already clamped. */
@@ -603,7 +603,7 @@ describe('keeping the place across a clamp (c691)', () => {
 	});
 });
 
-describe('where the strip is going (c913)', () => {
+describe('where the strip is going', () => {
 	it('is the glide’s aim while it moves, and where the strip is at rest', () => {
 		const f = fake();
 		const s = new SmoothScroll(f.host);

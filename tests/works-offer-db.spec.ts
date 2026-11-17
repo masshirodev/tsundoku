@@ -5,7 +5,7 @@ process.env.DATABASE_PATH = ':memory:';
 process.env.TSUNDOKU_ANILIST = 'off';
 
 /**
- * MIGHT CONTINUE <WORK> · AS PART N (W7, c281; Works Calls, question 6): the
+ * MIGHT CONTINUE <WORK> · AS PART N (W7, Works Calls, question 6): the
  * read that decides the offer, the series screen's four actions behind it,
  * and the NEVER list as absences. The stem rule's own finite domain is in
  * tests/works.spec.ts; this file is what the server makes of it.
@@ -85,7 +85,7 @@ async function postSeries(
 	})) as Answer;
 }
 
-describe('the offer a series screen reads (c281)', () => {
+describe('the offer a series screen reads', () => {
 	it('offers The Breaker to Eternal Force, as part 3, by the Work’s name', () => {
 		const { work } = breaker();
 		const offer = works.workOfferFor(idOf('The Breaker: Eternal Force'), false)!;
@@ -218,7 +218,7 @@ describe('the offer a series screen reads (c281)', () => {
 	});
 });
 
-describe('the series screen’s offer, through its own actions (c281)', () => {
+describe('the series screen’s offer, through its own actions', () => {
 	it('loads the offer, and reading it writes nothing', async () => {
 		breaker();
 		const force = idOf('The Breaker: Eternal Force');
@@ -406,7 +406,7 @@ describe('the series screen’s offer, through its own actions (c281)', () => {
 	});
 });
 
-describe('every UNDO on the series screen reads its posted facts before writing (c585)', () => {
+describe('every UNDO on the series screen reads its posted facts before writing', () => {
 	/** The library as every UNDO here could change it, alt titles included (RENAME's). */
 	const state = () => ({
 		...snapshot(),

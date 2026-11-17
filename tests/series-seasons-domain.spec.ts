@@ -123,7 +123,7 @@ const LANTERN = graphOf(
 );
 const S4 = { first: 104, last: 104, heldBefore: 0, heldAfter: 0 };
 
-describe('the walk (c358)', () => {
+describe('the walk', () => {
 	it('walks the card’s chain: every season before, the one after, the extras met', () => {
 		const w = walkSeasons(LANTERN, S4);
 		expect(w.needs).toEqual([]);
@@ -281,7 +281,7 @@ describe('the walk (c358)', () => {
  * first, and season 1's PREQUEL into it is the loop's closing edge, never a
  * season before season 1.
  */
-describe('the loop through an undated announced sequel (c358)', () => {
+describe('the loop through an undated announced sequel', () => {
 	const T = (id: number) => LANTERN.nodes[String(id)].title.english;
 	it.each([
 		{ held: 101, before: [], next: 102, extras: [151], line: '+ 1 EXTRA · 1 OVA' },
@@ -382,9 +382,9 @@ describe('the loop through an undated announced sequel (c358)', () => {
  * gives it, never cut as a loop's closer; and the edges next to that rule:
  * each status with no year, an announced entry with a year, two undated in a
  * row, an undated aired entry on a loop. The expected heads were written in
- * doc/handoff-notes/series.md (wave 34) before these ran.
+ * doc/handoff-notes/series.md before these ran.
  */
-describe('an aired entry with no year (c358, round 3)', () => {
+describe('an aired entry with no year', () => {
 	const tv = (id: number, year: number | null, edges: Edge[], o: Partial<RelNode> = {}) =>
 		node(id, 'TV', `S${id % 100}`, edges, { year, ...o });
 	const held = (g: RelGraph, id: number) => {

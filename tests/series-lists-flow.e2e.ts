@@ -9,7 +9,7 @@ import { expect, test } from './fixtures';
 import { revealOn } from './helpers/reveal';
 
 /**
- * The series screen's LISTS row (c424; doc/SERIES.md "LISTS"), state by state,
+ * The series screen's LISTS row (doc/SERIES.md "LISTS"), state by state,
  * reached through the app's own doors: a link pasted on the review, a chapter
  * marked read, a send to a catalogue that is down and then answers, TRY AGAIN,
  * EDIT's STATUS and UNLINK, HIDE with reveal on, the browser going offline,
@@ -28,7 +28,7 @@ import { revealOn } from './helpers/reveal';
  * Two rows are written by hand, because no door here reaches them: the
  * AniList sign-in (OAuth leaves for anilist.co) and a season linked to a
  * manga's entry (a paste refuses the other kind). Both are under the notes'
- * Gaps (doc/handoff-notes/series.md, wave 20).
+ * Gaps (doc/handoff-notes/series.md).
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -90,7 +90,7 @@ function answer(query: string, variables: Record<string, unknown>) {
 		const pool = byIds[2] === 'ANIME' ? ANIME : COMIC;
 		out.Page = { media: pool.filter((e) => ids.includes(e.id)) };
 	}
-	// A season LINK walks the relations: none here, so it goes back to the series (c423).
+	// A season LINK walks the relations: none here, so it goes back to the series.
 	for (const m of query.matchAll(/m(\d+):\s*Media\(id:\s*\$i(\d+)\)/g)) {
 		const self = ANIME.find((e) => e.id === Number(variables[`i${m[2]}`]));
 		if (self) out[`m${m[1]}`] = { ...self, relations: { edges: [] } };
@@ -217,7 +217,7 @@ async function paste(page: import('@playwright/test').Page, href: string, url: s
 	const link = page.locator('.actions button').last();
 	await expect(link).toHaveText(/^LINK [A-Z]/);
 	await link.click();
-	// A season's LINK walks AniList's relations before it answers (c423, round 2).
+	// A season's LINK walks AniList's relations before it answers.
 	await page.waitForURL(/\/series\/\d+$/, { timeout: 20_000 });
 }
 
@@ -381,7 +381,7 @@ function linkOf(seriesId: number) {
 	}
 }
 
-test('UNLINK in EDIT’s ENTRY: the sheet closes on a band with UNDO, and UNDO puts the link back as it was (c520)', async ({
+test('UNLINK in EDIT’s ENTRY: the sheet closes on a band with UNDO, and UNDO puts the link back as it was', async ({
 	page
 }) => {
 	const before = linkOf(ids.comic);
@@ -418,7 +418,7 @@ test('UNLINK in EDIT’s ENTRY: the sheet closes on a band with UNDO, and UNDO p
 	await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
 });
 
-test('a refused UNDO of UNLINK: linked again in another tab, the newer link stays, and the band says so (c520)', async ({
+test('a refused UNDO of UNLINK: linked again in another tab, the newer link stays, and the band says so', async ({
 	page,
 	context
 }) => {
@@ -513,7 +513,7 @@ test('four seasons, each linked on its own review, fold round the one being watc
 	await expect(sheet).not.toContainText(/SEASON 0|\bS0\b/);
 });
 
-test('UNLINK on one season and its UNDO: S3 comes back, and the seasons beside it never moved (c520)', async ({
+test('UNLINK on one season and its UNDO: S3 comes back, and the seasons beside it never moved', async ({
 	page
 }) => {
 	const seasonsOf = () => {
@@ -620,7 +620,7 @@ async function makeWork(page: import('@playwright/test').Page, titles: string[],
 	return Number(/\/work\/(\d+)/.exec(page.url())![1]);
 }
 
-test('a refused UNDO of TAKE OUT, THEN HIDE is a band, never an error page, and changes nothing (c390)', async ({
+test('a refused UNDO of TAKE OUT, THEN HIDE is a band, never an error page, and changes nothing', async ({
 	page,
 	context
 }) => {
@@ -661,7 +661,7 @@ test('a refused UNDO of TAKE OUT, THEN HIDE is a band, never an error page, and 
 	await b.close();
 });
 
-test('a refused UNDO of the WORK row’s TAKE OUT is a band, never an error page, and changes nothing (c468)', async ({
+test('a refused UNDO of the WORK row’s TAKE OUT is a band, never an error page, and changes nothing', async ({
 	page,
 	context
 }) => {

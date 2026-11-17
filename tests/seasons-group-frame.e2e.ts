@@ -16,7 +16,7 @@ import { E2E_TOKEN } from '../playwright.config';
  * cover), the explanation and the merge foot. They are hand-pinned from
  * `design-tools/extract-spec.mjs`'s summary and `wk.css` rather than run
  * through `gen-conformance`, which would write `@playwright/test` back into
- * the frame (c542; doc/TESTING.md, "Regenerating the frame spec").
+ * the frame (doc/TESTING.md, "Regenerating the frame spec").
  *
  * It runs once, in `tablet-landscape`, the board's 1280x800; the other device
  * projects skip it. It seeds a database of its own and serves the build on a

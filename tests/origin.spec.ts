@@ -6,7 +6,7 @@ import {
 	sourceOrigin
 } from '../src/lib/library/origin';
 
-/** Where a preview was opened from, kept through + ADD (card c262). */
+/** Where a preview was opened from, kept through + ADD. */
 describe('sourceOrigin', () => {
 	it('keeps a source’s BROWSE page and the search, query included', () => {
 		expect(sourceOrigin('/browse/12')).toBe('/browse/12');

@@ -30,11 +30,11 @@ const library = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-downloads-library-'));
 let server: ChildProcess | null = null;
 let fake: Server | null = null;
 let down = false;
-/** The source lists a 31st chapter after this: REFRESH's test (c220). */
+/** The source lists a 31st chapter after this: REFRESH's test. */
 let grow = false;
-/** And a 32nd, for REFRESH over a selection (c221), which runs after it. */
+/** And a 32nd, for REFRESH over a selection, which runs after it. */
 let grow32 = false;
-/** A source whose search fails while set: DOWNLOADS' DID NOT ANSWER (c538). */
+/** A source whose search fails while set: DOWNLOADS' DID NOT ANSWER. */
 let searchFails: string | null = null;
 /** How many times each source was asked to search: what TRY AGAIN may add to. */
 const searchCalls: Record<string, number> = {};
@@ -240,9 +240,9 @@ test.use({ baseURL: BASE });
 test.beforeAll(async () => {
 	// This hook seeds a database and spawns a preview, then polls up to 60 s
 	// for it: all inside the default 30 s hook budget, where `work-end-frame`'s
-	// same shape ran past 30 s in wave 20's gate (c477). Measured at 3 s here,
+	// same shape ran past 30 s in wave 20's gate. Measured at 3 s here,
 	// at a load average of 20 with the other slots at work; the house budget is
-	// 120 s so a loaded gate fails a case, never the hook (c599). In a hook,
+	// 120 s so a loaded gate fails a case, never the hook. In a hook,
 	// `test.setTimeout` sets the hook's own budget (Playwright's test.d.ts).
 	test.setTimeout(120_000);
 	seed();
@@ -438,7 +438,7 @@ test('NEXT 10 works without script, as a form post', async ({ browser }) => {
 	await ctx.close();
 });
 
-test('searching the sources works without script: the server waits for every source (c146)', async ({
+test('searching the sources works without script: the server waits for every source', async ({
 	browser
 }) => {
 	const ctx = await browser.newContext({
@@ -484,7 +484,7 @@ test('reveal on asks the mostly hidden source too', async ({ page }) => {
 	await page.context().clearCookies({ name: 'tsundoku_reveal' });
 });
 
-test('TRY ALL AGAIN and TRY AGAIN ask only the source that did not answer, and ask opens no hidden source (c538)', async ({
+test('TRY ALL AGAIN and TRY AGAIN ask only the source that did not answer, and ask opens no hidden source', async ({
 	page
 }) => {
 	const reveal = (on: boolean) =>
@@ -555,7 +555,7 @@ test('a preview adds to the library, lands on the series, and UNDO takes it back
 	await expect(page.locator('.ch')).toHaveCount(12);
 	await add.click();
 	await expect(page).toHaveURL(/\/series\/\d+\?added=/);
-	// ← goes back to the search it was added from, query kept (c262).
+	// ← goes back to the search it was added from, query kept.
 	const back = page.getByRole('banner', { name: 'Series' }).locator('a.back');
 	await expect(back.locator('.back-label')).toHaveText('SOURCES');
 	await expect(back).toHaveAttribute('href', '/downloads/search?q=linden');
@@ -570,7 +570,7 @@ test('a preview adds to the library, lands on the series, and UNDO takes it back
 	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
 });
 
-test('a preview downloads too: our sheet says it adds it first, then ADD AND DOWNLOAD (c205)', async ({
+test('a preview downloads too: our sheet says it adds it first, then ADD AND DOWNLOAD', async ({
 	page
 }) => {
 	await page.goto(`/downloads/source/${SIDE}?q=linden`);
@@ -641,9 +641,7 @@ test('FOLLOW turns accent, offers FOLLOWED, and comes off again (1d)', async ({ 
 	).toBeVisible();
 });
 
-test('REFRESH asks the source once, adds what is new, and downloads nothing (c220)', async ({
-	page
-}) => {
+test('REFRESH asks the source once, adds what is new, and downloads nothing', async ({ page }) => {
 	await page.goto(`/series/${ids.linden}`);
 	const refresh = page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'REFRESH' });
 	await expect(refresh).toBeVisible();
@@ -678,14 +676,14 @@ test('REFRESH asks the source once, adds what is new, and downloads nothing (c22
 	grow = false;
 });
 
-test('REFRESH in the bulk bar asks the selection’s sources once, and downloads nothing (c221)', async ({
+test('REFRESH in the bulk bar asks the selection’s sources once, and downloads nothing', async ({
 	page
 }) => {
 	await page.goto('/?sort=title');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	const tile = (title: string) => page.locator('.grid .tile', { hasText: title });
 	await tile('Lindenborough Heir').click();
-	// A book with no source: skipped and counted, not refused (c221).
+	// A book with no source: skipped and counted, not refused.
 	await tile('Hoshi no Umi no Tabibito').click();
 	await expect(page.getByText('2 SELECTED')).toBeVisible();
 

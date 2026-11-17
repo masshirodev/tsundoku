@@ -4,8 +4,8 @@ import { revealOn } from './helpers/reveal';
 
 /**
  * Tab and a screen reader read the series panel in the order it is drawn
- * (c556, WCAG 2.4.3; doc/SERIES.md, "Two markups"). Where nothing folds, the
- * screen's order is the DOM's: DOWNLOAD, ABOUT, TAGS (c837), the bands,
+ * (WCAG 2.4.3, doc/SERIES.md, "Two markups"). Where nothing folds, the
+ * screen's order is the DOM's: DOWNLOAD, ABOUT, TAGS, the bands,
  * DIRECTION, SHELVES, LISTS to SOURCE, FILE; on a phone or a TV the bands,
  * SHELVES and ABOUT stand above DETAILS and TAGS stays inside it, and the other
  * copy of each of the four is `display: none`. A plain
@@ -76,7 +76,7 @@ test.describe('Tab through the panel', () => {
 		const direction = stops.findIndex((s) => /^(READ|DIRECTION)|R→L|L→R|PAGED|STRIP/.test(s.group));
 		expect(band, stops.map((s) => s.label).join(' | ')).toBeGreaterThan(-1);
 		expect(shelves).toBeGreaterThan(band);
-		// ABOUT and TAGS come under DOWNLOAD, before the bands (c837).
+		// ABOUT and TAGS come under DOWNLOAD, before the bands.
 		const tags = stops.findIndex((s) => s.group === 'TAGS');
 		expect(tags, stops.map((s) => s.label).join(' | ')).toBeGreaterThan(-1);
 		expect(tags).toBeLessThan(band);
@@ -84,7 +84,7 @@ test.describe('Tab through the panel', () => {
 		if (direction !== -1) expect(direction).toBeLessThan(shelves);
 	});
 
-	test('reaches ABOUT and TAGS first, then DIRECTION, then SHELVES (c837)', async ({ page }) => {
+	test('reaches ABOUT and TAGS first, then DIRECTION, then SHELVES', async ({ page }) => {
 		await openCircle(page, 'Tower of God');
 		const stops = await walk(page);
 		const names = stops.map((s) => `${s.group}:${s.label}`);

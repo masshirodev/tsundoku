@@ -154,7 +154,7 @@ test('the first paint is already the right layout, before any script runs', asyn
 });
 
 // The desktop's bar used to scroll away with the grid; c433 kept it on top
-// there too, on purpose (c489).
+// there too, on purpose.
 test('the bar with the name, search and SELECT stays on top as the grid scrolls, on every device', async ({
 	page
 }) => {

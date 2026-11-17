@@ -5,7 +5,7 @@ import { Zip } from '../src/lib/epub/unzip';
 import { expect, test } from './helpers/hydrated';
 
 /**
- * Reading English (c198, doc/LANGUAGES.md): a long press in a book whose
+ * Reading English (doc/LANGUAGES.md): a long press in a book whose
  * language has a pack opens the same panel Japanese opens, and the entry it
  * draws is the pack's — including the source and licence line CC BY-SA asks
  * for.

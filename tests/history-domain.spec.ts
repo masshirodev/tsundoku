@@ -150,7 +150,7 @@ describe('day labels', () => {
 	});
 });
 
-describe('reading time (c443)', () => {
+describe('reading time', () => {
 	it('says hours and minutes from an hour, minutes under it, and never rounds up', () => {
 		const cases: [number, string][] = [
 			[0, '0 MIN'],
@@ -172,7 +172,7 @@ describe('reading time (c443)', () => {
 	});
 });
 
-describe('the total’s SINCE, each kind’s own first timed day (c483)', () => {
+describe('the total’s SINCE, each kind’s own first timed day', () => {
 	const h = 3_600_000;
 	it('says the total’s first timed day, and a later kind’s own after its time', () => {
 		expect(

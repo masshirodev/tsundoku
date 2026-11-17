@@ -8,7 +8,7 @@ import sharp from 'sharp';
 import { SOURCES } from './browse-world';
 
 /**
- * The seek preview over the scrubber (c385, doc/ANIME.md "The player"): a
+ * The seek preview over the scrubber (doc/ANIME.md "The player"): a
  * downloaded episode shows its sprite's tile for the time under the pointer,
  * the time alone while it has none, and a stream shows a frame of its lowest
  * quality, fetched one segment per stop and only while the pointer is on the
@@ -94,7 +94,7 @@ async function lineAt(page: Page, f: number) {
  * The episode's length is stored, as it is once it has been watched: the
  * player's first report carries it. A player whose hls.js is still loading
  * has no picture to say how long the file is, so only a stored length gives
- * its bar a time to hover (c574).
+ * its bar a time to hover.
  */
 async function knownLength(page: Page) {
 	const told = page.waitForRequest(
@@ -111,7 +111,7 @@ async function knownLength(page: Page) {
 
 /**
  * hls.js's chunk, held until [release]: the first, uncached `import('hls.js')`
- * of a fresh page (c574). Its name is a hash, so it is known by its body.
+ * of a fresh page. Its name is a hash, so it is known by its body.
  * Routing turns the browser's cache off, so a page loaded after this asks
  * for the chunk again.
  */
@@ -166,7 +166,7 @@ async function hover(page: Page, f: number) {
 	await page.mouse.move(at.x, at.y, { steps: 3 });
 }
 
-test('a downloaded episode shows its sprite’s tile for the time under the pointer (c385)', async ({
+test('a downloaded episode shows its sprite’s tile for the time under the pointer', async ({
 	page
 }) => {
 	test.setTimeout(90_000);
@@ -238,7 +238,7 @@ test('a downloaded episode shows its sprite’s tile for the time under the poin
 	await expect(tip).toHaveCount(0);
 });
 
-test('a downloaded episode with no sprite yet shows the time alone (c385)', async ({ page }) => {
+test('a downloaded episode with no sprite yet shows the time alone', async ({ page }) => {
 	test.setTimeout(90_000);
 	await widen(page, (a) => ({
 		...a,
@@ -356,7 +356,7 @@ test.describe('a stream', () => {
 		}));
 	}
 
-	test('on a slow source, the last stop’s frame never sits over another time, and a stop soon after an earlier one still gets its own (c385)', async ({
+	test('on a slow source, the last stop’s frame never sits over another time, and a stop soon after an earlier one still gets its own', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -393,7 +393,7 @@ test.describe('a stream', () => {
 		await expect(frame).toBeVisible({ timeout: 5000 });
 	});
 
-	test('shows a frame of its lowest quality, one segment a stop, nothing off the bar (c385)', async ({
+	test('shows a frame of its lowest quality, one segment a stop, nothing off the bar', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -425,7 +425,7 @@ test.describe('a stream', () => {
 		expect(segments).toEqual(['seg1.m4s', 'seg2.m4s']);
 	});
 
-	test('a manifest later than the stop’s second, the pointer gone before it came: no segment after the leave, and the next hover still previews (c450)', async ({
+	test('a manifest later than the stop’s second, the pointer gone before it came: no segment after the leave, and the next hover still previews', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -462,7 +462,7 @@ test.describe('a stream', () => {
 		expect(segments).toEqual(['seg2.m4s']);
 	});
 
-	test('a manifest later than the stop’s second, the pointer still on the bar: the stop gives up and fetches nothing, and the next stop has its frame (c450)', async ({
+	test('a manifest later than the stop’s second, the pointer still on the bar: the stop gives up and fetches nothing, and the next stop has its frame', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -488,7 +488,7 @@ test.describe('a stream', () => {
 		expect(segments).toEqual(['seg3.m4s']);
 	});
 
-	test('a playlist that fails past hls.js’s own retry: that stop shows the time alone, and the next asks again and has its frame (c450)', async ({
+	test('a playlist that fails past hls.js’s own retry: that stop shows the time alone, and the next asks again and has its frame', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -497,7 +497,7 @@ test.describe('a stream', () => {
 		let healthy = false;
 		// The playlist's failure comes after the stop's second has given up
 		// (hls.js retries once, a second later): nothing may be left to throw it
-		// at the page as an unhandled rejection (c573).
+		// at the page as an unhandled rejection.
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		await serveHls(page, segments);
@@ -542,7 +542,7 @@ test.describe('a stream', () => {
 		return asked;
 	}
 
-	test('a leave while the first stop waits on hls.js’s chunk: nothing is fetched when it comes, and the next hover previews (c574)', async ({
+	test('a leave while the first stop waits on hls.js’s chunk: nothing is fetched when it comes, and the next hover previews', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -574,7 +574,7 @@ test.describe('a stream', () => {
 		expect(segments).toEqual(['seg2.m4s']);
 	});
 
-	test('a later stop while the first waits on hls.js’s chunk: one preview opens, for the later stop alone (c574)', async ({
+	test('a later stop while the first waits on hls.js’s chunk: one preview opens, for the later stop alone', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -601,7 +601,7 @@ test.describe('a stream', () => {
 		expect(segments).toEqual(['seg2.m4s']);
 	});
 
-	test('a stop made after the page began leaving is cancelled by the player’s own teardown, not only by beforeNavigate (c638)', async ({
+	test('a stop made after the page began leaving is cancelled by the player’s own teardown, not only by beforeNavigate', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -645,7 +645,7 @@ test.describe('a stream', () => {
 		expect(segments).toEqual([]);
 	});
 
-	test('the page left while the first stop waits on hls.js’s chunk: no preview opens behind it (c574)', async ({
+	test('the page left while the first stop waits on hls.js’s chunk: no preview opens behind it', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -787,9 +787,7 @@ test.describe('a stream whose lowest quality is a plain file', () => {
 		}));
 	}
 
-	test('reads a few Ranges a stop, near the time asked, and none off the bar (c450)', async ({
-		page
-	}) => {
+	test('reads a few Ranges a stop, near the time asked, and none off the bar', async ({ page }) => {
 		test.setTimeout(90_000);
 		const ranges: string[] = [];
 		await serveFile(page, ranges);
@@ -843,7 +841,7 @@ test.describe('a stream whose lowest quality is a plain file', () => {
 		expect(total).toBeLessThan(file.length);
 	});
 
-	test('on a slow hoster, the pointer leaving mid-read stops the reading: no Range after the leave (c450)', async ({
+	test('on a slow hoster, the pointer leaving mid-read stops the reading: no Range after the leave', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -862,7 +860,7 @@ test.describe('a stream whose lowest quality is a plain file', () => {
 		expect(ranges.length).toBe(atLeave);
 	});
 
-	test('a leave while hls.js’s chunk is still loading: no Range after it, and a plain file previews without hls.js at all (c574)', async ({
+	test('a leave while hls.js’s chunk is still loading: no Range after it, and a plain file previews without hls.js at all', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
@@ -901,7 +899,7 @@ test.describe('a stream whose lowest quality is a plain file', () => {
 });
 
 /**
- * c655's record half (round 2): the end page's library row for a browsing
+ * c655's record half: the end page's library row for a browsing
  * record, in the paged reader. The shared seed has no record (fixtures make
  * none), so this needs the browse world; the reader slot owns no other file
  * that runs in that project — its flow files run in tablet-portrait against
@@ -912,7 +910,7 @@ test.describe('a stream whose lowest quality is a plain file', () => {
  * `inLibrary = true`, so a record's end offered REMOVE for a series that was
  * not in the library, with no + ADD.
  */
-test.describe('the reader end page for a browsing record (c655)', () => {
+test.describe('the reader end page for a browsing record', () => {
 	test('a record in a paged read offers + ADD and no DELETE', async ({ page }) => {
 		test.setTimeout(90_000);
 		await page.goto(`/browse/${SOURCES.open.id}`);
@@ -957,7 +955,7 @@ test.describe('the reader end page for a browsing record (c655)', () => {
 		// the preview's own action (the browse world is one database for the
 		// whole project). It runs whether the body passed or not, and its own
 		// failure — a refused answer or a throw — is soft so it cannot hide the
-		// body's (c649, c673 round 2).
+		// body's.
 		try {
 			const forgotten = await page.request.post(`${new URL(preview).pathname}?/forget`, {
 				headers: { origin: new URL(preview).origin, 'x-sveltekit-action': 'true' },

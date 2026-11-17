@@ -224,7 +224,7 @@ describe('reading the lists', () => {
 		);
 		try {
 			// Both lists carry an entry called Ranma ½, and the series' own title
-			// cleans to it: only the anime's may link (c298).
+			// cleans to it: only the anime's may link.
 			alList = [
 				{
 					mediaId: 30023,
@@ -245,7 +245,7 @@ describe('reading the lists', () => {
 			];
 			await signIn('anilist');
 			await tr.readList('anilist', NOW);
-			// An anime's link is one season's (c240): the entry already names the
+			// An anime's link is one season's: the entry already names the
 			// season, so the row is the season table's, not the series' one.
 			expect(
 				db
@@ -254,11 +254,11 @@ describe('reading the lists', () => {
 					)
 					.get(show)
 			).toEqual({ via: 'list', anilist_id: 30024, format: 'TV', season: 0 });
-			// And nothing at series level (c467).
+			// And nothing at series level.
 			expect(
 				db.prepare(`SELECT via, anilist_id, mal_id FROM series_links WHERE series_id = ?`).get(show)
 			).toBeUndefined();
-			// What the list says of it is the season's row (c240), as for manga.
+			// What the list says of it is the season's row, as for manga.
 			expect(
 				db
 					.prepare(
@@ -337,7 +337,7 @@ describe('reading the lists', () => {
 		}
 	});
 
-	it('files a wrong-kind link’s state under the entry’s own list (c298)', async () => {
+	it('files a wrong-kind link’s state under the entry’s own list', async () => {
 		const root = (
 			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
 		).id;
@@ -501,7 +501,7 @@ describe('sending', () => {
 		expect(tr.queueProgress(novel, NOW)).toBe(0);
 	});
 
-	it('sends nothing for a series from a NEVER TRACKED source, and drops what waited (c522)', async () => {
+	it('sends nothing for a series from a NEVER TRACKED source, and drops what waited', async () => {
 		const tog = linkTog();
 		await signIn('anilist');
 		// The series' own source, as an engine key names it; the seed writes none.
@@ -555,7 +555,7 @@ describe('sending', () => {
 	});
 });
 
-describe('a season’s other part speaks for the list signed in (c518)', () => {
+describe('a season’s other part speaks for the list signed in', () => {
 	/** A season entry as a search answers it: part 1 and part 2 are AniList's two entries. */
 	const part = (id: number, mal: number, episodes: number) => ({
 		anilistId: id,
@@ -648,7 +648,7 @@ describe('a season’s other part speaks for the list signed in (c518)', () => {
 	});
 });
 
-// ---- Ranobe, faked: NEVER TRACKED's two doors (c522, round 2) ------------------------------
+// ---- Ranobe, faked: NEVER TRACKED's two doors ------------------------------
 
 type RanobeCall = { method: string; path: string; body: unknown };
 let ranobeCalls: RanobeCall[] = [];
@@ -691,7 +691,7 @@ const ranobeFake: typeof fetch = async (input, init) => {
 };
 rb.setRanobeFetch(ranobeFake);
 
-describe('Ranobe: a NEVER TRACKED source sends nothing (c522)', () => {
+describe('Ranobe: a NEVER TRACKED source sends nothing', () => {
 	const MUSHOKU = idOf('Mushoku Tensei');
 	const KEN = idOf('Tensei Shitara Ken Deshita');
 
@@ -718,7 +718,7 @@ describe('Ranobe: a NEVER TRACKED source sends nothing (c522)', () => {
 		ranobeCalls = [];
 	});
 
-	it('offers no edition for a work only its never-tracked series links, and lists its volumes for no one (c522)', async () => {
+	it('offers no edition for a work only its never-tracked series links, and lists its volumes for no one', async () => {
 		setSourceFlag('301', 'neverTracked', true);
 		db.prepare(`UPDATE series SET origin_key = 'mihon:301:/novel/mushoku' WHERE id = ?`).run(
 			MUSHOKU
@@ -745,7 +745,7 @@ describe('Ranobe: a NEVER TRACKED source sends nothing (c522)', () => {
 		}
 	});
 
-	it('does not read a unit through another series that shares it (c522)', async () => {
+	it('does not read a unit through another series that shares it', async () => {
 		setSourceFlag('302', 'neverTracked', true);
 		db.prepare(`UPDATE series SET origin_key = 'mihon:302:/novel/mushoku' WHERE id = ?`).run(
 			MUSHOKU
@@ -782,7 +782,7 @@ describe('Ranobe: a NEVER TRACKED source sends nothing (c522)', () => {
 		}
 	});
 
-	it('takes back a read already sent, once only, when the other copy leaves it unread (c522)', async () => {
+	it('takes back a read already sent, once only, when the other copy leaves it unread', async () => {
 		// The decision written in doc/RANOBE.md: a unit sent before the switch is
 		// withdrawn (a DELETE), because leaving it would keep the never-tracked
 		// read on Ranobe; sent_at is cleared, so it is not withdrawn twice.

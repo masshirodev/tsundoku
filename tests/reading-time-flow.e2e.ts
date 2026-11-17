@@ -10,7 +10,7 @@ import { sinceDay } from '../src/lib/library/history';
 import { revealOn } from './helpers/reveal';
 
 /**
- * Reading time end to end (card c443; doc/READING-LOG.md): read through the
+ * Reading time end to end (doc/READING-LOG.md): read through the
  * app's own readers on a fake clock, and the time is on the series screen and
  * in HISTORY, its row and its total; a hidden series' time is in neither while
  * reveal is off.
@@ -41,9 +41,9 @@ function freePort(): Promise<number> {
 test.beforeAll(async () => {
 	// This hook seeds a database and spawns a preview, then polls up to 60 s
 	// for it: all inside the default 30 s hook budget, where `work-end-frame`'s
-	// same shape ran past 30 s in wave 20's gate (c477). Measured at 3 s here,
+	// same shape ran past 30 s in wave 20's gate. Measured at 3 s here,
 	// at a load average of 20 with the other slots at work; the house budget is
-	// 120 s so a loaded gate fails a case, never the hook (c599). In a hook,
+	// 120 s so a loaded gate fails a case, never the hook. In a hook,
 	// `test.setTimeout` sets the hook's own budget (Playwright's test.d.ts).
 	test.setTimeout(120_000);
 	work = mkdtempSync(join(process.env.TMPDIR ?? join(process.cwd(), 'temp'), 'tsundoku-time-'));

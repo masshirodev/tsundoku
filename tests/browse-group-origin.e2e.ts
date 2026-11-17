@@ -18,7 +18,7 @@ import { revealOn } from './helpers/reveal';
  * offer, and a failed download offers RETRY (c885's last piece). READ ONLINE is
  * the book's own answer, not the group's: a book whose source lost its
  * extension, or which holds no key at all, is offered neither cell while its
- * twin is offered both (c885, round 2). It's in the browse project (its name)
+ * twin is offered both. It's in the browse project (its name)
  * for the fake engine, but in a world of its own: a gallery source only exists
  * here (the browse world's sources aren't galleries, and a one-off from one is
  * a manga, which GROUP won't bind), and every case groups, downloads and
@@ -28,7 +28,7 @@ import { revealOn } from './helpers/reveal';
  */
 
 const SOURCE = { id: '500', pkg: 'e2e.gallery', name: 'nhentai' };
-/** A second gallery source, so one book's own source can lose its extension (c885, round 2). */
+/** A second gallery source, so one book's own source can lose its extension. */
 const SOURCE2 = { id: '501', pkg: 'e2e.gallery2', name: 'hitomi' };
 const previewOf = (url: string, sourceId = SOURCE.id) =>
 	`${sourceId}~${Buffer.from(url).toString('base64url')}`;
@@ -205,7 +205,7 @@ function dbGet<T>(sql: string, ...args: unknown[]): T {
 	}
 }
 
-/** The world's own rows, written the way a lost extension row really is (c885). */
+/** The world's own rows, written the way a lost extension row really is. */
 function dbRun(sql: string, ...args: unknown[]): void {
 	const db = new Database(dbPath);
 	try {

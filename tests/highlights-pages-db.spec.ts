@@ -18,7 +18,7 @@ const { keepPage, KeepError, pageHighlights } = await import('$lib/server/highli
 const { deleteSeries } = await import('$lib/server/delete');
 
 /**
- * Highlights H3, the store's half (card c703; doc/HIGHLIGHTS.md, "Pages"): a
+ * Highlights H3, the store's half (doc/HIGHLIGHTS.md, "Pages"): a
  * page kept from the image reader through `keepPage`, with the reader's own
  * door to a page's bytes (`readPage`, a downloaded chapter's folder here),
  * and stand-ins for a page read online that answer as the engine's proxy
@@ -94,7 +94,7 @@ const rows = (entry: number) =>
 		unknown
 	>[];
 
-describe('keeping a downloaded page (c703)', () => {
+describe('keeping a downloaded page', () => {
 	it('copies the page at its own size as WebP, with the snapshot, and kind page', async () => {
 		const s = await downloaded('Kaze no Tou');
 		const { highlight, made } = await keepPage({ entryId: s.entry, page: 1 }, false, {
@@ -157,7 +157,7 @@ describe('keeping a downloaded page (c703)', () => {
 		expect(copies().length).toBe(before + 1);
 	});
 
-	it('a page deleted (in its UNDO window) and kept again is the same highlight brought back, and its UNDO restores nothing (round 2)', async () => {
+	it('a page deleted (in its UNDO window) and kept again is the same highlight brought back, and its UNDO restores nothing', async () => {
 		const s = await downloaded('Again');
 		const before = copies().length;
 		const first = await keepPage({ entryId: s.entry, page: 0 }, false);
@@ -191,7 +191,7 @@ describe('keeping a downloaded page (c703)', () => {
 		expect(existsSync(join(pagesDir, `${second.highlight.id}.webp`))).toBe(true);
 	});
 
-	it('keeps a page taller than WebP allows, scaled to fit 16383 px with its aspect (round 2)', async () => {
+	it('keeps a page taller than WebP allows, scaled to fit 16383 px with its aspect', async () => {
 		const s = await downloaded('Long Strip', { kind: 'manhwa', sizes: [[720, 20000]] });
 		const { highlight, made } = await keepPage({ entryId: s.entry, page: 0 }, false);
 		expect(made).toBe(true);
@@ -224,7 +224,7 @@ describe('keeping a downloaded page (c703)', () => {
  * edge is `purgeDeleted`'s (`deleted_at < now - UNDO_MS` is gone), so a row
  * deleted exactly `UNDO_MS` ago is still inside it.
  */
-describe('the UNDO window, kept again (c703, round 3)', () => {
+describe('the UNDO window, kept again', () => {
 	const T = NOW + 3_600_000;
 	const keepAt = (entryId: number, at: number, a: { page?: number; pageEnd?: number } = {}) =>
 		keepPage({ entryId, page: a.page ?? 0, pageEnd: a.pageEnd }, false, { now: () => at });
@@ -349,7 +349,7 @@ describe('the UNDO window, kept again (c703, round 3)', () => {
 	});
 });
 
-describe('a spread kept as BOTH (c703, Manga M2)', () => {
+describe('a spread kept as BOTH (Manga M2)', () => {
 	it('is one image, the two pages as drawn: R→L puts the later page on the left', async () => {
 		const s = await downloaded('Spread', {
 			sizes: [
@@ -409,7 +409,7 @@ describe('a spread kept as BOTH (c703, Manga M2)', () => {
 		});
 	});
 
-	it('a spread is its two pages in index order, and only two side by side (round 2)', async () => {
+	it('a spread is its two pages in index order, and only two side by side', async () => {
 		const s = await downloaded('Spread order', {
 			sizes: [
 				[400, 600],
@@ -428,7 +428,7 @@ describe('a spread kept as BOTH (c703, Manga M2)', () => {
 		expect(rows(s.entry).map((r) => [r.page, r.page_end])).toEqual([[1, 2]]);
 	});
 
-	it('a BOTH wider than WebP allows is scaled to fit 16383 px with its aspect (round 2)', async () => {
+	it('a BOTH wider than WebP allows is scaled to fit 16383 px with its aspect', async () => {
 		const s = await downloaded('Wide Spread', {
 			sizes: [
 				[9000, 400],
@@ -444,7 +444,7 @@ describe('a spread kept as BOTH (c703, Manga M2)', () => {
 	});
 });
 
-describe('a page read online (c703, Manga M7: MAKING)', () => {
+describe('a page read online (Manga M7: MAKING)', () => {
 	const fakeEntry = async (title: string) => (await downloaded(title)).entry;
 	const answer = async () => {
 		const body = await png(500, 700, RED);
@@ -497,7 +497,7 @@ describe('a page read online (c703, Manga M7: MAKING)', () => {
 	});
 
 	/**
-	 * The insert's own re-check (round 3). A row another writer set aside
+	 * The insert's own re-check. A row another writer set aside
 	 * while this fetch was out: inside its window it is brought back; past it
 	 * (a second install whose purge has not run, or whose clock is behind) it
 	 * is never revived, and this keep is a new highlight beside it. Only the
@@ -507,7 +507,7 @@ describe('a page read online (c703, Manga M7: MAKING)', () => {
 		['inside its window is brought back', 1000, true],
 		['past its window is not, and this keep is made anew', 0, false]
 	] as const)
-		it(`a page another writer set aside while this fetch was out: ${label} (round 3)`, async () => {
+		it(`a page another writer set aside while this fetch was out: ${label}`, async () => {
 			const s = await downloaded(`Online set aside ${revived}`);
 			const at = NOW + 7_200_000;
 			let release!: () => void;
@@ -586,7 +586,7 @@ describe('a page read online (c703, Manga M7: MAKING)', () => {
 	});
 });
 
-describe('hidden, and the pointer’s life after (c703)', () => {
+describe('hidden, and the pointer’s life after', () => {
 	it('a hidden series’ page is not found without reveal, and kept hidden with it', async () => {
 		const s = await downloaded('Hidden one', { hidden: 1 });
 		await expect(keepPage({ entryId: s.entry, page: 0 }, false)).rejects.toMatchObject({

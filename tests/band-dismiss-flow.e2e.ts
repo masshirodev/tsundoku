@@ -9,7 +9,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * The ✕ on a band that reports something done (c493; doc/BANDS.md). There is
+ * The ✕ on a band that reports something done (doc/BANDS.md). There is
  * no component-test harness in this repo, so this flow is the cell's test too:
  * the label, the place after UNDO, and each way a band can be stored. Its own
  * preview and seeded database, because the stored band is a finished scan, and
@@ -109,7 +109,7 @@ function shelfRows() {
 	return rows;
 }
 
-test('ADDED TO THE LIBRARY: ✕ clears it and its URL, a reload keeps it gone, the series stays (c493)', async ({
+test('ADDED TO THE LIBRARY: ✕ clears it and its URL, a reload keeps it gone, the series stays', async ({
 	page
 }) => {
 	const before = new Database(dbPath, { readonly: true });
@@ -139,7 +139,7 @@ test('ADDED TO THE LIBRARY: ✕ clears it and its URL, a reload keeps it gone, t
 	before.close();
 });
 
-test('GROUP into an existing series: one band, its UNDO takes the book out, and ✕ leaves the rest (c493)', async ({
+test('GROUP into an existing series: one band, its UNDO takes the book out, and ✕ leaves the rest', async ({
 	page
 }) => {
 	// The real redirect's URL (`src/routes/+page.server.ts`): here `added` is an entry id.
@@ -176,7 +176,7 @@ test('GROUP into an existing series: one band, its UNDO takes the book out, and 
 	await expect(page).toHaveURL(new RegExp(`/series/${seriesId}$`));
 });
 
-test('a real MOVE: one band, MOVED, with its counts, and ✕ clears all of its URL (c493)', async ({
+test('a real MOVE: one band, MOVED, with its counts, and ✕ clears all of its URL', async ({
 	page
 }) => {
 	const before = shelfRows();
@@ -202,7 +202,7 @@ test('a real MOVE: one band, MOVED, with its counts, and ✕ clears all of its U
 	expect(shelfRows()).toEqual(before);
 });
 
-test('a dismissed band is not in Back: the entry was replaced (c493)', async ({ page }) => {
+test('a dismissed band is not in Back: the entry was replaced', async ({ page }) => {
 	await page.goto(`${BASE}/`);
 	await page.goto(seriesUrl('added=source~e2e'));
 	await x(added(page)).click();
@@ -214,7 +214,7 @@ test('a dismissed band is not in Back: the entry was replaced (c493)', async ({ 
 	await expect(added(page)).toHaveCount(0);
 });
 
-test('clearing the URL keeps the place and, when focus is elsewhere, the focus (c493)', async ({
+test('clearing the URL keeps the place and, when focus is elsewhere, the focus', async ({
 	page
 }) => {
 	// Short enough that losing the band and its chips cannot clamp the scroll.
@@ -241,7 +241,7 @@ test('clearing the URL keeps the place and, when focus is elsewhere, the focus (
 	await expect(undo).toBeFocused();
 });
 
-test('✕ on one of two stacked bands leaves the other as it was, either way round (c493)', async ({
+test('✕ on one of two stacked bands leaves the other as it was, either way round', async ({
 	page
 }) => {
 	await page.goto(seriesUrl(STACKED));
@@ -263,7 +263,7 @@ test('✕ on one of two stacked bands leaves the other as it was, either way rou
 	await expect(page).toHaveURL(new RegExp(`\\?moved=1&kept=2$`));
 });
 
-test('bands stacked: hit areas do not overlap, and a double press takes only one (c493)', async ({
+test('bands stacked: hit areas do not overlap, and a double press takes only one', async ({
 	page
 }) => {
 	await page.goto(seriesUrl(STACKED));
@@ -304,9 +304,7 @@ test('bands stacked: hit areas do not overlap, and a double press takes only one
 	await expect(page).toHaveURL(/created=2/);
 });
 
-test('a form answer: ✕ clears it, and the next answer draws a new band (c493)', async ({
-	page
-}) => {
+test('a form answer: ✕ clears it, and the next answer draws a new band', async ({ page }) => {
 	await page.goto(seriesUrl('moved=1'));
 	const undo = moved(page).getByRole('button', { name: 'UNDO' });
 	const refusal = band(page, 'THE WAY BACK HAS CLOSED');
@@ -324,9 +322,7 @@ test('a form answer: ✕ clears it, and the next answer draws a new band (c493)'
 	await expect(refusal).toBeVisible();
 });
 
-test('a URL band: its ✕ navigates, so a form answer on screen goes with it (c493)', async ({
-	page
-}) => {
+test('a URL band: its ✕ navigates, so a form answer on screen goes with it', async ({ page }) => {
 	const db = new Database(dbPath, { readonly: true });
 	const entry = (
 		db.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY id LIMIT 1`).get(seriesId) as {
@@ -350,9 +346,7 @@ test('a URL band: its ✕ navigates, so a form answer on screen goes with it (c4
 	await expect(answer).toHaveCount(0);
 });
 
-test('✕ while UNDO is mid-flight: the band goes, and UNDO still answers (c493)', async ({
-	page
-}) => {
+test('✕ while UNDO is mid-flight: the band goes, and UNDO still answers', async ({ page }) => {
 	let release = () => undefined as void;
 	const held = new Promise<void>((done) => (release = done));
 	await page.route('**/*', async (route) => {
@@ -373,7 +367,7 @@ test('✕ while UNDO is mid-flight: the band goes, and UNDO still answers (c493)
 	await expect(x(band(page, 'THE WAY BACK HAS CLOSED'))).toBeVisible();
 });
 
-test('the stored band: two tabs, one row, and a new import brings a new band (c493)', async ({
+test('the stored band: two tabs, one row, and a new import brings a new band', async ({
 	browser
 }) => {
 	const stage = () => {
@@ -465,7 +459,7 @@ const deletedAt = (id: number) => {
 	return row.at;
 };
 
-test('/highlights: ✕ takes HIGHLIGHT DELETED, a reload keeps it gone, it stays deleted, and the next one draws (c493)', async ({
+test('/highlights: ✕ takes HIGHLIGHT DELETED, a reload keeps it gone, it stays deleted, and the next one draws', async ({
 	page,
 	context
 }) => {
@@ -516,7 +510,7 @@ test('/highlights: ✕ takes HIGHLIGHT DELETED, a reload keeps it gone, it stays
 	await expect(refused).toHaveCount(0);
 });
 
-test('/search: ✕ takes HIDDEN, a reload keeps it gone, and the Work stays hidden (c493)', async ({
+test('/search: ✕ takes HIDDEN, a reload keeps it gone, and the Work stays hidden', async ({
 	page
 }) => {
 	// Named: the stored-band case above leaves an import band up, and with one
@@ -537,7 +531,7 @@ test('/search: ✕ takes HIDDEN, a reload keeps it gone, and the Work stays hidd
 	await group.getByRole('button', { name: /CREATE WORK/ }).click();
 	await expect(page.locator('.band', { hasText: 'BANDHIDE RUN IS A WORK' })).toBeVisible();
 
-	// HIDE on a hit's sheet, the door that hands /search its band (c391).
+	// HIDE on a hit's sheet, the door that hands /search its band.
 	await page.goto(`${BASE}/search?q=Omniscient`);
 	// A part of a Work: a series hit, so its sheet is the one that hands the band over.
 	await page.locator('.hit:not(.work)', { hasText: "Omniscient Reader's Viewpoint" }).click();
@@ -561,7 +555,7 @@ test('/search: ✕ takes HIDDEN, a reload keeps it gone, and the Work stays hidd
 	expect(hiddenCount.n, 'dismiss is not UNDO').toBeGreaterThan(0);
 });
 
-test('SETTINGS: ✕ takes the sign-in band and its URL, and a reload keeps it gone (c493)', async ({
+test('SETTINGS: ✕ takes the sign-in band and its URL, and a reload keeps it gone', async ({
 	page
 }) => {
 	await page.goto(`${BASE}/settings?signin=ok&service=anilist`);
@@ -574,7 +568,7 @@ test('SETTINGS: ✕ takes the sign-in band and its URL, and a reload keeps it go
 	await expect(signin).toHaveCount(0);
 });
 
-test('a band that says what is true now has no ✕ (c493)', async ({ context, page }) => {
+test('a band that says what is true now has no ✕', async ({ context, page }) => {
 	await context.addCookies([{ name: 'tsundoku_incognito', value: '1', url: BASE }]);
 	await page.goto(`${BASE}/`);
 	const incognito = page.locator('.band.dashed');
@@ -582,7 +576,7 @@ test('a band that says what is true now has no ✕ (c493)', async ({ context, pa
 	await expect(x(incognito)).toHaveCount(0);
 });
 
-test('the library band from the URL leaves the rest of its URL alone (c493)', async ({ page }) => {
+test('the library band from the URL leaves the rest of its URL alone', async ({ page }) => {
 	await page.goto(`${BASE}/?sort=title&band=ungrouped&facts=%7B%7D&name=Kaze`);
 	const gone = band(page, 'UNGROUPED');
 	await expect(gone).toBeVisible();
@@ -594,7 +588,7 @@ test('the library band from the URL leaves the rest of its URL alone (c493)', as
 test.describe('a browser that speaks Portuguese', () => {
 	test.use({ locale: 'pt-BR' });
 
-	test('the ✕ is named in Portuguese (c493)', async ({ page }) => {
+	test('the ✕ is named in Portuguese', async ({ page }) => {
 		await page.goto(seriesUrl('added=source~e2e'));
 		await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
 		await expect(page.getByRole('button', { name: 'Dispensar este aviso' })).toBeVisible();

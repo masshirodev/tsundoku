@@ -3,9 +3,9 @@ import { expect, test } from './fixtures';
 
 /**
  * The library's top on a TV (doc/LIBRARY.md, "Sort and direction" and "The
- * top bar"): SORT's menu walked by the remote alone (c432). The `tv` project
+ * top bar"): SORT's menu walked by the remote alone. The `tv` project
  * has no pointer, so every press is a key. BACK from deep in the grid lands
- * at the top and stays there, sampled every frame for 2 s (c543). OK on a
+ * at the top and stays there, sampled every frame for 2 s. OK on a
  * shelf tab keeps the mark on the tab row (c589; a remote meets the tabs at
  * the top, so the case guards the mark, not the scroll). Sorting and shelves
  * only change the URL:
@@ -79,7 +79,7 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 		drawn.push(await drawnAtCentre(page));
 	}
 	// Each choice the mark is on is what the screen draws there: the KIND
-	// band (9 on a TV) steps under the open list (c590).
+	// band (9 on a TV) steps under the open list.
 	expect(drawn).toEqual(walked.map(() => true));
 	expect(walked).toEqual([
 		'RECENTLY READ',
@@ -112,14 +112,14 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 	await expect.poll(() => focused(page)).toBe('Sort, RATING');
 });
 
-test('OK on another shelf tab keeps the mark on the tab row (c589)', async ({ page }) => {
+test('OK on another shelf tab keeps the mark on the tab row', async ({ page }) => {
 	// A remote meets the tabs at the screen's start (BACK from the grid climbs
 	// past the pinned band to the first CONTINUE card), so what a TV needs of
 	// c589 is that the shelf's links scrolling to the top keep the mark. The
 	// page is at 0 before OK as well as after, so the scrollY read below
 	// cannot fail on c589's own change (it passes with noscroll put back,
 	// measured): this case guards keepfocus. The scroll is the device
-	// projects' (library-top-scroll.e2e.ts, c589).
+	// projects' (library-top-scroll.e2e.ts).
 	await page.goto('/?sort=title');
 	const onTab = () =>
 		page.evaluate(() => document.activeElement?.getAttribute('data-focus-id') ?? '');
@@ -135,7 +135,7 @@ test('OK on another shelf tab keeps the mark on the tab row (c589)', async ({ pa
 	await expect.poll(onTab).toBe(picked);
 });
 
-test('← from the first collection’s tab reaches ALL (c624)', async ({ page }) => {
+test('← from the first collection’s tab reaches ALL', async ({ page }) => {
 	// Filed while c589's case above was written, as a layer bug: ← from the
 	// first collection stayed on it while the second's reached the first. At
 	// aa6a7b22 it does not: measured, ALL's box is 49-144 and the first
@@ -184,7 +184,7 @@ test('← from the first collection’s tab reaches ALL (c624)', async ({ page }
  * patch was written in doc/handoff-notes/tv.md, wave 27, Gaps). Each step is
  * asserted, so a setup that never put the mark on a tile cannot pass.
  */
-test.describe('a tile focused while the grid becomes an outline (c612)', () => {
+test.describe('a tile focused while the grid becomes an outline', () => {
 	test.use({ serviceWorkers: 'block' });
 
 	/** Hold the library's data (for a KIND filter, or the bare URL), from now on, once. */
@@ -212,7 +212,7 @@ test.describe('a tile focused while the grid becomes an outline (c612)', () => {
 		return mark(page);
 	}
 
-	test('a KIND filter chosen under a focused tile gives the mark back (c612)', async ({ page }) => {
+	test('a KIND filter chosen under a focused tile gives the mark back', async ({ page }) => {
 		// At DOUJINS, so the first tile is a doujin, and ALL keeps it: the
 		// give-back's first branch, the tile itself.
 		const tile = await toFirstTile(page, '/?shelf=all&kind=doujin&sort=title');
@@ -243,9 +243,7 @@ test.describe('a tile focused while the grid becomes an outline (c612)', () => {
 		await expect.poll(() => mark(page)).toBe(tile);
 	});
 
-	test('a KIND filter that takes the tile away leaves the mark on its cell (c612)', async ({
-		page
-	}) => {
+	test('a KIND filter that takes the tile away leaves the mark on its cell', async ({ page }) => {
 		// At MANGA, so the first tile is a manga and NOVELS takes it away.
 		const tile = await toFirstTile(page, '/?shelf=all&kind=manga&sort=title');
 		const { release } = await holdData(page, '**/__data.json?*kind=novel*');
@@ -295,7 +293,7 @@ test.describe('a sort that takes past 1 s', () => {
 			() => (window as unknown as { seen: { loading: boolean; inSort: boolean }[] }).seen
 		);
 
-	test('SORT stays drawn under the outline’s LOADING, and the mark never leaves it (c560)', async ({
+	test('SORT stays drawn under the outline’s LOADING, and the mark never leaves it', async ({
 		page
 	}) => {
 		// What loaded runs did to `:49` 4 times in 10, forced: the outline goes
@@ -369,12 +367,12 @@ test('the pinned bars never cover the first row’s focus ring, and BACK from de
 }) => {
 	// About twenty-five key presses after a cold load: measured at 34.6 s in a
 	// loaded run (load ~55: the goto 11.5 s, hydration 3.3 s, each press
-	// 0.1-0.8 s), every step on the right state, against the default 30 s (c439).
+	// 0.1-0.8 s), every step on the right state, against the default 30 s.
 	test.setTimeout(60_000);
 	await page.goto('/?sort=title');
 	await page.keyboard.press('ArrowDown'); // the screen's start
 	await page.keyboard.press('ArrowDown'); // the shelf tabs
-	await page.keyboard.press('ArrowDown'); // the KIND band (c436): one stop more
+	await page.keyboard.press('ArrowDown'); // the KIND band: one stop more
 	await page.keyboard.press('ArrowDown'); // the first row
 	const firstRow = await page.evaluate(
 		() => document.activeElement?.closest('.tile')?.getBoundingClientRect().top
@@ -390,14 +388,14 @@ test('the pinned bars never cover the first row’s focus ring, and BACK from de
 	}
 	expect(firstRow).toBeDefined();
 
-	// A TV needs no BACK TO TOP (c433): one BACK from the bottom of the grid
+	// A TV needs no BACK TO TOP: one BACK from the bottom of the grid
 	// is at the top of the screen, on its first CONTINUE card.
 	for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowDown');
 	expect(await page.evaluate(() => scrollY)).toBeGreaterThan(300);
 	await expect(page.getByRole('button', { name: 'BACK TO TOP ↑' })).toHaveCount(0);
 	await page.keyboard.press('Escape');
 	await expect.poll(() => focused(page)).toMatch(/^Resume /);
-	// And it comes to rest there (c543): every frame for 2 s, not one read. A
+	// And it comes to rest there: every frame for 2 s, not one read. A
 	// single poll passed the first time it caught the top, so it could not see
 	// a page that went on moving (wave 21 measured 0, 0, 3, 0, 0, 3… here).
 	// Within a few pixels of the top, as before, since the flow files beside
@@ -411,14 +409,14 @@ test('the pinned bars never cover the first row’s focus ring, and BACK from de
 });
 
 /**
- * The loaded runs' red, made on purpose (c543): ↓ on the last row has no stop
+ * The loaded runs' red, made on purpose: ↓ on the last row has no stop
  * below it, and the page used to leave that key to the browser, whose own
  * scroll is animated. BACK pressed while it was still moving put the page at
  * the top (`climb()`'s instant `scrollTo(0)`), and then the animation's
  * remaining distance was applied from there: 33 px in one loaded run, 2 in
  * another. On a TV the layer now scrolls for that key itself, instantly.
  */
-test('BACK pressed while ↓ past the last row still scrolls lands at the top and stays (c543)', async ({
+test('BACK pressed while ↓ past the last row still scrolls lands at the top and stays', async ({
 	page
 }) => {
 	test.setTimeout(60_000);
@@ -494,7 +492,7 @@ test('the library keeps the TV’s own bottom safe margin, and the last row ends
  * to) and the band, which opens the entry. A trip to the series and back
  * returns to the stop it left (doc/FOCUS.md, "Going back").
  */
-test('a CONTINUE card has two stops: ← from ▶ reaches the band, OK opens it, BACK returns to it (c841)', async ({
+test('a CONTINUE card has two stops: ← from ▶ reaches the band, OK opens it, BACK returns to it', async ({
 	page
 }) => {
 	await page.goto('/');
@@ -514,7 +512,7 @@ test('a CONTINUE card has two stops: ← from ▶ reaches the band, OK opens it,
 	await expect.poll(() => focused(page)).toMatch(/^Resume /);
 });
 
-test('▶❚❚ on the band resumes, as it does on ▶ (c841)', async ({ page }) => {
+test('▶❚❚ on the band resumes, as it does on ▶', async ({ page }) => {
 	// Incognito, so resuming writes nothing to the shared database.
 	await page
 		.context()
@@ -531,9 +529,7 @@ test('▶❚❚ on the band resumes, as it does on ▶ (c841)', async ({ page })
 	await page.waitForURL(/\/read\/\d+/);
 });
 
-test('each stop draws the ring inside the card, and ▶ is a visible cell (c841)', async ({
-	page
-}) => {
+test('each stop draws the ring inside the card, and ▶ is a visible cell', async ({ page }) => {
 	await page.goto('/');
 	const row = page.locator('.cont > .row').first();
 	const box = (await row.boundingBox())!;
@@ -555,12 +551,12 @@ test('each stop draws the ring inside the card, and ▶ is a visible cell (c841)
 });
 
 /**
- * The bar's ON <NAME> cell at the TV's 960 px, in the TV's own type (c862). The
+ * The bar's ON <NAME> cell at the TV's 960 px, in the TV's own type. The
  * APK's bridge, stood up as `tests/tv-servers.e2e.ts` does, with this page's
  * own origin as the server in use, as `inUseOf` finds it. ARCHLINUX is the
  * owner's computer, and 20 characters the longest case the card names.
  */
-test.describe('the bar names the server in use (c862)', () => {
+test.describe('the bar names the server in use', () => {
 	const cell = (page: Page) => page.locator('[data-focus-id="library-server"]');
 
 	async function onServer(page: Page, name: string) {
@@ -645,10 +641,10 @@ test.describe('the bar names the server in use (c862)', () => {
 
 /**
  * A held OK on a CONTINUE card opens the entry's options, on both of its
- * stops (c860; doc/FOCUS.md, 'OK held'): the sheet is only read, so nothing
+ * stops (doc/FOCUS.md, 'OK held'): the sheet is only read, so nothing
  * here writes, and the plain OK that resumes is incognito.
  */
-test.describe('a held OK on a CONTINUE card (c860)', () => {
+test.describe('a held OK on a CONTINUE card', () => {
 	const rowOf = (page: Page) => page.locator('.cont > .row').first();
 
 	async function holdOk(page: Page) {

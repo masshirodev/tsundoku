@@ -13,7 +13,7 @@ import { E2E_TOKEN } from '../playwright.config';
  * The preview's own origin, which a form action's POST must carry or
  * SvelteKit refuses it as cross-site: the project's `baseURL`, which follows
  * PLAYWRIGHT_PORT. It was a fixed 'http://localhost:4183', so on any other
- * port the POST was refused and the case failed (c311).
+ * port the POST was refused and the case failed.
  */
 const sameOrigin = () => new URL(test.info().project.use.baseURL!).origin;
 
@@ -34,7 +34,7 @@ const TITLE = 'Kusuriya no Hitorigoto';
 // in playwright.config.ts). The frame specs are read-only and run everywhere.
 test.describe.configure({ mode: 'serial' });
 
-/** SORT's cell (c432): named for what it sorts by, "Sort, TITLE". */
+/** SORT's cell: named for what it sorts by, "Sort, TITLE". */
 const sortCell = (page: Page) => page.getByRole('button', { name: /^Sort, / });
 
 /** Choose a sort the way a finger does: open the menu, tap the choice. */
@@ -134,7 +134,7 @@ test('the rating bars open the slider on the tile, and a half saves', async ({ p
 	const bars = tile.getByRole('img');
 	await tile.getByRole('button', { name: /^Rate, / }).click();
 	const picker = tile.locator('.picker');
-	// The 0 cell and ten halves (c67).
+	// The 0 cell and ten halves.
 	await expect(picker.getByRole('button')).toHaveCount(11);
 
 	await picker.getByRole('button', { name: 'Rate 7 of 10' }).click();
@@ -157,12 +157,12 @@ test('the rating bars open the slider on the tile, and a half saves', async ({ p
 	await expect(bars).toHaveAttribute('aria-label', 'Unrated');
 });
 
-test.describe('two quick taps on a tile (c615)', () => {
+test.describe('two quick taps on a tile', () => {
 	// The tile's saves queue on the series screen's own keys (`fav:<id>`,
 	// `rating:<id>`), so a tile tap and a series-screen tap on one series wait
 	// for each other (doc/SERIES.md, "FAV and the rating"; c566's queue).
 	// `__data.json` is answered by the service worker past `page.route`
-	// (c477), so the second case holds the reload by it.
+	//, so the second case holds the reload by it.
 	test.use({ serviceWorkers: 'block' });
 
 	/**
@@ -206,7 +206,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		};
 	}
 
-	test('two quick FAV taps with the first save slow end on the second tap, after a reload too (c615)', async ({
+	test('two quick FAV taps with the first save slow end on the second tap, after a reload too', async ({
 		page
 	}) => {
 		await page.goto('/?sort=title');
@@ -229,7 +229,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		await h.done();
 	});
 
-	test('two quick rating taps with the first slow store the second, and the tile shows it after a reload (c615)', async ({
+	test('two quick rating taps with the first slow store the second, and the tile shows it after a reload', async ({
 		page
 	}) => {
 		await page.goto('/?sort=title');
@@ -259,7 +259,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		await expect(bars).toHaveAttribute('aria-label', 'Unrated');
 	});
 
-	test('a tile tap, then the series opened before it settles: the screen’s tap waits on the same key (c615)', async ({
+	test('a tile tap, then the series opened before it settles: the screen’s tap waits on the same key', async ({
 		page
 	}) => {
 		await page.goto('/?sort=title');
@@ -315,7 +315,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		await expect(panel.getByRole('button', { name: 'FAV', exact: true })).toBeVisible();
 	});
 
-	test('a newer tap that fails during the earlier tap’s reload keeps its band, and PUT BACK reads what is stored (c615)', async ({
+	test('a newer tap that fails during the earlier tap’s reload keeps its band, and PUT BACK reads what is stored', async ({
 		page
 	}) => {
 		await page.goto('/?sort=title');
@@ -373,7 +373,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 	});
 
-	test('a tile past the first page reads what FAV stored, so PUT BACK goes to FAV (c615)', async ({
+	test('a tile past the first page reads what FAV stored, so PUT BACK goes to FAV', async ({
 		page
 	}) => {
 		// A page of two: the seed's titles after those two live in `more`, which
@@ -519,7 +519,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		return { tiles, more, loaded, fav, isRefill, pages };
 	}
 
-	test('a save does not leave the grid unable to load more pages (c615)', async ({ page }) => {
+	test('a save does not leave the grid unable to load more pages', async ({ page }) => {
 		const { tiles, more, loaded, isRefill, pages } = await gridOnAPhone(page);
 		// A little down the grid (nowhere near the end), so a row is in view.
 		await page.evaluate(() => scrollTo({ top: 300, behavior: 'instant' }));
@@ -546,7 +546,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		// Hold the first save's reload of the pages, and the page the grid asks
 		// for once the second save's data has landed: both are still out when
 		// the second refill's bump comes. A bump that does not release
-		// `loadingMore` leaves every page after it refused (c615, r3).
+		// `loadingMore` leaves every page after it refused (r3).
 		let release!: () => void;
 		const held = new Promise<void>((r) => (release = r));
 		let refillHeld = false;
@@ -604,7 +604,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		await expect(tiles.nth(at).locator('button.fav')).toHaveAttribute('aria-pressed', 'false');
 	});
 
-	test('a tile save refills the loaded pages once, and no more (c615)', async ({ page }) => {
+	test('a tile save refills the loaded pages once, and no more', async ({ page }) => {
 		const { loaded, fav, isRefill, pages } = await gridOnAPhone(page);
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 
@@ -626,7 +626,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		await fav.click();
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 		await expect(page.getByText('UNFAV NOT SAVED')).toBeVisible();
-		// One, not the effect's refill and a forced one behind it (c615, r3).
+		// One, not the effect's refill and a forced one behind it (r3).
 		expect(refills).toEqual([loaded - 6]);
 		await page.unroute(isFav);
 		await page.unroute(pages);
@@ -640,7 +640,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 	});
 
-	test('a refill that fails keeps the pages already drawn (c615)', async ({ page }) => {
+	test('a refill that fails keeps the pages already drawn', async ({ page }) => {
 		const { tiles, loaded, fav, isRefill, pages } = await gridOnAPhone(page);
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 
@@ -665,7 +665,7 @@ test.describe('two quick taps on a tile (c615)', () => {
 	});
 });
 
-test.describe('a tile save that fails draws its value unsaved (c659)', () => {
+test.describe('a tile save that fails draws its value unsaved', () => {
 	// The library's own failure store (`saves`, not the queue): the key is
 	// `fav:<id>` or `rating:<id>`, read by the tile's own props. The band the
 	// layout draws offers PUT BACK and RETRY (doc/WAITING.md, "Writes that fail").
@@ -692,7 +692,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		return () => page.unroute(isAction);
 	}
 
-	test('FAV PUT BACK: the tile draws it dashed until the stored value comes back (c659)', async ({
+	test('FAV PUT BACK: the tile draws it dashed until the stored value comes back', async ({
 		page
 	}) => {
 		await page.goto('/?sort=title');
@@ -714,7 +714,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await done();
 	});
 
-	test('FAV RETRY: a retry that lands ends it, and the tile reads the stored value (c659)', async ({
+	test('FAV RETRY: a retry that lands ends it, and the tile reads the stored value', async ({
 		page
 	}) => {
 		await page.goto('/?sort=title');
@@ -738,7 +738,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 	});
 
-	test('a later tap: the one that lands ends it, and one that fails marks it again (c659)', async ({
+	test('a later tap: the one that lands ends it, and one that fails marks it again', async ({
 		page
 	}) => {
 		await page.goto('/?sort=title');
@@ -802,14 +802,14 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await page.unroute(isRate);
 	});
 
-	/** The band a tile's failure draws: one each, named for the tile (c739). */
+	/** The band a tile's failure draws: one each, named for the tile. */
 	const bandOf = (page: Page, title: string | null) =>
 		page.locator('[role="alert"]', { hasText: (title ?? '').toUpperCase() });
 
-	test('two failed taps: both tiles stay dashed, each with its own band and way back (c659, c739)', async ({
+	test('two failed taps: both tiles stay dashed, each with its own band and way back', async ({
 		page
 	}) => {
-		// The store holds a list now (c739): two lost taps are two bands, stacked,
+		// The store holds a list now: two lost taps are two bands, stacked,
 		// each with its own PUT BACK and RETRY.
 		await page.goto('/?sort=title');
 		const tiles = page
@@ -866,9 +866,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		);
 	});
 
-	test('FAV then a rating on one tile: each failure keeps its own way back (c659, c739)', async ({
-		page
-	}) => {
+	test('FAV then a rating on one tile: each failure keeps its own way back', async ({ page }) => {
 		await page.goto('/?sort=title');
 		const tile = page.locator('.grid .tile', { hasText: TITLE });
 		const fav = tile.getByRole('button', { name: 'Favourite' });
@@ -901,7 +899,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await noRate();
 	});
 
-	test('a tile read again after a trip away draws the stored value, not a mark (c659, round 2)', async ({
+	test('a tile read again after a trip away draws the stored value, not a mark', async ({
 		page
 	}) => {
 		// `saves` outlives the page and `favNow` does not: the failure is still
@@ -966,12 +964,12 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 			.then(async (r) => ((await r.json()) as { type?: string }).type === 'success');
 	}
 
-	test('a RETRY that lands while another tile has failed leaves that tile’s band up (c659, c739)', async ({
+	test('a RETRY that lands while another tile has failed leaves that tile’s band up', async ({
 		page
 	}) => {
 		// Wave 30's round-2 medium 1, in its own route order: A's tap lost, A's
 		// RETRY held, B's tap lost, A's RETRY let through. A retry clears only its
-		// own failure now (c739), so B keeps its band.
+		// own failure now, so B keeps its band.
 		await page.goto('/?sort=title');
 		const tiles = page
 			.locator('.grid .tile')
@@ -1038,7 +1036,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		);
 	});
 
-	test('a tile drawn again while its RETRY is out stays dashed, and is still dashed when it fails (c659, wave 32)', async ({
+	test('a tile drawn again while its RETRY is out stays dashed, and is still dashed when it fails', async ({
 		page
 	}) => {
 		// Wave 30's round-2 medium 2, in its own route order: A's tap lost, A's
@@ -1112,9 +1110,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		);
 	});
 
-	test('a series screen failure carried here keeps its band beside a tile’s (c659, c739)', async ({
-		page
-	}) => {
+	test('a series screen failure carried here keeps its band beside a tile’s', async ({ page }) => {
 		// Wave 30's round-2 low: a failure raised on the series screen was
 		// dropped as a tile's took the band. The store keeps both now.
 		await page.goto('/?sort=title');
@@ -1172,7 +1168,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		).toHaveAttribute('aria-pressed', 'false');
 	});
 
-	test('SELECT keeps the mark on the plain badge and bars the tile draws then (c738)', async ({
+	test('SELECT keeps the mark on the plain badge and bars the tile draws then', async ({
 		page
 	}) => {
 		await page.goto('/?sort=title');
@@ -1216,7 +1212,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await noRate();
 	});
 
-	test('a failed UNFAV keeps its mark in SELECT too, though no badge is drawn (c738)', async ({
+	test('a failed UNFAV keeps its mark in SELECT too, though no badge is drawn', async ({
 		page
 	}) => {
 		// The value a failed UNFAV leaves is the absence of a badge: a mark that
@@ -1256,7 +1252,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await expect(fav).toHaveAttribute('aria-pressed', 'false');
 	});
 
-	test('failures raised on the library survive a trip to a series screen, each with its way back (c739)', async ({
+	test('failures raised on the library survive a trip to a series screen, each with its way back', async ({
 		page
 	}) => {
 		// `displaced` used to die with the page: only the failure the band held
@@ -1306,7 +1302,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		{ how: 'through its hidden root', title: 'Onsen Ryokan no Yoru', ownFlag: false },
 		{ how: 'by its own flag', title: TITLE, ownFlag: true }
 	]) {
-		test(`a series hidden ${how} is not named on its band, before or after reveal ends (c739, round 2)`, async ({
+		test(`a series hidden ${how} is not named on its band, before or after reveal ends`, async ({
 			page
 		}) => {
 			const VISIBLE = 'Hoshi no Umi no Tabibito';
@@ -1409,7 +1405,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		});
 	}
 
-	test('a tile gone from the grid when its save fails is not named, and leaves no separator (c739, round 2)', async ({
+	test('a tile gone from the grid when its save fails is not named, and leaves no separator', async ({
 		page
 	}) => {
 		await page.goto('/?shelf=all&sort=title');
@@ -1442,7 +1438,7 @@ test.describe('a tile save that fails draws its value unsaved (c659)', () => {
 		await page.unroute(isFav);
 	});
 
-	test('the rating draws dashed as well, and PUT BACK ends it (c659)', async ({ page }) => {
+	test('the rating draws dashed as well, and PUT BACK ends it', async ({ page }) => {
 		await page.goto('/?sort=title');
 		const tile = page.locator('.grid .tile', { hasText: TITLE });
 		const bars = tile.getByRole('img');
@@ -1540,7 +1536,7 @@ const freePort = () =>
 
 const foldPort = await freePort();
 
-test.describe('FOLD is offered only over books with nothing beside them (c651)', () => {
+test.describe('FOLD is offered only over books with nothing beside them', () => {
 	const PLAIN_JA = 'Ame no Hi no Toshokan';
 	const PLAIN_EN = 'Hoshi no Umi no Tabibito';
 	const WITH_EXTRA = 'Onsen Ryokan no Yoru';
@@ -1652,7 +1648,7 @@ test.describe('FOLD is offered only over books with nothing beside them (c651)',
 
 const deepPort = await freePort();
 
-test.describe('a Work past the first page asks like one on it (c686)', () => {
+test.describe('a Work past the first page asks like one on it', () => {
 	const FIRST = 'Aaa First Run';
 	const DEEP = 'Zzz Deep Run';
 
@@ -1730,7 +1726,7 @@ test.describe('a Work past the first page asks like one on it (c686)', () => {
 
 const deletePort = await freePort();
 
-test.describe('the bulk DELETE says what it does to highlights (c731)', () => {
+test.describe('the bulk DELETE says what it does to highlights', () => {
 	const NONE = 'Sekai no Owari no Kissaten';
 	const TWO_AND_A_HIDDEN = 'Hoshi no Umi no Tabibito';
 	const ONE = 'Ame no Hi no Toshokan';
@@ -1911,9 +1907,7 @@ test.describe('the bulk DELETE says what it does to highlights (c731)', () => {
 	});
 });
 
-test('the app’s name goes home, and SERIES, once a shelf, is FILTER’s FORM (c436)', async ({
-	page
-}) => {
+test('the app’s name goes home, and SERIES, once a shelf, is FILTER’s FORM', async ({ page }) => {
 	await page.goto('/?shelf=all&kind=manga&sort=title');
 	// The shelves hold shelves only: no SERIES, ONE-OFF or kind among them.
 	const shelves = page.locator('nav[aria-label="Shelves"]').filter({ visible: true });
@@ -2097,7 +2091,7 @@ test('the app’s own ← buttons come back to the shelf, the order, the pages a
 }) => {
 	// Incognito, because the last series by title is Yofukashi no Uta, which
 	// privacy-flow owns, and READ AGAIN would log its Ch. 1 on the shared
-	// database (c499; "Each flow file owns its series", doc/TESTING.md). The
+	// database ("Each flow file owns its series", doc/TESTING.md). The
 	// case is about the way back, which incognito does not change.
 	await page.context().addCookies([
 		{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' },
@@ -2125,7 +2119,7 @@ test('the app’s own ← buttons come back to the shelf, the order, the pages a
 	await page.waitForLoadState('networkidle');
 	// Left at once, before the reader keeps its page in the URL (800 ms): the
 	// timer that used to write /read/<id>?p=1 onto the series' entry on the
-	// way back is the app's to stop (c565; reader-flow's c565 case pins it).
+	// way back is the app's to stop (reader-flow's c565 case pins it).
 	const vp = page.viewportSize()!;
 	await page.touchscreen.tap(vp.width / 2, 30);
 	await page.getByRole('link', { name: 'Back to the series' }).click();
@@ -2215,7 +2209,7 @@ test('SORT is a menu, and the toggle beside it turns the order round', async ({ 
  * nothing else on these pages does while no scan runs. Playwright's clock stands in for the 5 s wait in the
  * lifetime case, so a count, not a timing, says whether it asked.
  */
-test.describe('the empty library’s GET STARTED asks again (c722)', () => {
+test.describe('the empty library’s GET STARTED asks again', () => {
 	const dbPath = join(tmpdir(), `tsundoku-e2e-library-start-${process.pid}.sqlite`);
 	const library = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-library-start-'));
 	let server: ChildProcess | null = null;

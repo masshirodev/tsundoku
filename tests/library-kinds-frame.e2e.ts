@@ -10,7 +10,7 @@ import { expect, test } from './fixtures';
  * silently redraw the screen. That is what this is here to stop; it is not
  * pedantry.
  *
- * Source: doc/handoffs/kinds-band/Tablet.dc.html (the KIND band, c436)
+ * Source: doc/handoffs/kinds-band/Tablet.dc.html (the KIND band)
  * Extracted at 2026-11-05T01:50:40.018Z at 800x1280.
  *
  * Regenerating overwrites this file. Hand edits belong in a sibling spec.
@@ -18,7 +18,7 @@ import { expect, test } from './fixtures';
 
 const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
 
-// Kept by hand over the generator's output (c436): the KIND band as Board 3A
+// Kept by hand over the generator's output: the KIND band as Board 3A
 // draws it, tablet portrait, 800x1280, which is the `tablet-portrait`
 // project's own viewport. It runs in every device project (its name matches
 // no DEVICE_IGNORE line, which is e2e's), so it pins the viewport and skips

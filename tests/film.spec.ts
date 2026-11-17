@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { filmAction, filmCountLine, filmDownloadRow, kindRow } from '$lib/library/film';
 
 /**
- * A film's screen, the pure part (card c992), against the handoff's boards
+ * A film's screen, the pure part, against the handoff's boards
  * (doc/handoffs/movies-shows/Film-Desk.dc.html, Film-States.dc.html), in the
  * boards' words.
  */

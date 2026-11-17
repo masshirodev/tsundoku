@@ -10,7 +10,7 @@ test.describe.configure({ mode: 'serial' });
 // Three cases slow a screen's `__data.json` with page.route, and the service
 // worker answers every `__data.json` itself once it controls the page, past the
 // route (src/service-worker.ts; doc/TESTING.md, "Load"). Nothing here reads
-// offline; offline-flow owns that (c477).
+// offline; offline-flow owns that.
 test.use({ serviceWorkers: 'block' });
 
 /** Hold a screen's data for `ms` before letting it through. */
@@ -25,7 +25,7 @@ test('a slow shelf: the tab is pressed, then the line, then the grid in outline'
 	page
 }) => {
 	await page.goto('/?sort=title');
-	// The KIND band's MANGA (c436), which asks `?kind=manga`: the sidebar's
+	// The KIND band's MANGA, which asks `?kind=manga`: the sidebar's
 	// MANGA shelf, `?shelf=k:manga`, is gone, and a route on it matched nothing.
 	await slow(page, '**/__data.json?*kind=manga*', 2500);
 	const tab = page

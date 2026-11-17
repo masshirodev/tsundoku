@@ -12,12 +12,12 @@ import { expect, hydrated, test } from './helpers/hydrated';
 test.describe.configure({ mode: 'serial' });
 
 const PORT = process.env.PLAYWRIGHT_PORT ?? '4183';
-/** The paired cookie on this origin (c530): `vite preview` builds the URL from the Host. */
+/** The paired cookie on this origin: `vite preview` builds the URL from the Host. */
 const PAIRED = `tsundoku_paired_${PORT}`;
 /**
  * The host the e2e server's `ORIGIN` names (playwright.config.ts), as a
  * tailnet install's own public origin would: the door a paired TV's cookie
- * opens (c245).
+ * opens.
  */
 const TAILNET = `tsundoku.test:${PORT}`;
 
@@ -42,13 +42,13 @@ const BANDS = [
 	['wrong&left=4', 'NOT THAT CODE', '4 TRIES LEFT'],
 	['short', 'SIX DIGITS', 'TYPE ALL SIX'],
 	// With a live code on the server, as every `r=expired` and `r=used` the
-	// action sends now arrives: the load has made the computer a new one (c246).
+	// action sends now arrives: the load has made the computer a new one.
 	['expired', 'THAT CODE EXPIRED', 'THE NEW ONE IS ON THE COMPUTER'],
 	['used', 'THAT CODE IS USED', 'THE NEW ONE IS ON THE COMPUTER'],
 	['burned', 'NO TRIES LEFT', 'MAKE A NEW CODE ON THE COMPUTER']
 ] as const;
 
-test('a band pushes the column down instead of drawing over it (c246)', async ({ page }) => {
+test('a band pushes the column down instead of drawing over it', async ({ page }) => {
 	// The design's 9C: the section label at 108, the six cards at 148.
 	await page.goto('/pair/tv');
 	await expect(page.locator('.band')).toHaveCount(0);
@@ -129,7 +129,7 @@ test('five wrong tries burn the code, and a new one is made on the computer', as
 });
 
 /**
- * The owner's own instance (c245; doc/WIFI.md, doc/SIGN-IN.md): token mode,
+ * The owner's own instance (doc/WIFI.md, doc/SIGN-IN.md): token mode,
  * no WI-FI panel, so SETTINGS › 08 — DEVICES is where the six digits are seen.
  * The block is the pairing panel's own, without the phone's QR.
  */
@@ -152,7 +152,7 @@ test('with no WI-FI panel, DEVICES shows the TV’s six digits', async ({ page, 
 	await expect(panel.locator('.pnote')).toHaveText(
 		'TYPE THE WHOLE ADDRESS IN THE APP ON A TV, PHONE OR TABLET, THEN THESE SIX'
 	);
-	// And writes that whole address out (c521): the instance's public origin.
+	// And writes that whole address out: the instance's public origin.
 	await expect(panel.locator('.whole .wa')).toHaveText(/^https?:\/\/\S+$/);
 	// The page's data is the code: the computer's own route agrees with it.
 	expect((await tvCode(request)).code).toBe(shown);
@@ -167,7 +167,7 @@ test('with no WI-FI panel, DEVICES shows the TV’s six digits', async ({ page, 
 });
 
 /**
- * Token mode and `/pair/tv` (c245; doc/SIGN-IN.md): the six digits set the
+ * Token mode and `/pair/tv` (doc/SIGN-IN.md): the six digits set the
  * same cookie a phone's link does, and that cookie alone is a session on the
  * tailnet host the instance's public origin names -- and nowhere else.
  */
@@ -187,12 +187,12 @@ test('a paired cookie signs in on the tailnet host, and not at localhost', async
 	await tvPage.goto('/pair/tv');
 	// A context of its own is not the fixture's page, so its goto waits for
 	// nothing: six digits typed before hydration submit nothing, and the
-	// heading below never came under the loaded suite (c323, c439).
+	// heading below never came under the loaded suite.
 	await hydrated(tvPage);
 	await typeCode(tvPage, fresh.code!);
 	await expect(tvPage.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 	// 9E names the DEVICES row by what both installs have, not by WI-FI: on the
-	// tailnet that row says OVER TAILSCALE (c245).
+	// tailnet that row says OVER TAILSCALE.
 	await expect(tvPage.getByText('TV · WITH SIGN OUT')).toBeVisible();
 	const paired = (await tv.cookies()).find((c) => c.name === PAIRED);
 	expect(paired).toBeTruthy();

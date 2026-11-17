@@ -15,7 +15,7 @@ const scratch = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), 'tsundoku-renam
 process.env.COVER_DIR = join(scratch, 'covers');
 
 /**
- * RENAME sticks (c526; doc/SERIES.md, "RENAME"). `series.title` is written at
+ * RENAME sticks (doc/SERIES.md, "RENAME"). `series.title` is written at
  * the series' INSERT and, by `rg`, at one more place: `carryEdit`
  * (src/lib/server/import/fold.ts), which carries an owner's name *onto* the
  * survivor of a fold. So a rename needs no column of its own if every door
@@ -57,13 +57,13 @@ const row = (id: number) =>
 		`SELECT title, alt_titles, hue, origin_key FROM series WHERE id = ?`,
 		id
 	);
-/** A title with a number in it, which a source's chapter names repeat (c555). */
+/** A title with a number in it, which a source's chapter names repeat. */
 const SQUAD = 'Squad 100';
-/** Another source's series, called what Drawing is called now (c555). */
+/** Another source's series, called what Drawing is called now. */
 const TWIN_KEY = `mihon:${ASURA}:/series/TW/Twin`;
 /** A key of no source in the library, of the manga family: what browse asks `sameTitle` with. */
 const ELSEWHERE = 'mihon:999:/series/elsewhere';
-/** What the readers of a title answered before the rename (c555). */
+/** What the readers of a title answered before the rename. */
 let before: { search: { id: number; why: string }[]; sameTitle: string | undefined };
 const found = (q: string) => search(q, false).titles.map((t) => ({ id: t.id, why: t.why }));
 const titled = (title: string) =>
@@ -300,7 +300,7 @@ describe('UNDO', () => {
 	});
 });
 
-describe('a renamed series is still found by the name it had (c555)', () => {
+describe('a renamed series is still found by the name it had', () => {
 	it('the library’s search finds it by its old name, and says that is why', () => {
 		// Before: found by its title. After: the same series, by the old name.
 		expect(before.search).toEqual([{ id: drawing, why: 'TITLE' }]);

@@ -33,7 +33,7 @@ test('a filter narrows the shelf: the URL, the label, the tab’s count and the 
 }) => {
 	await page.goto('/?shelf=all&sort=title');
 	const tab = page.locator('nav[aria-label="Shelves"] .tab.on').filter({ visible: true });
-	// A kind from the KIND band (c436): the active tab says what it narrows, and
+	// A kind from the KIND band: the active tab says what it narrows, and
 	// the label names it, but FILTER's badge leaves it to the band.
 	const band = page.getByRole('group', { name: 'Kind' });
 	await band.getByRole('link', { name: /^MANGA/ }).click();
@@ -50,7 +50,7 @@ test('a filter narrows the shelf: the URL, the label, the tab’s count and the 
 	// flows beside this one hide, delete and group series meanwhile
 	// (library-flow, series-flow, delete-flow, volumes-flow), so the total read
 	// at the first load was another library's by the filtered one. Red in both
-	// of wave 22's gates, passing alone (c439).
+	// of wave 22's gates, passing alone.
 	// M is only bounded from below: the render states no total of ALL's to
 	// compare it with, and a total read on another load is another library's.
 	const shown = await page.locator('.grid .tile').count();

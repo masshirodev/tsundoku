@@ -41,8 +41,8 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 
 /**
- * tsundoku on an Android TV (c236; doc/ANDROID.md), and since c521 on a phone
- * or tablet too (doc/ANDROID.md): one activity for both, the differences in
+ * tsundoku on an Android TV (doc/TV-APP.md), and since c521 on a phone
+ * or tablet too (doc/PHONE-APP.md): one activity for both, the differences in
  * [Form]. A WebView that holds the same web app a phone or a computer opens,
  * and the things the page cannot do over plain http: a launcher presence, the
  * remote's keys (a TV's), the screen kept awake, and a way to be paired with
@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/**
 	 * The app's own page, served at [BridgeGuard.ASSET] instead of
-	 * `file:///android_asset/` (c549): an https origin is one a message
+	 * `file:///android_asset/`: an https origin is one a message
 	 * listener's origin rule can name, and one this host's every request is
 	 * answered from (the client below), so a network answer at it is never
 	 * trusted. `/pair/index.html` is `assets/pair/index.html`.
@@ -92,7 +92,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	/**
-	 * The pair page's capability for this activity's life (c549, round 4): a
+	 * The pair page's capability for this activity's life: a
 	 * random `?t=…` that [loadAsset] writes into the URL and
 	 * [BridgeGuard.refusesAssetRequest] requires before the loader answers it.
 	 * A page can write the asset URL but cannot know this token, so a link, a
@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	 */
 	private val assetToken = java.util.UUID.randomUUID().toString()
 
-	/** Which app this build is (c521): every TV-or-phone difference asks it. */
+	/** Which app this build is: every TV-or-phone difference asks it. */
 	private val form = Form.of(BuildConfig.FORM)
 
 	/** A page asked to be drawn under the camera (the bridge's `edge`); each new document starts padded. */
@@ -112,13 +112,13 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/** What the page was last told of the edges, so a page that loads later is told too. */
 	private var told = Insets.Sides()
 
-	/** The app updating itself (c614); the page draws it through the bridge. */
+	/** The app updating itself; the page draws it through the bridge. */
 	private lateinit var updates: Updater
 
-	/** Which launch owns the WebView: a later door wins over an earlier answer (c306). */
+	/** Which launch owns the WebView: a later door wins over an earlier answer. */
 	private val attempts = Attempts()
 
-	/** The press that would leave only says so; the next one leaves (LeaveWindow.kt, c859). */
+	/** The press that would leave only says so; the next one leaves (LeaveWindow.kt). */
 	private val leave = LeaveWindow()
 
 	/** PRESS BACK AGAIN TO LEAVE, while the window it speaks for is open. */
@@ -199,13 +199,13 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		webView.webChromeClient = chrome()
 		onBackPressedDispatcher.addCallback(this, back)
 
-		// The last used server (c261): a TV paired before the list existed
+		// The last used server: a TV paired before the list existed
 		// has its one address migrated into a list of one here (Servers.all).
 		val remembered = servers.lastUsed()?.origin.orEmpty()
 		serversChanged()
 		// A given address belongs to this launch. Android recreating the
 		// activity would otherwise hand it to a TV that already paired and
-		// send it back to pairing (c260).
+		// send it back to pairing.
 		val given = if (savedInstanceState == null) givenAddress(intent) else null
 		if (given != null) {
 			takeGiven(given)
@@ -215,9 +215,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		} else {
 			// On launch the last used server that answers opens its library;
 			// one that doesn't shows 9D for it, with the others under it (S9),
-			// never silently another (c261). A launch handed an
+			// never silently another. A launch handed an
 			// address while this probe is out owns the screen, so a late answer
-			// is dropped rather than replacing its 9B (c306).
+			// is dropped rather than replacing its 9B.
 			val mine = attempts.begin()
 			io.execute {
 				val ok = Probe.check(remembered)
@@ -229,7 +229,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/**
 	 * A singleTask app started again gets the new intent here, not in
 	 * `onCreate`: a second `am start` on a running TV must reach the same
-	 * door, or the address only works while the app is closed (c260).
+	 * door, or the address only works while the app is closed.
 	 */
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
@@ -288,7 +288,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/**
 	 * The one place every key is seen before the WebView can have it, and so
-	 * the door "any other key ends the window" uses (c859). BACK's own events
+	 * the door "any other key ends the window" uses. BACK's own events
 	 * pass through here too, which is the only way to see it repeat; that is
 	 * why the manifest turns the back-invoked path off, which at targetSdk 36
 	 * on Android 16 would otherwise take BACK before it reaches this method.
@@ -304,7 +304,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	/**
-	 * The page in the WebView, for the bridge's guard (c529, BridgeGuard). A
+	 * The page in the WebView, for the bridge's guard (BridgeGuard). A
 	 * bridge call arrives on the JavaBridge thread, and `WebView.url` must be
 	 * read on the UI thread, so the read is posted there and waited for; one
 	 * that does not come back in 2 s is no page at all, and the call is refused.
@@ -432,7 +432,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		// The player starts without an OK press: a TV has no "tap to play".
 		s.mediaPlaybackRequiresUserGesture = false
 		s.cacheMode = WebSettings.LOAD_DEFAULT
-		// The app's own page is served by WebViewAssetLoader now (c549), so no
+		// The app's own page is served by WebViewAssetLoader now, so no
 		// file:// URL needs reaching; a page that loads one is a page this app
 		// does not have.
 		s.allowFileAccess = false
@@ -447,7 +447,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private fun client() =
 		object : WebViewClient() {
 			/**
-			 * The app's own page is served here, never by the network (c549):
+			 * The app's own page is served here, never by the network:
 			 * [BridgeGuard.ASSET_HOST]'s every request goes through the loader,
 			 * and a path it does not hold is 404 rather than a request that
 			 * could reach a real host. Only the main frame's GET of this
@@ -473,7 +473,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			}
 
 			/**
-			 * Nothing navigates into the app's own page (c549, round 2). Since
+			 * Nothing navigates into the app's own page. Since
 			 * the page moved to [BridgeGuard.ASSET] it is an ordinary https URL,
 			 * so a server's page — or an external link followed from one — could
 			 * set `location` to it with `#connect=` and have the pair page add
@@ -522,7 +522,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			}
 
 			/**
-			 * A page change ends the leave window (c859). This is the door that
+			 * A page change ends the leave window. This is the door that
 			 * sees SvelteKit's client navigations, which never reach
 			 * `onPageStarted` or `onPageFinished`; it fires for a load too.
 			 */
@@ -539,7 +539,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			}
 
 			/**
-			 * A server's own page has loaded (c261). Its library makes it the
+			 * A server's own page has loaded. Its library makes it the
 			 * one in use, which is what launch opens next; its 9E says its name,
 			 * and after an add, the app's own 9E (S8) takes over from it.
 			 */
@@ -556,7 +556,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				// c521 never focuses it on a phone, and its 1 px field can't be
 				// tapped, so without this no digit could be typed there at all.
 				if (form.raisesKeyboard && uri.path == "/pair/tv") view.evaluateJavascript(CODE_FOCUS_JS, null)
-				// The app's own page (c549) is no server's: it is neither a
+				// The app's own page is no server's: it is neither a
 				// visit nor a 9E, and its URL is not an origin.
 				if (!isServerPage(uri)) return
 				val origin = originOf(uri)
@@ -655,7 +655,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/**
 	 * The page took nothing: back to the screen before (Back.kt says which), or
-	 * toward the way out, which takes a second press (c859). Every door out
+	 * toward the way out, which takes a second press. Every door out
 	 * is here, the library as home and "no earlier screen" alike.
 	 *
 	 * `at` is when the key was pressed, read before the page was asked.
@@ -719,7 +719,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/**
 	 * The list changed: the launcher's shortcuts follow it, one per server,
-	 * each the `tsundoku://connect?url=` link c260's filter takes (c287). A
+	 * each the `tsundoku://connect?url=` link c260's filter takes. A
 	 * launcher that shows no app shortcuts (an Android TV home screen may not)
 	 * simply never draws them; nothing else depends on it.
 	 */
@@ -744,7 +744,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	private fun loadAsset(hash: String = "") {
-		// The token is this activity's own (c549, round 4): the client serves
+		// The token is this activity's own: the client serves
 		// the host only to a URL carrying it, so a page cannot reach the pair
 		// page even where the WebView calls no navigation callback.
 		webView.loadUrl(BridgeGuard.ASSET + "?t=" + assetToken + hash)
@@ -770,7 +770,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/**
 	 * The one place a given address is judged, whichever door it came through
-	 * (c260, c683). [Given.door] says which of the page's doors it takes: one
+	 *. [Given.door] says which of the page's doors it takes: one
 	 * already in the list is checked and opened, one that is not is asked
 	 * about and waits for CONNECT, and a refused one shows 9B's band. None of
 	 * the three stores anything by itself.
@@ -785,7 +785,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/**
 	 * The origin of a URL WebView reports. Chromium already lower-cases the
 	 * scheme and the host; this does too, so it can never disagree with
-	 * Address.originOf, which every stored origin goes through (c548).
+	 * Address.originOf, which every stored origin goes through.
 	 */
 	private fun originOf(url: Uri): String {
 		val scheme = url.scheme?.lowercase()
@@ -800,12 +800,12 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private fun isServerPage(url: Uri): Boolean {
 		val scheme = url.scheme?.lowercase()
 		if (scheme != "http" && scheme != "https") return false
-		// The same reading of the host every refusal of it uses (c684), so a
+		// The same reading of the host every refusal of it uses, so a
 		// spelling the guards take for the app's host is never a server's.
 		return !BridgeGuard.isAssetHost(url.toString())
 	}
 
-	/** Any path the app's own host does not serve: 404, never a network request (c549). */
+	/** Any path the app's own host does not serve: 404, never a network request. */
 	private fun notFound() =
 		WebResourceResponse(
 			"text/plain",
@@ -824,10 +824,10 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	companion object {
-		/** `adb logcat -s TsundokuBack`: why BACK reached the way out (c859). */
+		/** `adb logcat -s TsundokuBack`: why BACK reached the way out. */
 		private const val BACK_LOG = "TsundokuBack"
 
-		/** The launch extra, and the deep link's query parameter (c260). */
+		/** The launch extra, and the deep link's query parameter. */
 		private const val EXTRA_URL = "url"
 
 		/**

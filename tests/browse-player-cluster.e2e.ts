@@ -165,7 +165,7 @@ async function clusterOver(page: Page, frame: string) {
 
 /**
  * The cluster's ground lets the frame through, and every glyph keeps AA
- * against it over the brightest frame and the darkest (c429).
+ * against it over the brightest frame and the darkest.
  */
 async function clusterIsTranslucentAndLegible(page: Page) {
 	// The server's 4 s notice may still be up as playback starts.
@@ -194,13 +194,13 @@ test.describe('on a desktop', () => {
 		serviceWorkers: 'block'
 	});
 
-	test('a click between the time and the seek bar does not seek (c315)', async ({ page }) => {
+	test('a click between the time and the seek bar does not seek', async ({ page }) => {
 		test.setTimeout(60_000);
 		await openEpisode(page);
 		await stripIsInert(page, '.scrubrow', (x, y) => page.mouse.click(x, y));
 	});
 
-	test('the −1m / −10 / pause / +10 / +1m cluster lets the picture through and keeps AA (c429)', async ({
+	test('the −1m / −10 / pause / +10 / +1m cluster lets the picture through and keeps AA', async ({
 		page
 	}) => {
 		test.setTimeout(60_000);
@@ -222,13 +222,13 @@ test.describe('on a touch tablet', () => {
 		serviceWorkers: 'block'
 	});
 
-	test('a tap between the time and the seek bar does not seek (c315)', async ({ page }) => {
+	test('a tap between the time and the seek bar does not seek', async ({ page }) => {
 		test.setTimeout(60_000);
 		await openEpisode(page);
 		await stripIsInert(page, '.scrubrow', (x, y) => page.touchscreen.tap(x, y));
 	});
 
-	test('the −1m / −10 / pause / +10 / +1m cluster lets the picture through and keeps AA (c429)', async ({
+	test('the −1m / −10 / pause / +10 / +1m cluster lets the picture through and keeps AA', async ({
 		page
 	}) => {
 		test.setTimeout(60_000);
@@ -245,7 +245,7 @@ test.describe('on a phone, in portrait', () => {
 		serviceWorkers: 'block'
 	});
 
-	test('a tap between the time and the scrubber under the picture does not seek (c315)', async ({
+	test('a tap between the time and the scrubber under the picture does not seek', async ({
 		page
 	}) => {
 		test.setTimeout(60_000);

@@ -9,7 +9,7 @@ import { E2E_TOKEN } from '../playwright.config';
 
 /**
  * What an import brought, on the screens that say so, with hidden series in
- * it (c633; doc/IMPORT-BACKUP.md, "The log"): closed by default, counted with reveal
+ * it (doc/IMPORT.md, "The log"): closed by default, counted with reveal
  * off, named only with reveal on, absent when nothing is hidden. On a
  * database and a preview of this file's own, because hidden rows and import
  * rows on the shared one would show up in every other file's log, and the

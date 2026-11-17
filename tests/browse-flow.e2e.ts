@@ -4,7 +4,7 @@ import { behindACheck, engineCalls, engineDown, resetEngine, SOURCES } from './b
 import { revealOn } from './helpers/reveal';
 
 /**
- * Browsing a source (Index-Browse; doc/BROWSE.md; card c141), end to end,
+ * Browsing a source (Index-Browse, doc/BROWSE.md), end to end,
  * against the fake engine tests/browse-setup.ts starts. Nothing here can
  * reach a real site. The fake keeps what it's asked, so the filters the
  * panel sends are checked as the engine receives them.
@@ -24,7 +24,7 @@ test('a source’s POPULAR shelf says what’s already yours, and names no hidde
 	await expect(page.locator('nav[aria-label="Lists"]')).toContainText('LATEST');
 	const linden = page.locator('.tile', { hasText: 'Lindenborough Heir' });
 	await expect(linden.locator('.badge')).toHaveText('IN LIBRARY');
-	// Its series, which keeps this page as where ← goes (c262).
+	// Its series, which keeps this page as where ← goes.
 	await expect(linden).toHaveAttribute('href', /^\/series\/\d+\?from=%2Fbrowse%2F100/);
 	// A twin of a series from Toonily, which is mostly hidden: SAME TITLE, but not "FROM TOONILY".
 	const twin = page.locator('.tile', { hasText: 'Toonily One' });
@@ -35,7 +35,7 @@ test('a source’s POPULAR shelf says what’s already yours, and names no hidde
 	await expect(other).toHaveAttribute('href', /^\/downloads\/source\/100~.+\?from=%2Fbrowse%2F100/);
 });
 
-test('LATEST keeps the origin a tag opened the source from, and ← still returns to it (c453)', async ({
+test('LATEST keeps the origin a tag opened the source from, and ← still returns to it', async ({
 	page
 }) => {
 	// The address a tag on a preview builds (tag-search.ts, `tagSearchHref`); this
@@ -221,7 +221,7 @@ test('on the phone, / opens the search in the title’s place, and the grid is t
  * The browse world runs once, in the `browse` project (Galaxy Tab S4 at
  * 800 × 1280), so the describe takes the Pixel 7 and skips itself elsewhere.
  */
-test.describe('on a phone, the back from a browsed entry (c654)', () => {
+test.describe('on a phone, the back from a browsed entry', () => {
 	// A Pixel 7's own viewport, touch and mobile flag. `defaultBrowserType` is
 	// left out: a describe may not set it (Playwright would need a new worker).
 	const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = devices['Pixel 7'];
@@ -302,7 +302,7 @@ test.describe('on a desktop', () => {
 		// BROWSE sits under HISTORY, whatever else the foot holds: GET STARTED
 		// sits above it until onboarding is done (doc/ONBOARDING.md), so
 		// asserting "the first link is HISTORY" passed only after some earlier
-		// spec had finished the trail (c273).
+		// spec had finished the trail.
 		const browse = page.locator('.side-foot a', { hasText: 'BROWSE' });
 		await expect(browse).toBeVisible();
 		await expect(browse.locator('xpath=preceding-sibling::a[1]')).toHaveText('HISTORY');
@@ -340,7 +340,7 @@ test('a source’s settings: each type saves, and the source’s page asks again
 	// A box is ticked by the browser at once, and saved after: the row is
 	// marked saved when the page has the action's answer. Read only the tick
 	// and the test went on while the save was in flight, so the source's page
-	// sometimes asked before it landed (c249).
+	// sometimes asked before it landed.
 	await row('Content rating').locator('label', { hasText: 'SUGGESTIVE' }).click();
 	await expect(row('Content rating').locator('input[value="suggestive"]')).toBeChecked();
 	await expect(row('Content rating')).toHaveClass(/\bsaved\b/);

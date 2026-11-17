@@ -42,7 +42,7 @@ const band = await import('../src/routes/browse/extensions/select.server');
 const { revealValue } = await import('$lib/server/prefs');
 
 /**
- * EXTENSIONS' SELECT (card c696): setting one of tsundoku's switches on every
+ * EXTENSIONS' SELECT: setting one of tsundoku's switches on every
  * source of the ticked extensions, in one transaction, with the facts UNDO
  * needs. The press's rule is the owner's decision of 2026-11-08: a row is a
  * package, the switch is per source id, so a press changes every source of the
@@ -151,7 +151,7 @@ async function act(
 	}
 }
 
-describe('one switch on many sources (card c696)', () => {
+describe('one switch on many sources', () => {
 	it('sets them all in one press and answers what each was before it', () => {
 		const facts = flags.setSourceFlags(IDS, 'offHistory', true);
 		expect(facts).toEqual([
@@ -238,7 +238,7 @@ describe('one switch on many sources (card c696)', () => {
 	});
 });
 
-describe('SELECT’s press (card c696)', () => {
+describe('SELECT’s press', () => {
 	it('changes every source of the extension, including a language BROWSE does not list', async () => {
 		const r = await act('flags', { pkg: 'en.multi', flag: 'offHistory', value: 'true' });
 		expect(r.status).toBe(303);
@@ -333,7 +333,7 @@ describe('SELECT’s press (card c696)', () => {
 	});
 });
 
-describe('SELECT’s UPDATE and REMOVE (card c696)', () => {
+describe('SELECT’s UPDATE and REMOVE', () => {
 	it('refuses UPDATE when nothing ticked has one', async () => {
 		const r = await act('updateSome', { pkg: ['en.multi', 'en.none'] });
 		expect(r.status).toBe(409);
@@ -376,7 +376,7 @@ describe('SELECT’s UPDATE and REMOVE (card c696)', () => {
 			pkg: string;
 		}[];
 		expect(installed.map((x) => x.pkg)).toEqual(['en.none']);
-		// Its settings outlive it, as REMOVE's sheet says (c569): the switch this
+		// Its settings outlive it, as REMOVE's sheet says: the switch this
 		// file's beforeEach set on source 500 is still there.
 		expect(
 			db.prepare(`SELECT COUNT(*) AS n FROM settings WHERE key LIKE 'source.%:500'`).get()
@@ -420,7 +420,7 @@ const listAt = (pkg: string, versionCode: number) =>
  * Every case here takes at least two rows through the action and then the real
  * load, which is what a user meets after the 303.
  */
-describe('a band keeps every row of its lists (card c696, round 2)', () => {
+describe('a band keeps every row of its lists', () => {
 	it('REMOVE reports two removed and two that stayed, through the real load', async () => {
 		for (const [pkg, id] of [
 			['x.listed1', '611'],
@@ -566,7 +566,7 @@ describe('a band keeps every row of its lists (card c696, round 2)', () => {
  * every installed package, hidden ones included, and count hidden sources on
  * every load; SvelteKit serialises that into the HTML and `__data.json`.
  */
-describe('packageFlags names only what the viewer is drawn (card c696, round 2)', () => {
+describe('packageFlags names only what the viewer is drawn', () => {
 	it('sends no hidden package id and no hidden count outside reveal, and both inside it', async () => {
 		extension('x.secret', [{ id: '701', lang: 'en' }]);
 		plugin('secretplugin');
@@ -606,7 +606,7 @@ describe('packageFlags names only what the viewer is drawn (card c696, round 2)'
  * once encoded (`|` and `,`), so 600 sources are already past Node's 16 KB
  * request head; the redirect's GET would answer 431 after the press was done.
  */
-describe('a press too large for its URL is refused before it writes (card c696, round 2)', () => {
+describe('a press too large for its URL is refused before it writes', () => {
 	const idsFrom = (n: number, start: bigint) =>
 		Array.from({ length: n }, (_, i) => String(start + BigInt(i)));
 
@@ -650,7 +650,7 @@ describe('a press too large for its URL is refused before it writes (card c696, 
  * count. UPDATE ALL answers `fail(502, '... did not update')`; so does this,
  * and a refused signature is not reported as a repository that did not answer.
  */
-describe('a bulk UPDATE where nothing took is not UPDATED (card c696, round 2)', () => {
+describe('a bulk UPDATE where nothing took is not UPDATED', () => {
 	const prep = () => {
 		for (const [pkg, id] of [
 			['x.upok', '801'],
@@ -710,7 +710,7 @@ describe('a bulk UPDATE where nothing took is not UPDATED (card c696, round 2)',
 });
 
 /** Round 2's lows: the bulk doors are as guarded as the single one. */
-describe('a hidden source outside reveal (card c696, round 2)', () => {
+describe('a hidden source outside reveal', () => {
 	it('cannot be changed by a hand-made bulk post, and UNDO names no source it may not see', async () => {
 		extension('x.hid', [{ id: '631', lang: 'en' }]);
 		flags.setSourceFlag('631', 'hidden', true);
@@ -758,7 +758,7 @@ describe('a hidden source outside reveal (card c696, round 2)', () => {
  * redirect's GET answered 431 with no band and no UNDO. These cases use the
  * packages' own names at about 52 bytes each, as an extension's name is.
  */
-describe('the whole redirect is budgeted, for every press (card c696, wave 43)', () => {
+describe('the whole redirect is budgeted, for every press', () => {
 	const real = (i: number) =>
 		`eu.kanade.tachiyomi.extension.en.source${String(i).padStart(4, '0')}`;
 	/** [n] installed single-source extensions, from [start] on, in the test's own id range. */
@@ -838,7 +838,7 @@ describe('the whole redirect is budgeted, for every press (card c696, wave 43)',
  * row's new version (`ver=…`, one per `done`, in order) and UNDO refuses whole
  * when any row's version is not the one the press installed.
  */
-describe('UPDATE’s UNDO checks the version the press installed (card c696, wave 43)', () => {
+describe('UPDATE’s UNDO checks the version the press installed', () => {
 	const until = Date.now() + 86_400_000;
 	/** [pkg] as a row a bulk UPDATE has just left on 1.9, its 0.9 still kept. */
 	const updated = (pkg: string, handle: string, id: string) => {
@@ -917,7 +917,7 @@ describe('UPDATE’s UNDO checks the version the press installed (card c696, wav
  * the round-2 fix otherwise keeps from the client; the source is not changed by
  * the press, so it leaves the facts and UNDO does not touch it.
  */
-describe('a HIDE press leaves already-hidden sources out of its facts (c696)', () => {
+describe('a HIDE press leaves already-hidden sources out of its facts', () => {
 	it('carries only the sources it changes outside reveal, and every one inside', async () => {
 		extension('x.hide2', [
 			{ id: '671', lang: 'en' },
@@ -961,7 +961,7 @@ describe('a HIDE press leaves already-hidden sources out of its facts (c696)', (
  * budget. The versions here are what the mocked install leaves (1.0); the
  * bound must cost `done` and `ver` together.
  */
-describe('UPDATE’s redirect counts the version it carries (card c696, wave 43)', () => {
+describe('UPDATE’s redirect counts the version it carries', () => {
 	const real = (i: number) =>
 		`eu.kanade.tachiyomi.extension.en.source${String(i).padStart(4, '0')}`;
 	const many = (n: number, start: number) =>
@@ -1000,7 +1000,7 @@ describe('UPDATE’s redirect counts the version it carries (card c696, wave 43)
  * the band and write nothing; a refusal answers with the ticks it read, so the
  * fresh page a no-script press lands on comes back still selecting them.
  */
-describe('an empty press, and the ticks a refusal answers with (card c696, wave 43 round 2)', () => {
+describe('an empty press, and the ticks a refusal answers with', () => {
 	it('?/flags refuses an empty press with the band and writes nothing', async () => {
 		const r = await act('flags', { flag: 'neverTracked', value: 'true' });
 		expect(r.status).toBe(409);

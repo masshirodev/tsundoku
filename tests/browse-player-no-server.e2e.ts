@@ -5,7 +5,7 @@ import { expect, test } from './fixtures';
 import { ANIME_SOURCE, noVideo, resetEngine } from './browse-world';
 
 /**
- * NO SERVER on a browsing record (c999; doc/MOVE.md): an episode played from a
+ * NO SERVER on a browsing record (doc/MOVE.md): an episode played from a
  * preview whose source sends no video offers + ADD, never ANOTHER SOURCE →,
  * which linked to MOVE, and MOVE never opens on a series that isn't in the
  * library (the owner's 404, 2026-11-12). The library series' case keeps the

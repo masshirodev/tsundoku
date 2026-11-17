@@ -12,7 +12,7 @@ process.env.LIBRARY_ROOT = library;
 process.env.COVER_DIR = join(work, 'covers');
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
-// The novel downloader (doc/NOVELS.md, "Downloading"; card c150), on a fake
+// The novel downloader (doc/NOVELS.md, "Downloading"), on a fake
 // host whose answers are LNReader's shapes: chapters off the shared queue,
 // into the novel's EPUB in tsundoku's device folder, which the scan imports
 // onto the series ADD made.
@@ -23,7 +23,7 @@ let extra: { name: string; path: string }[] = [];
 let novelFails = false;
 const fakeHost = {
 	info: async () => ({ id: 'good', name: 'Good Novels', site: 'https://good.example/' }),
-	// The chapter and the page its request ended at (c631). A Node fetch's
+	// The chapter and the page its request ended at. A Node fetch's
 	// `Response.url` and page mode's last hop are both `url` here, as the host
 	// hands them over: `/c/moved` ended on another path, the rest ended where
 	// they were asked, and a chapter a plugin reads elsewhere answers null.
@@ -149,7 +149,7 @@ beforeAll(async () => {
 	);
 });
 
-describe('a chapter read online (c167)', () => {
+describe('a chapter read online', () => {
 	it('is a book of one chapter from its plugin, where a download would put it, and nothing is written', async () => {
 		const online = await import('$lib/server/novels/online');
 		const { readEpubFile, epubMember } = await import('$lib/server/epub');
@@ -243,7 +243,7 @@ describe('downloading a novel', () => {
 		expect(planEntries(book.toc, book.pkg!.spine).map((e) => e.locator)).toEqual(locators);
 	});
 
-	// The scan stays the cross-check (c170): it reads the same book and agrees.
+	// The scan stays the cross-check: it reads the same book and agrees.
 	it('is left exactly as it was by the scan that follows', async () => {
 		const before = snapshot(seriesId);
 		await runImport(library, { now: (now += 1000) });
@@ -377,7 +377,7 @@ describe('following a novel', () => {
 		expect(await followNovels(now + 14 * HOUR, db)).toEqual({ series: 0, queued: 0 });
 	});
 
-	it('is refreshed without following: a new chapter becomes an entry, and nothing is queued (c220)', async () => {
+	it('is refreshed without following: a new chapter becomes an entry, and nothing is queued', async () => {
 		db.exec(`DELETE FROM download_queue`);
 		extra.push({ name: 'Chapter 8', path: '/c/8' });
 		const { refreshSeries } = await import('$lib/server/refresh');
@@ -400,7 +400,7 @@ function snapshot(id: number) {
 	};
 }
 
-describe('a chapter’s pictures resolve against the page it came from (c631)', () => {
+describe('a chapter’s pictures resolve against the page it came from', () => {
 	// A chapter URL that redirects is placed where the site served the page, not
 	// where the plugin's path says. The host answers that page's address, the
 	// same value a Node fetch's `Response.url` and page mode's last hop give it;

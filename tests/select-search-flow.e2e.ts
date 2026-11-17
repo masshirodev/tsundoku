@@ -144,7 +144,7 @@ async function typeQuery(page: Page, text: string) {
 	await page.waitForURL(new RegExp(`q=${encodeURIComponent(text)}`));
 }
 
-test("the owner's case: search Haibara, SELECT, tick the novels, ←, and GROUP lists them all (c698)", async ({
+test("the owner's case: search Haibara, SELECT, tick the novels, ←, and GROUP lists them all", async ({
 	page
 }) => {
 	await page.goto(`${base}/?sort=title`);
@@ -178,7 +178,7 @@ test("the owner's case: search Haibara, SELECT, tick the novels, ←, and GROUP 
 	await expect(group.locator('.rows .row .t')).toHaveText(NOVELS);
 });
 
-test('from the selecting bar: / keeps the ticks, CLEAR keeps them and the focus, SHOW is the same sheet, and ← brings them back to the shelf (c698)', async ({
+test('from the selecting bar: / keeps the ticks, CLEAR keeps them and the focus, SHOW is the same sheet, and ← brings them back to the shelf', async ({
 	page
 }) => {
 	await libraryStart(page, '/?sort=title&kind=manga');
@@ -232,7 +232,7 @@ test('from the selecting bar: / keeps the ticks, CLEAR keeps them and the focus,
 	await expect(count(page)).toHaveText('2 SELECTED');
 });
 
-test("Android's back and the browser's forward carry it both ways; a reload and a new tab do not (c698)", async ({
+test("Android's back and the browser's forward carry it both ways; a reload and a new tab do not", async ({
 	page,
 	context
 }) => {
@@ -271,7 +271,7 @@ test("Android's back and the browser's forward carry it both ways; a reload and 
 	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
 });
 
-test('a Work’s row ticks every part, says 1 OF 2 TICKED until it has them all, and a chip opens the library still selecting (c698)', async ({
+test('a Work’s row ticks every part, says 1 OF 2 TICKED until it has them all, and a chip opens the library still selecting', async ({
 	page
 }) => {
 	await page.goto(`${base}/search?q=zelkova`);
@@ -295,7 +295,7 @@ test('a Work’s row ticks every part, says 1 OF 2 TICKED until it has them all,
 	await expect(count(page)).toHaveText('2 SELECTED');
 });
 
-test('a chip, selecting, ends in → and opens the library at its tag with SELECT on, where SELECT ALL takes them (c698)', async ({
+test('a chip, selecting, ends in → and opens the library at its tag with SELECT on, where SELECT ALL takes them', async ({
 	page
 }) => {
 	await page.goto(`${base}/search?q=haibara`);
@@ -319,7 +319,7 @@ test('a chip, selecting, ends in → and opens the library at its tag with SELEC
 	await page.getByRole('button', { name: 'Stop selecting' }).click();
 });
 
-test('✕ ends SELECT on the search: plain hits, and a tap opens the sheet again (c698)', async ({
+test('✕ ends SELECT on the search: plain hits, and a tap opens the sheet again', async ({
 	page
 }) => {
 	await libraryStart(page);
@@ -337,7 +337,7 @@ test('✕ ends SELECT on the search: plain hits, and a tap opens the sheet again
 	await expect(count(page)).toHaveCount(0);
 });
 
-test('leaving for another screen ends it; Enter on a query does not, and /lock answers on its row as it does today (c698)', async ({
+test('leaving for another screen ends it; Enter on a query does not, and /lock answers on its row as it does today', async ({
 	page
 }) => {
 	await libraryStart(page);
@@ -368,7 +368,7 @@ test('leaving for another screen ends it; Enter on a query does not, and /lock a
 	await expect(page.getByRole('checkbox')).toHaveCount(0);
 });
 
-test('/reveal while selecting does what it does today: the library, revealed, not selecting (c698)', async ({
+test('/reveal while selecting does what it does today: the library, revealed, not selecting', async ({
 	page
 }) => {
 	await libraryStart(page);
@@ -386,7 +386,7 @@ test('/reveal while selecting does what it does today: the library, revealed, no
 	await page.waitForURL(new RegExp(`^${escape(base)}/$`));
 });
 
-test('a bulk action’s success ends it, after a trip to the search too (c698)', async ({ page }) => {
+test('a bulk action’s success ends it, after a trip to the search too', async ({ page }) => {
 	await page.goto(`${base}/search?q=haibara`);
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	for (const t of NOVELS) await hit(page, t).click();
@@ -404,7 +404,7 @@ test('a bulk action’s success ends it, after a trip to the search too (c698)',
 test.describe('a phone', () => {
 	test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
-	test('the bar reads / and ALL, and the search draws the selection as a strip under the field (c698)', async ({
+	test('the bar reads / and ALL, and the search draws the selection as a strip under the field', async ({
 		page
 	}) => {
 		await libraryStart(page);

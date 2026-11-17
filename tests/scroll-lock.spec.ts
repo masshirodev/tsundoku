@@ -30,7 +30,7 @@ describe('lockPage', () => {
 	});
 
 	// A page with no scrollbar taking space (short, an overlay bar, a TV) gets
-	// no gutter: one added there moved the page and its sheets 10px (c1033).
+	// no gutter: one added there moved the page and its sheets 10px.
 	it('keeps no gutter where no scrollbar took space', () => {
 		root.clientWidth = 1440;
 		const release = lockPage();

@@ -10,7 +10,7 @@ import { expect, hydrated, test, readerReady } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * The end of a series in a Work (c280, W6; doc/WORKS.md): the end page's next
+ * The end of a series in a Work (W6, doc/WORKS.md): the end page's next
  * part, its four states, the tap-not-swipe rule, and the player's last
  * episode. The frame assertions below are design-tools/gen-conformance output
  * pinned from `Work-End.dc.html`; the preamble that makes the Work and serves
@@ -44,7 +44,7 @@ const base = `http://localhost:${PORT}`;
 const dbPath = join(tmpdir(), `tsundoku-e2e-work-end-${process.pid}.sqlite`);
 const ANIME = "Frieren: Beyond Journey's End";
 /**
- * An anime as a Work's next part (c343): its own row, because a series is in
+ * An anime as a Work's next part: its own row, because a series is in
  * one Work at most and ANIME is already the first part of the player's. No
  * file, so the block offers to download its first episodes.
  */
@@ -252,7 +252,7 @@ async function openEnd(page: Page, seriesId = 22, at = base) {
 test.beforeAll(async ({ browser }, info) => {
 	// The hook builds nothing but waits up to 60 s for its own preview, then
 	// makes nine Works: past the default 30 s under a loaded box, where it was
-	// red in every run of wave 20's gate (c477). In a hook, test.setTimeout sets
+	// red in every run of wave 20's gate. In a hook, test.setTimeout sets
 	// the hook's own budget (Playwright's test.d.ts, "Changing timeout for a
 	// beforeAll").
 	test.setTimeout(120_000);
@@ -638,7 +638,7 @@ test('screen: footCell matches the handoff', async ({ page }) => {
 	expect(footCellStyle.fontWeight).toBe('500');
 	expect(footCellStyle.letterSpacing).toBe('0.56px');
 });
-// ---- the four states, the tap-not-swipe rule, the player (c280) ------------
+// ---- the four states, the tap-not-swipe rule, the player ------------
 
 test('the block is a tap, never a swipe: a chapter boundary cannot cross into another series', async ({
 	page
@@ -695,7 +695,7 @@ test('a next part with no file reads online from its source, and offers DOWNLOAD
 	await expect(page.locator('.end .nextw .go .dl')).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
 });
 
-test('DOWNLOAD FIRST 10 that queues nothing says so, and can be pressed again (c344)', async ({
+test('DOWNLOAD FIRST 10 that queues nothing says so, and can be pressed again', async ({
 	page
 }) => {
 	// The real action, on this file's own server: its engine is
@@ -708,7 +708,7 @@ test('DOWNLOAD FIRST 10 that queues nothing says so, and can be pressed again (c
 	await dl.click();
 	const request = await asked;
 	expect(request.url()).toContain('/series/14?/download');
-	// The part's first ten, the same ten on every press (c534, round 2).
+	// The part's first ten, the same ten on every press.
 	expect(request.postData()).toMatch(/name="which"\r\n\r\nfirst\r\n/);
 	// The answer as the page reads it: a success, and devalue's table says 0 queued.
 	const answer = JSON.parse(await (await request.response())!.text());
@@ -755,7 +755,7 @@ test('DOWNLOAD FIRST 10 that queues nothing says so, and can be pressed again (c
 	await page.unroute(/\?\/download$/);
 });
 
-test.describe('DOWNLOAD FIRST 10 pressed again (c534)', () => {
+test.describe('DOWNLOAD FIRST 10 pressed again', () => {
 	/** Tower of God's unread chapters (seven in the seed): what the end page's FIRST 10 asks from. */
 	let unread: number[] = [];
 	/** Chapters a case adds to Tower of God for a part longer than ten, taken out after it. */
@@ -928,7 +928,7 @@ test.describe('DOWNLOAD FIRST 10 pressed again (c534)', () => {
 	}) => {
 		// Tower of God made fifteen unread chapters long, each with no file and
 		// listed by its source like the seed's seven. NEXT 10 skips what is under way, so a
-		// second press of it would queue chapters 11-15 (c534, round 2).
+		// second press of it would queue chapters 11-15.
 		const db = new Database(dbPath);
 		const { top } = db
 			.prepare(`SELECT MAX(position) AS top FROM entries WHERE series_id = 14`)
@@ -994,13 +994,13 @@ test.describe('DOWNLOAD FIRST 10 pressed again (c534)', () => {
 	});
 });
 
-test('an anime next part a source streams is WATCH ONLINE, in episodes, and offers its first 10 (c343, c536)', async ({
+test('an anime next part a source streams is WATCH ONLINE, in episodes, and offers its first 10', async ({
 	page
 }) => {
 	// Reached through the app's own doors: Hoshizora Lantern's episodes have
 	// their addresses at Fake Source, which an installed extension serves (the
 	// stand-in `prepare` installs), so the player would stream EP. 1 and the
-	// end page says so (`streamsOnline`, c536). The online words for every kind
+	// end page says so (`streamsOnline`). The online words for every kind
 	// are tests/works.spec.ts's, over the whole registry.
 	await openEnd(page, 19);
 	await expect(page.locator(SEL.kickerLine)).toHaveText('NEXT IN LOOKISM RUN · PART 2 OF 2');
@@ -1026,7 +1026,7 @@ test('an anime next part a source streams is WATCH ONLINE, in episodes, and offe
 	await expect(go.locator('.dl')).toHaveText('DOWNLOAD FIRST 10 EPISODES');
 });
 
-test.describe('an anime next part no source streams (c536)', () => {
+test.describe('an anime next part no source streams', () => {
 	// The same part with its source's extension gone: nothing installed serves
 	// it, so the player could not stream EP. 1, and neither does the block.
 	let was = '';
@@ -1087,7 +1087,7 @@ test('a meanwhile row whose next part has no file says so instead of offering a 
 	await expect(row).toContainText('MEANWHILE');
 	await expect(row).toContainText('The Greatest Estate Developer · CH. 1');
 	await expect(row).toContainText(/NEXT IN DRAWING RUN · PART 2 · \d+ CH\. · ○ NOT DOWNLOADED/);
-	// A group named for why it cannot open (c345), not a bare div read as text.
+	// A group named for why it cannot open, not a bare div read as text.
 	// Not aria-disabled: that would reach the cell it holds, below.
 	await expect(row).not.toHaveAttribute('aria-disabled');
 	await expect(row).toHaveAttribute('role', 'group');
@@ -1123,7 +1123,7 @@ test('a meanwhile row whose next part has no file says so instead of offering a 
 	await expect(online.locator('.wr')).toHaveText('READ ONLINE →');
 });
 
-test('a meanwhile row offline and not cached is a group named for why, with no cell (c345)', async ({
+test('a meanwhile row offline and not cached is a group named for why, with no cell', async ({
 	page,
 	context
 }) => {
@@ -1196,7 +1196,7 @@ test('the last part says the Work is read, what it held, and WORK → where STAR
 	await expect(page.locator(SEL.foot)).toContainText('HIKARU RUN · WORK');
 });
 
-// The block stays once rated, showing what was chosen (c655, doc/READER.md):
+// The block stays once rated, showing what was chosen (doc/READER.md):
 // only the note, SHOWN WHILE UNRATED, goes with the first rating.
 test('the rating is asked once: it sits below the block, and its note goes when rated', async ({
 	page
@@ -1267,7 +1267,7 @@ test('a novel’s last volume is the same end page, so it offers the Work too', 
 });
 
 /**
- * The block on a phone (c535). Its cells are one line each (`white-space:
+ * The block on a phone. Its cells are one line each (`white-space:
  * nowrap`), and since c343 and c344 they can say DOWNLOAD FIRST 10 EPISODES and
  * NOT QUEUED · TRY THE SERIES: on a phone the column beside the 64 px cover is
  * about 270 px, and the frames above measure only the board's 1280. This file
@@ -1308,7 +1308,7 @@ test.describe('on a phone', () => {
 		return got;
 	}
 
-	test('the online-only block and its refused cell fit the column (c535)', async ({ page }) => {
+	test('the online-only block and its refused cell fit the column', async ({ page }) => {
 		await openEnd(page, 8);
 		const dl = page.locator('.end .nextw .go .dl');
 		await expect(dl).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
@@ -1321,7 +1321,7 @@ test.describe('on a phone', () => {
 		await expect(page.locator(SEL.workCell)).toHaveText('WORK →');
 	});
 
-	test('the anime block, streaming since c536, and its refused cell fit the column (c535)', async ({
+	test('the anime block, streaming since c536, and its refused cell fit the column', async ({
 		page
 	}) => {
 		await openEnd(page, 19);
@@ -1345,9 +1345,7 @@ test.describe('on a phone', () => {
 		await page.unroute(/\?\/download$/);
 	});
 
-	test('the meanwhile row’s cell fits the row, with no file and online (c535)', async ({
-		page
-	}) => {
+	test('the meanwhile row’s cell fits the row, with no file and online', async ({ page }) => {
 		// The meanwhile case above gave series 7 a source; this one needs it
 		// without first, as the seed has it, and puts back what it found.
 		const db = new Database(dbPath);

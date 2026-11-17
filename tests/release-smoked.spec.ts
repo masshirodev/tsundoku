@@ -118,7 +118,7 @@ describe('the smoke test’s mark speaks for the bundles it tested (doc/RELEASE.
 	});
 });
 
-describe('a Linux-only run is enough to install, never to publish (c750)', () => {
+describe('a Linux-only run is enough to install, never to publish', () => {
 	it('a Linux mark lets the install pass and the publish refuse, naming the gap', () => {
 		linuxOnly();
 		expect(installProblem(out, VERSION)).toBeNull();
@@ -441,7 +441,7 @@ describe('installing reads the mark (ops/workstation/install-release.sh)', () =>
 		expect(r.stderr).toContain("doesn't match its SHA256SUMS");
 	});
 
-	it('goes on past a Linux mark that still stands (c750)', () => {
+	it('goes on past a Linux mark that still stands', () => {
 		linuxOnly();
 		const r = install();
 		expect(r.status).toBe(1);

@@ -28,7 +28,7 @@ export default async function setup() {
 	// This catches only an assigned port (PLAYWRIGHT_FRIEND_PORT): since c656 a
 	// run left to itself takes a new port from the OS, which no earlier server
 	// holds, so a killed run's server is found by the record below instead,
-	// which the next run's sweep reads (tests/helpers/run-servers.ts, c689).
+	// which the next run's sweep reads (tests/helpers/run-servers.ts).
 	const busy = await fetch(`${origin}/manifest.webmanifest`).then(
 		() => true,
 		() => false

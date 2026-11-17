@@ -10,7 +10,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { startPreview } from './highlights-preview';
 
 /**
- * Highlights H2 on a TV (card c702; doc/HIGHLIGHTS.md, "Quotes"): the TV shows a
+ * Highlights H2 on a TV (doc/HIGHLIGHTS.md, "Quotes"): the TV shows a
  * quote's marker and makes none: there is no long press and no selection, H
  * does nothing, and no focus stop moved. The `tv` project shares the seeded
  * database with the flow files, and this file writes a quote, so it seeds a

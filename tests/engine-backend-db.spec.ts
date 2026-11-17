@@ -18,7 +18,7 @@ const { ensureRoot, writeSeries } = await import('$lib/server/import/write');
 const downloads = await import('$lib/server/downloads');
 const { parseSourceMangaId } = await import('$lib/server/engine/backend');
 
-// The screens' backend on the engine (doc/DOWNLOADS.md, card c138): the same
+// The screens' backend on the engine (doc/DOWNLOADER.md): the same
 // functions the screens call of Suwayomi's, through server/downloads.ts.
 
 const SOURCE = '2131019126180322627';
@@ -326,7 +326,7 @@ describe('finding and adding a series', () => {
 });
 
 describe('a source that adds hidden', () => {
-	it('ADDED HIDDEN: added from a source that adds hidden, it starts hidden, a browsing record once ADD promotes it (c435)', async () => {
+	it('ADDED HIDDEN: added from a source that adds hidden, it starts hidden, a browsing record once ADD promotes it', async () => {
 		const flags = await import('$lib/server/engine/source-flags');
 		const row = (id: number) =>
 			db.prepare(`SELECT hidden, in_library AS inLibrary FROM series WHERE id = ?`).get(id);
@@ -407,7 +407,7 @@ describe('FOLLOW', () => {
 		expect(await downloads.followNew()).toEqual({ series: 0, queued: 0 });
 	});
 
-	it('is refreshed without following: a new chapter becomes an entry, and nothing is queued (c220)', async () => {
+	it('is refreshed without following: a new chapter becomes an entry, and nothing is queued', async () => {
 		db.exec(`DELETE FROM download_queue`);
 		db.prepare(`UPDATE series SET followed_at = NULL WHERE id = ?`).run(seriesId);
 		chapters = [5, 4, 3, 2, 1];
@@ -427,7 +427,7 @@ describe('FOLLOW', () => {
 	});
 });
 
-describe('a Hentoid book, which is no source family (K3, c303)', () => {
+describe('a Hentoid book, which is no source family', () => {
 	/**
 	 * Hentoid's keys are not a `SourceFamily` (doc/KINDS.md; `keyFamily` says
 	 * null), and that is a case every door handles, not an undefined that

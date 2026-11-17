@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The camera band and the keyboard on a phone or tablet (c521; Insets.kt).
+ * The camera band and the keyboard on a phone or tablet (Insets.kt).
  * The numbers are physical pixels, as Android hands them over.
  */
 class InsetsTest {

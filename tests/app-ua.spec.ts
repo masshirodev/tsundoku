@@ -12,7 +12,7 @@ import {
 import { pairedLabel } from '../src/lib/server/pairing.ts';
 
 /**
- * tsundoku's own Android app on a phone or tablet (c521; doc/ANDROID.md):
+ * tsundoku's own Android app on a phone or tablet (doc/PHONE-APP.md):
  * its user agent token, and how DEVICES names it. Being the app is a flag
  * beside the kind, never a kind of its own (PhoneApp-Calls.dc.html, DEVICES).
  */

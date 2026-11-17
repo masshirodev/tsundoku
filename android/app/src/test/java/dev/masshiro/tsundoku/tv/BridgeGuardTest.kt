@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** BridgeGuard's rule (c529): the app's own page and known servers' pages, nothing else. */
+/** BridgeGuard's rule: the app's own page and known servers' pages, nothing else. */
 class BridgeGuardTest {
 	private val home = "http://192.168.1.23:42143"
 	private val zen = "https://zen.tailnet.ts.net:8443"
@@ -49,7 +49,7 @@ class BridgeGuardTest {
 		assertFalse(allows("data:text/html,<p>x"))
 		assertFalse(allows("javascript:alert(1)"))
 		// Another file the WebView could reach: allowFileAccess is off, and no
-		// page loads one. The asset page's old file:// URL is nobody's now (c549).
+		// page loads one. The asset page's old file:// URL is nobody's now.
 		assertFalse(allows("file:///android_asset/pair/index.html"))
 		assertFalse(allows("file:///android_asset/pair/other.html"))
 		assertFalse(allows("file:///sdcard/Download/index.html"))
@@ -57,12 +57,12 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `the asset page is recognised by its https URL, and not by its old file one (c549)`() {
+	fun `the asset page is recognised by its https URL, and not by its old file one`() {
 		// What WebViewAssetLoader serves (MainActivity.shouldInterceptRequest):
 		// another host, another path or another scheme is not the app's page.
 		assertTrue(BridgeGuard.allows(BridgeGuard.ASSET) { false })
 		assertTrue(BridgeGuard.allows(BridgeGuard.ASSET + "#add") { false })
-		// The page loads with this launch's token in its query (round 4), and
+		// The page loads with this launch's token in its query, and
 		// its own top-level URL must still be the app's page to the bridge.
 		assertTrue(BridgeGuard.allows(BridgeGuard.ASSET + "?t=6a1f0c9e#add") { false })
 		assertFalse(BridgeGuard.allows("https://${BridgeGuard.ASSET_HOST}/pair/other.html") { false })
@@ -72,7 +72,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `a server added with its scheme's own port is trusted on its pages (round 2)`() {
+	fun `a server added with its scheme's own port is trusted on its pages`() {
 		// WebView's URL drops :443 and :80; the stored origin must too, or
 		// the pages of an entry typed as https://host:443 are refused.
 		val stored = setOf(Address.originOf("https://lib.example.com:443"), Address.originOf("http://zen.local:80"))
@@ -84,7 +84,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `a server typed with capitals is trusted on its lower-case pages (c548)`() {
+	fun `a server typed with capitals is trusted on its lower-case pages`() {
 		// What 9B's TYPE THE WHOLE ADDRESS stored for http://Zen.local:42143,
 		// read back through Servers.decode; WebView's URL is lower case.
 		val stored = Servers.decode("http://Zen.local:42143\tZEN\t\t5\t5").map { it.origin }.toSet()
@@ -96,7 +96,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `a scheme typed in capitals is the same scheme, and widens nothing else (c646)`() {
+	fun `a scheme typed in capitals is the same scheme, and widens nothing else`() {
 		val stored =
 			setOf(
 				Address.originOf("http://zen.local:42143"),
@@ -115,7 +115,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `nothing navigates into the app's own page, and only its host is refused (c549, round 2)`() {
+	fun `nothing navigates into the app's own page, and only its host is refused`() {
 		// A page setting `location` to the pair page with a fragment that makes
 		// it act: the hole the move to https opened, closed at the navigation.
 		assertTrue(
@@ -143,7 +143,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `the asset host is served only to the main frame's GET (c549, round 3)`() {
+	fun `the asset host is served only to the main frame's GET`() {
 		val token = "6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64"
 		val page = BridgeGuard.ASSET + "?t=" + token
 		// A form submit keeps the action's fragment, and shouldOverrideUrlLoading
@@ -182,7 +182,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `a main-frame GET without this launch's token gets no page, whatever called it (c549, round 4)`() {
+	fun `a main-frame GET without this launch's token gets no page, whatever called it`() {
 		val token = "6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64"
 		val page = BridgeGuard.ASSET + "?t=" + token
 		// The app's own load, and a reload of that document, keep the token.
@@ -222,7 +222,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `the token is read from the query exactly, and nowhere else (c549, round 4)`() {
+	fun `the token is read from the query exactly, and nowhere else`() {
 		val token = "6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64"
 		assertTrue(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "?t=$token", token))
 		assertTrue(BridgeGuard.carriesAssetToken(BridgeGuard.ASSET + "?t=$token#add", token))
@@ -234,7 +234,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `a URL java_net_URI cannot parse is still read for its host, and refused at ours (c684)`() {
+	fun `a URL java_net_URI cannot parse is still read for its host, and refused at ours`() {
 		val token = "6a1f0c9e-2b7d-4a55-9d1e-3f8c0b2a7e64"
 		// The card's three, each of which makes java.net.URI throw (measured
 		// with jshell): `|` and `{` are left as they are in a query, and `|` in
@@ -266,7 +266,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `the host is read as a browser reads the authority, every spelling of ours refused (c684)`() {
+	fun `the host is read as a browser reads the authority, every spelling of ours refused`() {
 		val host = BridgeGuard.ASSET_HOST
 		val ours =
 			listOf(
@@ -330,7 +330,7 @@ class BridgeGuardTest {
 	}
 
 	@Test
-	fun `the authority read gives the host alone, lower-cased, of what it can read (c684)`() {
+	fun `the authority read gives the host alone, lower-cased, of what it can read`() {
 		assertEquals("zen.local", BridgeGuard.hostOf("http://u:p@ZEN.local:42143/x?y=|#z"))
 		assertEquals("zen.local", BridgeGuard.hostOf("http://zen.local./"))
 		assertEquals("[::1]", BridgeGuard.hostOf("http://[::1]:42143/"))

@@ -9,7 +9,7 @@ import { expect, readerReady, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * The series screen's WORK row (c279, W5; Work-Row.dc.html, all three slices).
+ * The series screen's WORK row (W5, Work-Row.dc.html, all three slices).
  *
  * The frame assertions below are design-tools/gen-conformance output pinned
  * from the board; the preamble that seeds a database, serves the build on its
@@ -53,7 +53,7 @@ test.use({ baseURL: base });
 test.beforeAll(async () => {
 	// The hook waits up to 60 s for its own preview to answer, after seeding a database and writing two Works into it:
 	// past the default 30 s on a loaded box, where the hook ran out in wave
-	// 24's first gate (c439), as `work-end-frame`'s did in wave 20's (c477).
+	// 24's first gate, as `work-end-frame`'s did in wave 20's.
 	// Measured in wave 25 at a load of about 30 (the works-frame project, 3
 	// copies): 3.3-4.4 s. So 60 s for the preview plus 30 s for the seed. In a hook, test.setTimeout sets the
 	// hook's own budget (Playwright's test.d.ts, "Changing timeout for a

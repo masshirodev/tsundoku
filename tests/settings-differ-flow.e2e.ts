@@ -41,7 +41,7 @@ const dbPath = join(work, 'differ.sqlite');
 let server: ChildProcess | null = null;
 
 test.beforeAll(async () => {
-	// One seed and one `vite preview` start, polled for up to 60 s (c459).
+	// One seed and one `vite preview` start, polled for up to 60 s.
 	test.setTimeout(120_000);
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
 		env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
@@ -166,7 +166,7 @@ test('a novel remembered R→L is on LAYOUT’s list, and ✕ takes it off and t
 	await expect(layout(page).locator('.sb')).toHaveCount(0);
 });
 
-test('✕ on a novel listed for its layout takes a chosen L→R with it, so no later fold reads it as a choice (c617)', async ({
+test('✕ on a novel listed for its layout takes a chosen L→R with it, so no later fold reads it as a choice', async ({
 	browser
 }, info) => {
 	const page = await signedIn(browser, info);

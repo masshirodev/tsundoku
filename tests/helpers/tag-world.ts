@@ -29,7 +29,7 @@ export const SOURCE = { id: '100', name: 'Tag Source' };
  */
 export const COLD = { id: '102', name: 'Cold Tags' };
 /**
- * A third working source, asked only by the preview's pending case (c452),
+ * A third working source, asked only by the preview's pending case,
  * which needs a cold cache after the slow case above has warmed COLD.
  */
 export const COLDER = { id: '103', name: 'Colder Tags' };

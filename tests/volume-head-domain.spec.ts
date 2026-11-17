@@ -13,7 +13,7 @@ import {
 } from '$lib/library/series';
 
 /**
- * A volume's head (c835): its number, its state, its chapters and how far
+ * A volume's head: its number, its state, its chapters and how far
  * through them it is. The rules are checked over their whole finite domain --
  * every chapter count of 0 to 3, every number of them read, the current entry
  * inside and outside -- rather than on the handful the handoff happens to draw,
@@ -214,7 +214,7 @@ describe("the rows under a volume's head", () => {
 		];
 		const rows = listRows(entries);
 		// The shape a real import has: v1, its chapter, v2, v2:front, the front
-		// matter, v2:chapters, the chapters (measured, round 2).
+		// matter, v2:chapters, the chapters (measured).
 		const at = rows.findIndex((r) => r.type === 'volume' && r.number === 2);
 		expect(rows[at + 1]).toMatchObject({ type: 'section', key: 'v2:front' });
 		expect(rows[at + 2]).toMatchObject({ type: 'entry' });

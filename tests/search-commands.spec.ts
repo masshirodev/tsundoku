@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { parseBar, parseSearch } from '$lib/library/search';
 
 /**
- * The one parser every top search bar shares (card c697). A bar's own filter
+ * The one parser every top search bar shares. A bar's own filter
  * is `filter`; a command runs where the bar is; a page opens; a `/`-led string
  * that names neither is `unknown`, never silently filtered for.
  */
-describe('a top search bar (c697)', () => {
+describe('a top search bar', () => {
 	it('runs commands and pages, and filters for everything else', () => {
 		expect(parseBar('/reveal')).toEqual({ type: 'command', command: 'reveal' });
 		expect(parseBar('  /INCOGNITO ')).toEqual({ type: 'command', command: 'incognito' });
@@ -24,7 +24,7 @@ describe('a top search bar (c697)', () => {
 		expect(parseBar('   ')).toEqual({ type: 'filter' });
 	});
 
-	it('opens HIGHLIGHTS, and lands there with the words in its search (c701)', () => {
+	it('opens HIGHLIGHTS, and lands there with the words in its search', () => {
 		expect(parseSearch('/highlights')).toEqual({
 			type: 'page',
 			label: 'HIGHLIGHTS',

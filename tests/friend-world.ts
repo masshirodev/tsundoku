@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 /**
- * A friend's install for the browser suite (doc/SIGN-IN.md; card c189): the
+ * A friend's install for the browser suite (doc/SIGN-IN.md): the
  * same build, served as a release's launcher serves it (TSUNDOKU_LOGIN=password,
  * local mode), on its own port, database and data folder. tests/friend-setup.ts
  * starts it; tests/friend-*.e2e.ts drive it.
@@ -27,7 +27,7 @@ function freePort(): string {
 
 /**
  * The friend world's own port, taken **once**, by the OS, when nothing assigns
- * it (c656). A fixed 4197 had two runs in one worktree fight over it: a second
+ * it. A fixed 4197 had two runs in one worktree fight over it: a second
  * `playwright test` got through the browse world's setup and died here
  * (`port 4197 is taken, probably by an earlier run's friend server`).
  *

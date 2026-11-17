@@ -115,7 +115,7 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 		 *
 		 * Every origin is read through [Address.originOf], so an entry stored
 		 * before a normalisation comes back normalised: one with its scheme's
-		 * own port (round 2 of c261), or one typed with capitals (c548). Two
+		 * own port (round 2 of c261), or one typed with capitals. Two
 		 * lines that then name one origin are one server, and are folded by
 		 * [fold] rather than kept twice.
 		 */

@@ -9,7 +9,7 @@ import { expect, test } from './fixtures';
 import { DETAILS_FOLDS } from './helpers/details-folds';
 
 /**
- * RENAME on the series screen's FILE row (c526; doc/SERIES.md, "RENAME"), on
+ * RENAME on the series screen's FILE row (doc/SERIES.md, "RENAME"), on
  * the owner's own case: a novel grouped from thirteen EPUBs, whose FILE row
  * read `13 EPUB · 6.8 MB` a word a line beside UNGROUP, HIDE and DELETE, and
  * whose name could not be changed. The row is measured at 390 and at the
@@ -98,7 +98,7 @@ id = seed();
 test.beforeAll(async () => {
 	// The hook seeds thirteen volumes and waits up to 60 s for its own preview:
 	// 2.0 s alone at this commit, past the default 30 s once the box is loaded
-	// (c599). In a hook, test.setTimeout sets the hook's own budget
+	//. In a hook, test.setTimeout sets the hook's own budget
 	// (Playwright's test.d.ts, "Changing timeout for a beforeAll").
 	test.setTimeout(120_000);
 	const port = await freePort();
@@ -132,7 +132,7 @@ test.afterAll(() => {
 });
 
 /**
- * DETAILS (c425) folds FILE on a phone and a TV: open it the way the owner
+ * DETAILS folds FILE on a phone and a TV: open it the way the owner
  * does, by its line, and wait for the answer, which comes once the page runs.
  */
 async function openDetails(page: Page) {
@@ -166,9 +166,7 @@ for (const at of [
 	{ width: 390, height: 844, row: 390 },
 	{ width: 1280, height: 800, row: 440 }
 ]) {
-	test(`the thirteen volumes' FILE row keeps its text whole at ${at.row} px (c526)`, async ({
-		page
-	}) => {
+	test(`the thirteen volumes' FILE row keeps its text whole at ${at.row} px`, async ({ page }) => {
 		await page.setViewportSize({ width: at.width, height: at.height });
 		await page.goto(`${BASE}/series/${id}`);
 		await openDetails(page);

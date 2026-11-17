@@ -8,7 +8,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * MOVE from a remote (c235; doc/MOVE.md). The screens are c139's, which
+ * MOVE from a remote (doc/MOVE.md). The screens are c139's, which
  * predates the focus layer: this pins that a D-pad reaches them, and that BACK
  * climbs the comparison before it leaves the page.
  *
@@ -17,7 +17,7 @@ import { expect, test } from './fixtures';
  * "Lindenborough Heir" to the comparison and stops there. The browse world's
  * server, because the fake engine is what has a candidate to offer.
  *
- * Its last describe (c538) needs sources that find nothing and fail, which the
+ * Its last describe needs sources that find nothing and fail, which the
  * browse world has none of, so it brings a world of its own, as
  * `browse-move-pick.e2e.ts` does: a fake engine, a seeded database and a
  * preview of the same build, each on a port the OS hands out.
@@ -38,7 +38,7 @@ async function openMove(page: import('@playwright/test').Page): Promise<void> {
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: TITLE }).click();
 	await page.waitForURL(/\/series\/\d+/);
-	// SOURCE is folded under DETAILS on a TV (c425): one stop, OK opens it in place.
+	// SOURCE is folded under DETAILS on a TV: one stop, OK opens it in place.
 	const details = page.locator('[data-row="details"]');
 	await details.focus();
 	await expect(async () => {
@@ -90,9 +90,9 @@ test('a candidate opens the comparison, and BACK climbs before it leaves', async
 	expect(await page.evaluate(() => window.tsundokuBack!())).toBe(false);
 });
 
-// ---- a world with a failing source (c538) ----------------------------------------------------
+// ---- a world with a failing source ----------------------------------------------------
 
-test.describe('MOVE’s folds on a TV (c538)', () => {
+test.describe('MOVE’s folds on a TV', () => {
 	test.describe.configure({ mode: 'serial' });
 
 	const SERIES = 'Foldwell Heir';

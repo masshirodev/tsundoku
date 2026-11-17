@@ -2,7 +2,7 @@ import { expect, test } from './fixtures';
 import { hydrated } from './helpers/hydration';
 
 /**
- * The remote's keys (c235; doc/TV.md, "The remote"): OK held or MENU opens the
+ * The remote's keys (doc/TV.md, "The remote"): OK held or MENU opens the
  * focused thing's long-press options, and BACK closes what is open before it
  * climbs out. The `tv` project has no pointer, so every press here is a key.
  *
@@ -26,7 +26,7 @@ const focusId = (page: import('@playwright/test').Page) =>
 			''
 	);
 
-/** The library's KIND band (c436), the last stop above the grid, the screen's start first. */
+/** The library's KIND band, the last stop above the grid, the screen's start first. */
 async function toBand(page: import('@playwright/test').Page): Promise<void> {
 	await page.goto('/?sort=title');
 	await page.keyboard.press('ArrowDown'); // the first CONTINUE card
@@ -53,7 +53,7 @@ test('OK held opens the focused tile’s sheet; a short OK opens the series inst
 	await holdOk(page);
 	const dialog = page.getByRole('dialog', { name: title });
 	await expect(dialog).toBeVisible();
-	// Every sheet is a 420px panel from the right on a TV (c238): the same
+	// Every sheet is a 420px panel from the right on a TV: the same
 	// element, opened by a remote rather than a finger.
 	const box = (await dialog.boundingBox())!;
 	expect(Math.round(box.width)).toBe(420);
@@ -288,7 +288,7 @@ async function arrow(page: import('@playwright/test').Page, key: 'ArrowDown' | '
 	await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
 }
 
-test('↓ with nothing below scrolls the nearest scroller while it can still move (c578)', async ({
+test('↓ with nothing below scrolls the nearest scroller while it can still move', async ({
 	page
 }) => {
 	const read = await scrollers(page, { around: 'outer', at: 'bottom' });
@@ -298,9 +298,7 @@ test('↓ with nothing below scrolls the nearest scroller while it can still mov
 	expect(await read()).toEqual({ ...before, inner: before.inner + 40 });
 });
 
-test('↓ in a scroller at its end scrolls the next one out, then the page (c578)', async ({
-	page
-}) => {
+test('↓ in a scroller at its end scrolls the next one out, then the page', async ({ page }) => {
 	const read = await scrollers(page, { around: 'outer', at: 'bottom' });
 	await setUp(page, { inner: -1 });
 	const before = await read();
@@ -317,7 +315,7 @@ test('↓ in a scroller at its end scrolls the next one out, then the page (c578
 	await expect(page.locator('#c578')).toBeFocused();
 });
 
-test('↓ passes over a box that hides its overflow, and the page at its end moves nothing (c578)', async ({
+test('↓ passes over a box that hides its overflow, and the page at its end moves nothing', async ({
 	page
 }) => {
 	const errors: Error[] = [];
@@ -337,9 +335,7 @@ test('↓ passes over a box that hides its overflow, and the page at its end mov
 	expect(errors).toEqual([]);
 });
 
-test('↓ in a section at its end moves nothing outside it, not even the page (c861)', async ({
-	page
-}) => {
+test('↓ in a section at its end moves nothing outside it, not even the page', async ({ page }) => {
 	const read = await scrollers(page, { around: 'outer', at: 'bottom' });
 	await page.evaluate(() =>
 		document.getElementById('inner')!.setAttribute('data-focus-section', 'column')
@@ -358,7 +354,7 @@ test('↓ in a section at its end moves nothing outside it, not even the page (c
 	expect(await read(), 'the section’s end is the end').toEqual(end);
 });
 
-test('↑ in a scroller at its top scrolls the page up (c578)', async ({ page }) => {
+test('↑ in a scroller at its top scrolls the page up', async ({ page }) => {
 	const read = await scrollers(page, { around: 'outer', at: 'top' });
 	await setUp(page, { page: 400 });
 	const before = await read();
@@ -367,9 +363,7 @@ test('↑ in a scroller at its top scrolls the page up (c578)', async ({ page })
 	expect(await read()).toEqual({ ...before, page: 360 });
 });
 
-test('↓ with the root locked scrolls nothing, as Chromium’s own arrow does (c618)', async ({
-	page
-}) => {
+test('↓ with the root locked scrolls nothing, as Chromium’s own arrow does', async ({ page }) => {
 	const read = await scrollers(page, { around: 'clip', at: 'bottom' });
 	await setUp(page, { inner: -1 });
 	// The image reader's own lock while its lookup panel or page menu is up:
@@ -378,7 +372,7 @@ test('↓ with the root locked scrolls nothing, as Chromium’s own arrow does (
 	// container a script can move, where Chromium's own arrow chain refuses to.
 	// Locking the body alone is the same lock: the root's `overflow` propagates
 	// to the viewport, and a `visible` root hands that to the body. `clip` is a
-	// lock too (c647): Chromium computes it as `clip` on the locked element, and
+	// lock too: Chromium computes it as `clip` on the locked element, and
 	// a script's scrollBy still moves the viewport, so ↓ was moving 40 px there.
 	for (const { on, overflow } of [
 		{ on: 'html', overflow: 'hidden' },

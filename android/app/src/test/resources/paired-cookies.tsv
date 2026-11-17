@@ -1,4 +1,4 @@
-# The paired cookie's name for each origin (c530): one pairing per origin,
+# The paired cookie's name for each origin: one pairing per origin,
 # because a cookie jar scopes by host, not port or scheme. Read by both sides,
 # so the server's `pairedCookie` (src/lib/server/pairing.ts, held by
 # tests/pairing-origins.spec.ts) and the app's `Forget.pairedCookie`

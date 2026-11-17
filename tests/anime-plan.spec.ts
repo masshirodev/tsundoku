@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { numberOf, planAnime, seasonOf, seasonOfTitle, titleOf } from '$lib/import/anime-plan';
 
-// An Aniyomi anime as a series (doc/ANIME.md; card c154).
+// An Aniyomi anime as a series (doc/ANIME.md).
 describe('an episode’s name', () => {
 	it('gives its season where the engine named one, and nothing else is a season', () => {
 		expect(seasonOf('Season 2 - Episode 3')).toEqual({ season: 2, rest: 'Episode 3' });
@@ -17,7 +17,7 @@ describe('an episode’s name', () => {
 		expect(seasonOf('Part 2 - Episode 1')).toEqual({ season: null, rest: 'Part 2 - Episode 1' });
 	});
 
-	// A pack of seasons in one entry (c998): Movies Mod's Lupin names them so.
+	// A pack of seasons in one entry: Movies Mod's Lupin names them so.
 	it('gives its season with no separator, when the episode follows the season', () => {
 		expect(seasonOf('Season 4  Ep 8')).toEqual({ season: 4, rest: 'Ep 8' });
 		expect(seasonOf('Season 2 Episode 3 - The Heist')).toEqual({
@@ -46,7 +46,7 @@ describe('an episode’s name', () => {
 });
 
 // A source that makes each season its own entry (KickAssAnime, AnimePahe) says
-// the season in the entry, never in its flat episode names (c219).
+// the season in the entry, never in its flat episode names.
 describe('a series’ own season', () => {
 	it('is read from the title, in the forms sources use', () => {
 		expect(seasonOfTitle('Kaminaki Sekai no Kamisama Katsudou')).toBeNull();
@@ -61,7 +61,7 @@ describe('a series’ own season', () => {
 		expect(seasonOfTitle('A Show 1st Season')).toBe(1);
 	});
 
-	// A pack is no one season (c998): read as its first, it stamped season 1 on
+	// A pack is no one season: read as its first, it stamped season 1 on
 	// every episode of four seasons. None is stamped, so the episodes' own
 	// names give their seasons, and a pack whose episodes name none stays flat.
 	it('is nothing for a pack of seasons', () => {
@@ -160,7 +160,7 @@ describe('an anime’s plan', () => {
 		]);
 	});
 
-	// The owner's Lupin (c998, series 7378): four seasons of eight in one entry,
+	// The owner's Lupin (series 7378): four seasons of eight in one entry,
 	// listed newest first, each episode numbered within its season.
 	it('reads a pack of seasons into its seasons, oldest first', () => {
 		const listed = [];
@@ -205,7 +205,7 @@ describe('an anime’s plan', () => {
 	});
 });
 
-// One split for people (c508): Aniyomi's author and artist are tagged as
+// One split for people: Aniyomi's author and artist are tagged as
 // Mihon's are, and as the preview links them. It split on commas alone.
 describe('an anime’s people', () => {
 	// c508: the same strings, and the same answers, as tests/tag-search.spec.ts'
@@ -243,7 +243,7 @@ describe('an anime’s people', () => {
 	});
 });
 
-// Episode pictures (doc/ANIME.md, "Episode pictures"; card c225).
+// Episode pictures (doc/ANIME.md, "Episode pictures").
 describe('an episode’s picture at the source', () => {
 	it('is kept where the extension gives one, through the engine, and is nothing otherwise', () => {
 		const p = planAnime(

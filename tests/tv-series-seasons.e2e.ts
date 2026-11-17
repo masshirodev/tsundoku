@@ -281,7 +281,7 @@ async function runPass(anilistPort: number): Promise<string> {
 test.beforeAll(async () => {
 	// The hook seeds, runs the pass against the stand-in (about 2 s a request,
 	// AniList's own spacing) and waits for its own preview: the house budget
-	// is 120 s so a loaded box fails a case, never the hook (c599).
+	// is 120 s so a loaded box fails a case, never the hook.
 	test.setTimeout(120_000);
 	const anilistPort = await freePort();
 	anilist = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -418,7 +418,7 @@ test('the remote reaches every head’s cell above and below the episodes, and O
  * database, engine and preview), since it adds a series and makes shelves;
  * the device projects' walk is tests/series-add-shelf.e2e.ts.
  */
-test.describe('the ADDED band’s shelves on a TV (c724)', () => {
+test.describe('the ADDED band’s shelves on a TV', () => {
 	let shelfWorld: TagWorld;
 	test.beforeAll(async () => {
 		shelfWorld = await startTagWorld('tv-series-add-shelf');

@@ -11,7 +11,7 @@ import { expect, test } from './fixtures';
 import { revealOn } from './helpers/reveal';
 
 /**
- * DELETE on the reader's end page (c655; doc/DELETING.md): the series screen's
+ * DELETE on the reader's end page (doc/DELETING.md): the series screen's
  * own door and confirmation, then the library, from the paged end page, the
  * strip's and the novel's. Runs in tablet-portrait on a seeded database and an
  * OS port of its own, the `works-flow` arrangement, because it really deletes
@@ -187,7 +187,7 @@ async function deleteFromEnd(page: Page, title: string) {
 	await expect(page.locator('.grid .tile', { hasText: title })).toHaveCount(0);
 }
 
-test('the paged end page asks first: CANCEL keeps it, DELETE lands on the library (c655)', async ({
+test('the paged end page asks first: CANCEL keeps it, DELETE lands on the library', async ({
 	page
 }) => {
 	const title = 'Isekai Ojisan';
@@ -208,7 +208,7 @@ test('the paged end page asks first: CANCEL keeps it, DELETE lands on the librar
 	await deleteFromEnd(page, title);
 });
 
-test('the strip’s end page deletes too, and opened with no library behind it lands there (c655)', async ({
+test('the strip’s end page deletes too, and opened with no library behind it lands there', async ({
 	page
 }) => {
 	const title = 'The Greatest Estate Developer';
@@ -221,7 +221,7 @@ test('the strip’s end page deletes too, and opened with no library behind it l
 	await deleteFromEnd(page, title);
 });
 
-test('the novel’s end page says what stays, deletes, and its highlight is kept (c655, c701)', async ({
+test('the novel’s end page says what stays, deletes, and its highlight is kept', async ({
 	page
 }) => {
 	const title = 'Honzuki no Gekokujou';
@@ -246,7 +246,7 @@ test('the novel’s end page says what stays, deletes, and its highlight is kept
 	).toBeDefined();
 });
 
-test('a part of a Work deletes as the series screen does: the Work keeps its other parts (c655)', async ({
+test('a part of a Work deletes as the series screen does: the Work keeps its other parts', async ({
 	page
 }) => {
 	const [title, b, c] = ['Dungeon Meshi', 'Tower of God', 'Lookism'];
@@ -282,7 +282,7 @@ async function pagedEndOfPart(page: Page, entry: number) {
 	await expect(endPage(page).getByText(/^END · DUNGEON MESHI$/)).toBeVisible();
 }
 
-test('a hidden series read under /reveal offers UNHIDE beside DELETE, and DELETE takes it (c655, c673)', async ({
+test('a hidden series read under /reveal offers UNHIDE beside DELETE, and DELETE takes it', async ({
 	page
 }) => {
 	const title = 'Chainsaw Man';
@@ -298,7 +298,7 @@ test('a hidden series read under /reveal offers UNHIDE beside DELETE, and DELETE
 	await deleteFromEnd(page, title);
 });
 
-test('a tap at the edge of the page, on DELETE’s row or sheet, does not turn the page (c655)', async ({
+test('a tap at the edge of the page, on DELETE’s row or sheet, does not turn the page', async ({
 	page
 }) => {
 	const title = 'Mushoku Tensei';
@@ -324,9 +324,7 @@ test('a tap at the edge of the page, on DELETE’s row or sheet, does not turn t
 
 const WHEEL_NOVEL = 'Mushoku Tensei';
 
-test('PAGED: the wheel over DELETE’s sheet does not turn the page under it (c655)', async ({
-	page
-}) => {
+test('PAGED: the wheel over DELETE’s sheet does not turn the page under it', async ({ page }) => {
 	const entry = lastEntry(seriesOf(WHEEL_NOVEL)!.id);
 	await novelPagedEnd(page, entry);
 	const end = endPage(page);
@@ -340,9 +338,7 @@ test('PAGED: the wheel over DELETE’s sheet does not turn the page under it (c6
 	expect(new URL(page.url()).pathname).toBe(`/read/${entry}`);
 });
 
-test('SCROLL: the wheel over DELETE’s sheet does not leave the end page (c655)', async ({
-	page
-}) => {
+test('SCROLL: the wheel over DELETE’s sheet does not leave the end page', async ({ page }) => {
 	const entry = lastEntry(seriesOf(WHEEL_NOVEL)!.id);
 	await novelScrollEnd(page, entry);
 	const end = endPage(page);
@@ -356,7 +352,7 @@ test('SCROLL: the wheel over DELETE’s sheet does not leave the end page (c655)
 	expect(new URL(page.url()).pathname).toBe(`/read/${entry}`);
 });
 
-test('the strip stays where it is under DELETE’s sheet, and a notch eases it again after (c655)', async ({
+test('the strip stays where it is under DELETE’s sheet, and a notch eases it again after', async ({
 	page
 }) => {
 	const title = 'Return of the Mount Hua Sect';
@@ -387,7 +383,7 @@ test('the strip stays where it is under DELETE’s sheet, and a notch eases it a
 	await expect.poll(y).toBeLessThan(y0);
 });
 
-test('a sheet too tall for the screen still scrolls under the wheel, and the strip does not (c655)', async ({
+test('a sheet too tall for the screen still scrolls under the wheel, and the strip does not', async ({
 	page
 }) => {
 	const title = 'Return of the Mount Hua Sect';
@@ -424,7 +420,7 @@ test('a sheet too tall for the screen still scrolls under the wheel, and the str
 });
 
 for (const layout of ['PAGED', 'SCROLL'] as const) {
-	test(`${layout}: once DELETE’s sheet has gone, a wheel up goes back to the text (c655)`, async ({
+	test(`${layout}: once DELETE’s sheet has gone, a wheel up goes back to the text`, async ({
 		page
 	}) => {
 		const entry = lastEntry(seriesOf(WHEEL_NOVEL)!.id);
@@ -443,9 +439,7 @@ for (const layout of ['PAGED', 'SCROLL'] as const) {
 	});
 }
 
-test('DELETE goes back over the reader to the library it was walked from (c655)', async ({
-	page
-}) => {
+test('DELETE goes back over the reader to the library it was walked from', async ({ page }) => {
 	const title = 'Hikaru ga Shinda Natsu';
 	const { position } = db
 		.prepare(`SELECT position FROM entries WHERE id = ?`)
@@ -487,7 +481,7 @@ test('DELETE goes back over the reader to the library it was walked from (c655)'
 	await expect(page.locator('.grid .tile', { hasText: title })).toHaveCount(0);
 });
 
-test('a refused DELETE says so in the row, and the series stays (c655)', async ({ page }) => {
+test('a refused DELETE says so in the row, and the series stays', async ({ page }) => {
 	const title = 'Sousou no Frieren';
 	const { id } = seriesOf(title)!;
 	await page.route(/\/series\/\d+\?\/delete$/, (route) =>

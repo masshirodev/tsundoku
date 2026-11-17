@@ -8,7 +8,7 @@ import org.junit.Test
 
 /**
  * The device's own home address, and whether a phone is on mobile data
- * (c521; Network.kt). A carrier's 10.x is private and must never become 9B's
+ * (Network.kt). A carrier's 10.x is private and must never become 9B's
  * prefix.
  */
 class NetworkTest {

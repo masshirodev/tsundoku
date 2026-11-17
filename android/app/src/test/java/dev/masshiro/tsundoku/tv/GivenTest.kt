@@ -10,7 +10,7 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 
 /**
- * What the app does with an address from outside (c683): one in the list opens,
+ * What the app does with an address from outside: one in the list opens,
  * one that is not is asked about, and one it cannot read is refused.
  */
 class GivenTest {

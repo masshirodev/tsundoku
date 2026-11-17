@@ -40,7 +40,7 @@ describe('the series page', () => {
 	});
 });
 
-describe('the seed’s places (c653)', () => {
+describe('the seed’s places', () => {
 	// Every in-progress entry of every seeded series: a list a person picked
 	// would prove only what was picked.
 	const inProgress = () =>
@@ -133,7 +133,7 @@ describe('markReadThrough', () => {
 	});
 });
 
-describe('MARK UNREAD starts a read chapter from the top (c652, c666)', () => {
+describe('MARK UNREAD starts a read chapter from the top', () => {
 	const place = (id: number) =>
 		getDb()
 			.prepare(
@@ -202,7 +202,7 @@ describe('MARK UNREAD starts a read chapter from the top (c652, c666)', () => {
 	});
 });
 
-describe('UNDO of MARK READ THROUGH puts the place back (c666)', () => {
+describe('UNDO of MARK READ THROUGH puts the place back', () => {
 	const place = (id: number) =>
 		getDb()
 			.prepare(
@@ -416,7 +416,7 @@ describe('the reading log', () => {
 	});
 });
 
-describe('the source a series’ tags search (c313)', () => {
+describe('the source a series’ tags search', () => {
 	/**
 	 * `tagSourceOf` (series/[id]/tag-source.server.ts) decides each door by
 	 * what can be asked -- does the key name a source, does BROWSE list it with
@@ -512,7 +512,7 @@ describe('the source a series’ tags search (c313)', () => {
 	});
 });
 
-describe('PUT ON A SHELF under ADDED TO THE LIBRARY, and its UNDO (c724)', () => {
+describe('PUT ON A SHELF under ADDED TO THE LIBRARY, and its UNDO', () => {
 	/**
 	 * The series screen's band writes through the screen's own `?/shelf` (the
 	 * SHELVES sheet's write) and takes back through `?/undoSourceAdd`, whose

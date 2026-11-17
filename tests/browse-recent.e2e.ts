@@ -3,7 +3,7 @@ import { expect, test } from './fixtures';
 import { resetEngine, SOURCES } from './browse-world';
 
 /**
- * BROWSE's RECENT folds away (card c726; doc/BROWSE.md, "RECENT folds"): its
+ * BROWSE's RECENT folds away (doc/BROWSE.md, "RECENT folds"): its
  * label is a toggle, open by default, remembered per device in one
  * localStorage key, and a reload of a device that folded it paints it folded
  * from the first frame (the head's pre-paint mark), never open and then shut.

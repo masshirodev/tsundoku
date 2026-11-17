@@ -49,7 +49,7 @@ class BackTest {
 		assertTrue(Back.isHome("http://192.168.1.23:42143/"))
 		assertFalse(Back.isHome("http://192.168.1.23:42143/series/1"))
 		// The app's own page is never home and never a history stop, whatever
-		// its URL was before the asset loader (c549).
+		// its URL was before the asset loader.
 		assertFalse(Back.isHome(BridgeGuard.ASSET))
 		assertTrue(Back.passedOver(BridgeGuard.ASSET))
 		assertTrue(Back.passedOver(BridgeGuard.ASSET + "#add"))

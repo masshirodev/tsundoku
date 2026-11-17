@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * DETAILS on a TV (c425; doc/SERIES.md "DETAILS"; series-phone 1D, B and C):
+ * DETAILS on a TV (doc/SERIES.md "DETAILS", series-phone 1D, B and C):
  * the settings-like rows fold, because on a D-pad every row is a stop.
  * DETAILS is one stop between ABOUT and the list; OK opens or closes it in
  * place and the focus stays on it; ↓ then goes into the first opened row. The

@@ -7,7 +7,7 @@ import { test, expect } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * GET STARTED (doc/ONBOARDING.md; cards c208, c209), end to end on an empty
+ * GET STARTED (doc/ONBOARDING.md), end to end on an empty
  * library: its own preview of the build, on a database seeded and then
  * emptied of series and devices, so the checklist is what the library is. No
  * engine: the steps that need one are ticked by writing what they'd have
@@ -186,7 +186,7 @@ test('leaving the screen any other way ends the trip', async ({ page }) => {
 	await expect(page.getByRole('navigation', { name: 'Get started' })).toHaveCount(0);
 });
 
-test('03 offers IMPORT A BACKUP for Mihon, NOT YET for the other two, and the folder below (c438)', async ({
+test('03 offers IMPORT A BACKUP for Mihon, NOT YET for the other two, and the folder below', async ({
 	page
 }) => {
 	await page.goto('/');
@@ -203,7 +203,7 @@ test('03 offers IMPORT A BACKUP for Mihon, NOT YET for the other two, and the fo
 	await expect(page.getByRole('heading', { name: 'IMPORT A BACKUP' })).toBeVisible();
 });
 
-test('03’s IMPORT A BACKUP → starts a trip: the band on the import pages, ✓ when an import brings a series, and 03 names it with IMPORT LOG → (c511)', async ({
+test('03’s IMPORT A BACKUP → starts a trip: the band on the import pages, ✓ when an import brings a series, and 03 names it with IMPORT LOG →', async ({
 	page
 }) => {
 	await page.goto('/');
@@ -364,7 +364,7 @@ test('every step done or skipped: the first day, and the list stays on /start, f
 	await expect(page.locator('.side-foot a.start')).toHaveCount(0);
 });
 
-test('FIRST READ: SET UP done leads to it, and one band follows the trip from the search to DOWNLOADS (c209)', async ({
+test('FIRST READ: SET UP done leads to it, and one band follows the trip from the search to DOWNLOADS', async ({
 	page
 }) => {
 	test.setTimeout(90_000);

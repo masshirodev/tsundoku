@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * The WI-FI panel's server side (`src/lib/server/wifi.ts`; doc/WIFI.md), on a
  * friend's install as serve.ts runs one in local mode: which doors may make a
- * pairing code, and which only read it (c460).
+ * pairing code, and which only read it.
  *
  * Five wrong tries on `/pair/tv` burn the TV's code, and only the owner makes
  * another: NEW CODE (`fresh`), ON (`fresh`) or opening SETTINGS on the
@@ -160,7 +160,7 @@ describe('the doors that may make a code', () => {
 		}
 	});
 
-	it('/pair/tv (renewForTv) waits out ✓ USED exactly as long as opening SETTINGS does (c246)', () => {
+	it('/pair/tv (renewForTv) waits out ✓ USED exactly as long as opening SETTINGS does', () => {
 		// pairing.ts's TV_USED_SHOWN_MS is a copy of this file's USED_SHOWN_MS:
 		// held here by behaviour, either side of the boundary, so the two can't drift.
 		for (const age of [1, TV_USED_SHOWN_MS - 1, TV_USED_SHOWN_MS, TV_USED_SHOWN_MS + 1, CODE_MS]) {
@@ -177,7 +177,7 @@ describe('the doors that may make a code', () => {
 		}
 	});
 
-	it('/pair/tv never replaces a burned code, where opening SETTINGS does (c246)', () => {
+	it('/pair/tv never replaces a burned code, where opening SETTINGS does', () => {
 		for (const now of [T0 + 2000, T0 + CODE_MS + 1]) {
 			tvPairing.fresh(T0);
 			const code = burnTv(T0 + 1000);
@@ -217,7 +217,7 @@ describe('the doors that may make a code', () => {
  * page's data alike (`invalidateAll()`, an enhanced form, the layout's RESCAN
  * or theme); only the first may replace a code five wrong tries burned.
  */
-describe('a real visit to SETTINGS, and a reload of its data (c531)', () => {
+describe('a real visit to SETTINGS, and a reload of its data', () => {
 	it('settingsVisit: a document GET only, over every request the load can run for', () => {
 		const seen: string[] = [];
 		for (const isDataRequest of [false, true])
@@ -314,7 +314,7 @@ describe('a real visit to SETTINGS, and a reload of its data (c531)', () => {
  * own (`shown`). Every door reads `state` now; this asks each one, either side
  * of the 10 minutes and long after them.
  */
-describe('a burned code past its 10 minutes (c581)', () => {
+describe('a burned code past its 10 minutes', () => {
 	const AT = [T0 + CODE_MS - 1, T0 + CODE_MS, T0 + CODE_MS + 1, T0 + CODE_MS * 6];
 
 	it('reads burned from the computer’s doors, and none of them makes a new one', async () => {

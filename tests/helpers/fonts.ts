@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 
 /**
- * The fonts Chromium actually drew a node's text with (c537), from the
+ * The fonts Chromium actually drew a node's text with, from the
  * DevTools protocol's CSS.getPlatformFontsForNode. A computed `font-family`
  * is only the stack asked for: a face whose file never loaded falls through
  * to the next family without changing it, so only the drawn font says whether

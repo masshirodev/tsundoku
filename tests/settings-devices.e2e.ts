@@ -17,7 +17,7 @@ import { HOST_ARGS } from './helpers/host-args';
 
 /**
  * SETTINGS › 08 — DEVICES' TV row, end to end, on two token installs of this
- * file's own (c264, c265; doc/WIFI.md, "Where they show").
+ * file's own (doc/WIFI.md, "Where they show").
  *
  * - `door`: an `ORIGIN` on a tailnet-like host, as `scripts/serve.ts` sets it,
  *   so a TV's paired cookie is a door and the row draws the six digits.
@@ -32,7 +32,7 @@ import { HOST_ARGS } from './helpers/host-args';
  * Desktop only: the row is the same markup at every width, and every project
  * that loaded this file would otherwise stand up two more servers.
  *
- * 60 s a case, not 30 (c459): beside a whole parallel suite this file's cases,
+ * 60 s a case, not 30: beside a whole parallel suite this file's cases,
  * 1.5 s alone, ran out the 30 s in page loads on two `vite preview` servers of
  * their own, as `works-flow`'s did on its one (doc/TESTING.md, "Load").
  */
@@ -57,7 +57,7 @@ const install = (port: number, name: string): Install => ({
 const door = install(await freePort(), 'door');
 const bare = install(await freePort(), 'bare');
 /**
- * A third, for 07 — BROWSE's EXTENSIONS row (c725): the engine set up at an
+ * A third, for 07 — BROWSE's EXTENSIONS row: the engine set up at an
  * address nothing answers, as start-flow's preview has it, so BROWSE and
  * EXTENSIONS exist and the counts are the database's.
  */
@@ -102,7 +102,7 @@ const desktop = () => test.info().project.name === 'desktop';
 test.beforeAll(async () => {
 	if (!desktop()) return;
 	// Two seeds and two `vite preview` starts: 30 s ran out at a load average
-	// of 56-73 (c459, wave 21); `serve` itself gives each up to 60 s.
+	// of 56-73; `serve` itself gives each up to 60 s.
 	test.setTimeout(120_000);
 	await Promise.all([
 		serve(door, `http://tsundoku.test:${new URL(door.base).port}`),
@@ -127,7 +127,7 @@ test.beforeEach(() => {
 /**
  * Every context a case opened, closed after it whatever happened. A close in
  * the case's own `finally` threw "Failed to find context" when the case had
- * timed out, and that error replaced the one that said why (c459).
+ * timed out, and that error replaced the one that said why.
  */
 const opened: BrowserContext[] = [];
 test.afterEach(async () => {
@@ -168,7 +168,7 @@ async function shownDigits(page: Page) {
  * event that should cause it. Without it, "the server's code is unchanged"
  * could be read before the refresh had even asked, and pass for that reason.
  * Armed before every synthetic event and every `runFor` that should ask
- * (c459), so a case that fails says the row never asked, not that a
+ *, so a case that fails says the row never asked, not that a
  * locator timed out.
  */
 const rowAsks = (page: Page) =>
@@ -207,7 +207,7 @@ async function typeOnTv(at: Install, codes: string[]) {
  * fast-forward to the past"). So the clock is paused as soon as it is
  * installed, before the page loads, and only `runFor` moves it.
  *
- * And hydrated before it returns (c459): the server-rendered row is visible
+ * And hydrated before it returns: the server-rendered row is visible
  * before `<svelte:window onfocus>` is attached, and with the clock paused no
  * 5 s tick makes up for a synthetic focus that found no listener.
  */
@@ -216,7 +216,7 @@ async function openFrozen(page: Page) {
 	await page.clock.install({ time: at });
 	// Paused a little ahead of the install, not at it: the installed clock
 	// flows until this call, and under load that took long enough for pausing
-	// at `at` itself to be "fast-forward to the past" (c459, wave 21). Nothing
+	// at `at` itself to be "fast-forward to the past". Nothing
 	// is loaded yet, so the jump fires nothing; 30 s ahead of the server's
 	// clock leaves a fresh code's 10 minutes live.
 	await page.clock.pauseAt(at + 30_000);
@@ -225,7 +225,7 @@ async function openFrozen(page: Page) {
 	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 }
 
-test('with no ORIGIN, DEVICES draws no six digits and no door makes them (c264)', async ({
+test('with no ORIGIN, DEVICES draws no six digits and no door makes them', async ({
 	browser
 }, info) => {
 	const { page } = await settings(browser, info, bare);
@@ -260,7 +260,7 @@ test('with no ORIGIN, DEVICES draws no six digits and no door makes them (c264)'
 	expect(await tvCode(other.page)).toMatchObject({ state: 'live' });
 });
 
-test('a code a TV uses while SETTINGS is open turns USED when the window regains focus (c265)', async ({
+test('a code a TV uses while SETTINGS is open turns USED when the window regains focus', async ({
 	browser
 }, info) => {
 	const { page } = await settings(browser, info, door);
@@ -299,7 +299,7 @@ async function showsBurned(page: Page) {
 	await expect(page.getByLabel('Pairing code for the app')).toHaveCount(0);
 }
 
-test('a code a TV burns while SETTINGS is open shows BURNED, and stays burned until NEW CODE (c265)', async ({
+test('a code a TV burns while SETTINGS is open shows BURNED, and stays burned until NEW CODE', async ({
 	browser
 }, info) => {
 	const { page } = await settings(browser, info, door);
@@ -336,7 +336,7 @@ test('a code a TV burns while SETTINGS is open shows BURNED, and stays burned un
 	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toHaveCount(0);
 });
 
-test("the row's own tick shows a burned code as BURNED and makes no new one (c265)", async ({
+test("the row's own tick shows a burned code as BURNED and makes no new one", async ({
 	browser
 }, info) => {
 	const { page } = await settings(browser, info, door);
@@ -360,14 +360,14 @@ test("the row's own tick shows a burned code as BURNED and makes no new one (c26
 	});
 	await page.clock.runFor(15_000);
 	// A request the fake 15 s fired reaches this runner a moment later: wait
-	// for it before counting none (c459). The one fixed wait here asserts
+	// for it before counting none. The one fixed wait here asserts
 	// that nothing happens (doc/TESTING.md, "Load").
 	await page.waitForTimeout(1_000);
 	expect(more).toBe(0);
 	expect(await tvCode(page)).toMatchObject({ code, state: 'burned' });
 });
 
-test('a code a TV uses while SETTINGS stays in front turns USED within a tick (c265)', async ({
+test('a code a TV uses while SETTINGS stays in front turns USED within a tick', async ({
 	browser
 }, info) => {
 	const { page } = await settings(browser, info, door);
@@ -386,7 +386,7 @@ test('a code a TV uses while SETTINGS stays in front turns USED within a tick (c
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('✓ USED');
 });
 
-test('the row asks every 5 s while live, and the 15 s countdown does not reset that (c265)', async ({
+test('the row asks every 5 s while live, and the 15 s countdown does not reset that', async ({
 	browser
 }, info) => {
 	const { page } = await settings(browser, info, door);
@@ -407,14 +407,12 @@ test('the row asks every 5 s while live, and the 15 s countdown does not reset t
 });
 
 /**
- * A refresh that lands after NEW CODE is about the old code (c461). The row
+ * A refresh that lands after NEW CODE is about the old code. The row
  * asks on focus; the answer is held while NEW CODE makes a new code, then let
  * through. It names the old code burned, and drawing it would put BURNED back
  * over the live new digits until the next refresh.
  */
-test('a refresh answered after NEW CODE leaves the new code live (c461)', async ({
-	browser
-}, info) => {
+test('a refresh answered after NEW CODE leaves the new code live', async ({ browser }, info) => {
 	const { page } = await settings(browser, info, door);
 	await freshCode(page);
 	await openFrozen(page);
@@ -470,13 +468,13 @@ test('a refresh answered after NEW CODE leaves the new code live (c461)', async 
 });
 
 /**
- * SETTINGS' EXTENSIONS row (c725; doc/SETTINGS.md, "07 — BROWSE"): a second
+ * SETTINGS' EXTENSIONS row (doc/SETTINGS.md, "07 — BROWSE"): a second
  * door to BROWSE › EXTENSIONS, where Mihon's and Aniyomi's readers look
  * first. Its counts are the db spec's (tests/settings-extensions-db.spec.ts);
  * here, that the row is drawn in 07 with the seed's counts and its meta, and
  * that a tap lands on EXTENSIONS.
  */
-test('07 — BROWSE has an EXTENSIONS row, and its tap lands on EXTENSIONS (c725)', async ({
+test('07 — BROWSE has an EXTENSIONS row, and its tap lands on EXTENSIONS', async ({
 	browser
 }, info) => {
 	const { page } = await settings(browser, info, engine);
@@ -491,9 +489,7 @@ test('07 — BROWSE has an EXTENSIONS row, and its tap lands on EXTENSIONS (c725
 	await expect(page.getByRole('navigation', { name: 'Extensions' })).toBeVisible();
 });
 
-test('with no engine, SETTINGS has no 07 and no EXTENSIONS row (c725)', async ({
-	browser
-}, info) => {
+test('with no engine, SETTINGS has no 07 and no EXTENSIONS row', async ({ browser }, info) => {
 	const { page } = await settings(browser, info, bare);
 	await page.goto('/settings');
 	await expect(page.locator('#s-devices')).toBeVisible();
@@ -508,7 +504,7 @@ test('with no engine, SETTINGS has no 07 and no EXTENSIONS row (c725)', async ({
  * no engine, so no 07. The arrows walk down SETTINGS until the row's link has
  * the focus, and Enter opens EXTENSIONS.
  */
-test('a TV walks to the EXTENSIONS row with the arrows and opens it (c725)', async ({
+test('a TV walks to the EXTENSIONS row with the arrows and opens it', async ({
 	playwright
 }, info) => {
 	const tv = await playwright.chromium.launch({

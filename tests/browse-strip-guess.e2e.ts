@@ -4,7 +4,7 @@ import { BROWSE_PORT, resetEngine, SOURCES } from './browse-world';
 import sharp from 'sharp';
 
 /**
- * A strip page still guessing its size (c913, doc/READER.md "Vertical"): an
+ * A strip page still guessing its size (doc/READER.md "Vertical"): an
  * online page whose image is slow (held here by `page.route`) is never shorter
  * than one screen, and a forward key step goes no further than that page's top
  * at the top of the screen, so it is read rather than stepped over, and at a
@@ -275,7 +275,7 @@ test.describe('a strip at full width (a phone)', () => {
 		await expect(slotOf(page, id, 1).locator('img')).toBeVisible({ timeout: 20_000 });
 		const two = await topOf(page, id, 2);
 		// The same place a key stops at, scrolled by a wheel instead: the rule is
-		// the keys', and a thumb or a wheel reads on while the page loads (c913).
+		// the keys', and a thumb or a wheel reads on while the page loads.
 		await scrollTo(page, two + 400);
 		await still(page);
 		const before = await scrollAt(page);
@@ -288,7 +288,7 @@ test.describe('a strip at full width (a phone)', () => {
 		await expect.poll(() => scrollAt(page)).toBeGreaterThan(before + 100);
 	});
 
-	test('a held ↓ reaches a page still loading and stops there (c913)', async ({ page }) => {
+	test('a held ↓ reaches a page still loading and stops there', async ({ page }) => {
 		test.setTimeout(90_000);
 		// Only the last page is slow: pages 0 and 1 have loaded, so a held ↓
 		// really travels before it reaches the page it must stop at.
@@ -312,7 +312,7 @@ test.describe('a strip at full width (a phone)', () => {
 		expect(await middlePage(page)).toEqual({ entry: id, index: 2 });
 	});
 
-	test('a page that did not load does not hold the keys (c913)', async ({ page }) => {
+	test('a page that did not load does not hold the keys', async ({ page }) => {
 		test.setTimeout(90_000);
 		// Every attempt at page 2 is aborted, as a source that lost it: RETRY
 		// cannot help, and the box stays a screen tall.
@@ -338,7 +338,7 @@ test.describe('a strip at full width (a phone)', () => {
 		expect(await middlePage(page)).not.toEqual({ entry: id, index: 2 });
 	});
 
-	test('two pages still loading keep the first under the middle (c913)', async ({ page }) => {
+	test('two pages still loading keep the first under the middle', async ({ page }) => {
 		test.setTimeout(90_000);
 		// Page 0 is loaded and short; pages 1 and 2 are on their way, and a
 		// short `last` leaves their boxes at the one-screen minimum. That is
@@ -371,7 +371,7 @@ test.describe('a strip at full width (a phone)', () => {
 		await expect.poll(() => middlePage(page)).toEqual({ entry: id, index: 1 });
 	});
 
-	test('a page that never answers holds for its limit from its own first stop (c913)', async ({
+	test('a page that never answers holds for its limit from its own first stop', async ({
 		page
 	}) => {
 		test.setTimeout(120_000);
@@ -446,7 +446,7 @@ test.describe('a stored page the manifest could not measure', () => {
 		isMobile: true
 	});
 
-	test('a loaded page is never a guess, and ↓ crosses it (c913)', async ({ page }) => {
+	test('a loaded page is never a guess, and ↓ crosses it', async ({ page }) => {
 		test.setTimeout(120_000);
 		await page.route('**/api/entries/*/pages', async (route) => {
 			const answer = await route.fetch();

@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** The second press BACK has to make to leave the app (LeaveWindow.kt, c859). */
+/** The second press BACK has to make to leave the app (LeaveWindow.kt). */
 class LeaveWindowTest {
 	private val t = 10_000L
 

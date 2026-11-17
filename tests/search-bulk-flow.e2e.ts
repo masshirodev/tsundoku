@@ -384,7 +384,7 @@ test('ADD TO A WORK whose Work is gone: the refusal is drawn, the ticks stay, an
 	await expect(count(page)).toHaveText('1 SELECTED');
 });
 
-test('ADD TO A WORK whose Work was remade under its id (c583): refused, then the second press joins it', async ({
+test('ADD TO A WORK whose Work was remade under its id: refused, then the second press joins it', async ({
 	page
 }) => {
 	const id = makeWork('Remade Work', [

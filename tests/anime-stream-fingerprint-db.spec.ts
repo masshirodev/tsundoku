@@ -11,7 +11,7 @@ import { chromaprintSkip } from './helpers/chromaprint';
 process.env.DATABASE_PATH = ':memory:';
 process.env.ENGINE_TOKEN = 'engine-secret';
 
-// Fingerprints of streams (doc/ANIME.md, "Openings and endings"; card c239):
+// Fingerprints of streams (doc/ANIME.md, "Openings and endings"):
 // the same two episodes, read through the loopback proxy at the lowest
 // quality at most 480p, from a separate audio rendition, and only for the
 // episodes a player is about to reach.
@@ -19,7 +19,7 @@ const work = mkdtempSync(join(tmpdir(), 'tsundoku-stream-fingerprint-'));
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
 const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
-// A box with no chromaprint at all skips the cases that fingerprint (c915).
+// A box with no chromaprint at all skips the cases that fingerprint.
 const noPrint = chromaprintSkip('anime-stream-fingerprint-db', FFMPEG) !== null;
 const noise = (name: string, seconds: number, seed: number) => {
 	const file = join(work, name);
@@ -97,7 +97,7 @@ let server: Server;
 let self = '';
 let seen: string[] = [];
 
-// Encoding the fixtures took 130 s at a load of 40 (wave 30), past 120 s's limit.
+// Encoding the fixtures took 130 s at a load of 40, past 120 s's limit.
 beforeAll(async () => {
 	const op = noise('op.mka', 20, 41);
 	const ed = noise('ed.mka', 20, 43);
@@ -163,7 +163,7 @@ beforeAll(async () => {
 				}));
 			// A 1080p-only server first, one that names no height second, and
 			// the 360p one last: the ranking, not the source's order, picks it
-			// (c338). The first two point at audio that is not there, so a read
+			//. The first two point at audio that is not there, so a read
 			// of either shows in the request log.
 			const ranked = (kind: string) =>
 				[
@@ -350,7 +350,7 @@ describe('fingerprinting streams', () => {
 	);
 
 	it.skipIf(noPrint)(
-		'reads a later server’s 360p before an earlier server’s 1080p or unknown height (c338)',
+		'reads a later server’s 360p before an earlier server’s 1080p or unknown height',
 		async () => {
 			// The ranking across servers (`qualitiesToRead`): a quality at or below
 			// 480p first, then one that names no height, then one above, whatever

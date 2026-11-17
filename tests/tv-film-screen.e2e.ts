@@ -8,7 +8,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * A film's screen on a TV (card c992; the handoff's Film-TV board): the
+ * A film's screen on a TV (the handoff's Film-TV board): the
  * stage is facts only, with no cells and no stops, so PLAY is the one place
  * the remote lands on the stage's side. The setup is film-screen.e2e.ts's.
  *
@@ -165,7 +165,7 @@ test.afterAll(async () => {
 	if (work) rmSync(work, { recursive: true, force: true });
 });
 
-test('on a TV the stage is facts only: no links, no cells, no ABOUT (c992)', async ({ page }) => {
+test('on a TV the stage is facts only: no links, no cells, no ABOUT', async ({ page }) => {
 	await page.goto(`${BASE}/series/${filmId}`);
 	const stage = page.getByRole('region', { name: 'The film' });
 	await expect(stage).toContainText('PART 1 OF 3');

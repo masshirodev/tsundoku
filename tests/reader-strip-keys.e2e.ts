@@ -1,11 +1,11 @@
 import { expect, readerReady, test } from './fixtures';
 
 /**
- * The vertical strip's ← and → (c527; doc/READER.md, "Scrolling on a PC"):
+ * The vertical strip's ← and → (doc/READER.md, "Scrolling on a PC"):
  * they nudge like Ctrl + ↑ / ↓, follow the mode rather than the kind, keep
  * panning sideways while the strip is zoomed wider than the screen, and a
- * paged reader still turns on them. Also a held ↓ (c668): its repeats scroll
- * steadily rather than stacking steps, from rest up to its full speed (c692),
+ * paged reader still turns on them. Also a held ↓: its repeats scroll
+ * steadily rather than stacking steps, from rest up to its full speed,
  * and every door that can take the keyup away ends it. Runs on every device because the keys are the same on each and
  * the strip's width is not. Read-only: it reads in incognito, so nothing is
  * written to the shared database, and it reads the series reader-layout reads
@@ -13,7 +13,7 @@ import { expect, readerReady, test } from './fixtures';
  * session state that only REMEMBER stores.
  */
 
-// 60 s, measured (c439, wave 24): each case opens the reader cold and switches
+// 60 s, measured: each case opens the reader cold and switches
 // to the strip before its first key, and at a load of 35-50 (four burners
 // beside the slots, phone, `--repeat-each=10 --workers=4`) the passing copies
 // took 11-27 s of the 30 s; at 41-58, 6 of 80 copies ran the 30 s out in
@@ -134,7 +134,7 @@ const middle = (page: import('@playwright/test').Page) =>
 		return `${s?.getAttribute('data-entry')}/${s?.getAttribute('data-index')}`;
 	});
 
-// c568 (wave 24's trace, c439): VERTICAL picked in READING's sheet opens the
+// c568 (wave 24's trace): VERTICAL picked in READING's sheet opens the
 // strip at the reader's page, and the chapter above arriving while the sheet
 // still covers the middle used to find the sheet there, keep nothing, and
 // leave the strip a chapter up under a URL naming the chapter below. The
@@ -251,7 +251,7 @@ test('zoomed wider than the screen, ← and → pan the strip sideways instead',
 	expect((await at()).y).toBe(before.y);
 });
 
-// ---- a held arrow (c668) ----------------------------------------------------------------
+// ---- a held arrow ----------------------------------------------------------------
 // Playwright's `keyboard.down` sends one keydown, not the browser's repeats, so
 // a held key here is `keyboard.down` plus its repeats dispatched at the OS's
 // ~30/s. The reader reads its keys on the window, which is where they go.
@@ -333,9 +333,7 @@ async function openForHold(page: import('@playwright/test').Page) {
 }
 
 test.describe('a held arrow', () => {
-	test('a held ↓ moves steadily, and stops soon after the key comes up (c668)', async ({
-		page
-	}) => {
+	test('a held ↓ moves steadily, and stops soon after the key comes up', async ({ page }) => {
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
@@ -353,7 +351,7 @@ test.describe('a held arrow', () => {
 		expect(stopped - atKeyup).toBeLessThan(step);
 	});
 
-	test('a held ↓ starts from rest and reaches a screen per 220 ms (c692)', async ({ page }) => {
+	test('a held ↓ starts from rest and reaches a screen per 220 ms', async ({ page }) => {
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
@@ -418,9 +416,7 @@ test.describe('a held arrow', () => {
 		expect(steady).toBeLessThan(1.2);
 	});
 
-	test('a second key during the hold takes over from where the strip is (c668)', async ({
-		page
-	}) => {
+	test('a second key during the hold takes over from where the strip is', async ({ page }) => {
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
@@ -450,7 +446,7 @@ test.describe('a held arrow', () => {
 		expect(stopped).toBeLessThan(atPress);
 	});
 
-	test('the window losing focus ends the hold (c668)', async ({ page }) => {
+	test('the window losing focus ends the hold', async ({ page }) => {
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
@@ -464,7 +460,7 @@ test.describe('a held arrow', () => {
 		await page.keyboard.up('ArrowDown');
 	});
 
-	test('the page being hidden ends the hold (c668)', async ({ page }) => {
+	test('the page being hidden ends the hold', async ({ page }) => {
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
@@ -486,7 +482,7 @@ test.describe('a held arrow', () => {
 		await page.keyboard.up('ArrowDown');
 	});
 
-	test('the page menu opening ends the hold (c668)', async ({ page }) => {
+	test('the page menu opening ends the hold', async ({ page }) => {
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		await page.keyboard.down('ArrowDown');
@@ -506,7 +502,7 @@ test.describe('a held arrow', () => {
 		await page.keyboard.press('Escape');
 	});
 
-	test('the READING sheet ends the hold (c668)', async ({ page }) => {
+	test('the READING sheet ends the hold', async ({ page }) => {
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		await page.keyboard.down('ArrowDown');
@@ -524,7 +520,7 @@ test.describe('a held arrow', () => {
 		await page.keyboard.press('Escape');
 	});
 
-	test('leaving the chapter ends the hold, so its repeats do not scroll the next one (c668)', async ({
+	test('leaving the chapter ends the hold, so its repeats do not scroll the next one', async ({
 		page
 	}) => {
 		await openForHold(page);
@@ -553,14 +549,14 @@ test.describe('a held arrow', () => {
 		await page.keyboard.up('ArrowDown');
 	});
 
-	test('the page hidden mid-ramp stops there, and no later repeat or return moves it (c691, c692)', async ({
+	test('the page hidden mid-ramp stops there, and no later repeat or return moves it', async ({
 		page
 	}) => {
 		await openForHold(page);
 		const y = () => scrollAt(page);
 		const start = await y();
 		await page.keyboard.down('ArrowDown');
-		// On the ramp (c692), which the first repeat starts and which lasts the
+		// On the ramp, which the first repeat starts and which lasts the
 		// glide's 220 ms: the repeat and the hiding are one `evaluate`, so the
 		// moment is the page's own clock and not a poll, which is met by the
 		// press's glide and stays true after the ramp has ended. Read in the same
@@ -608,9 +604,7 @@ test.describe('a held arrow', () => {
 		await page.keyboard.up('ArrowDown');
 	});
 
-	test('a jump through history to a chapter not on the strip ends the hold (c691)', async ({
-		page
-	}) => {
+	test('a jump through history to a chapter not on the strip ends the hold', async ({ page }) => {
 		await page.goto('/?sort=title');
 		await page.waitForLoadState('networkidle');
 		await page.locator('.grid .tile', { hasText: 'Sousou no Frieren' }).click();
@@ -664,7 +658,7 @@ test.describe('a held arrow', () => {
 	});
 });
 
-// ---- a crossing is not a jump (c668) ------------------------------------------------------
+// ---- a crossing is not a jump ------------------------------------------------------
 // The strip's band between two chapters is 320 px of chapter boundary, and
 // reading on across it is the strip's own move: `stripPage` navigates with
 // `replaceState` and `noScroll`, so `data.entry.id` changes and the strip
@@ -720,7 +714,7 @@ const crossed = (page: import('@playwright/test').Page, next: number) =>
 	}, next);
 
 test.describe('a crossing the band', () => {
-	test('one ↓ across a band reaches its whole step (c668)', async ({ page }) => {
+	test('one ↓ across a band reaches its whole step', async ({ page }) => {
 		await openForHold(page);
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
 		const gap = 15;
@@ -733,7 +727,7 @@ test.describe('a crossing the band', () => {
 		expect(Math.abs(settled - (gap - step))).toBeLessThanOrEqual(3);
 	});
 
-	test('a double ↓ across a band reaches both steps (c668)', async ({ page }) => {
+	test('a double ↓ across a band reaches both steps', async ({ page }) => {
 		await openForHold(page);
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
 		const gap = 300;
@@ -746,7 +740,7 @@ test.describe('a crossing the band', () => {
 		expect(Math.abs(settled - (gap - 2 * step))).toBeLessThanOrEqual(3);
 	});
 
-	test('a wheel notch across a band reaches its aim (c668)', async ({ page }) => {
+	test('a wheel notch across a band reaches its aim', async ({ page }) => {
 		test.skip(test.info().project.name !== 'desktop', 'a wheel notch is the desktop’s (scale 1)');
 		await openForHold(page);
 		const gap = 15;
@@ -770,7 +764,7 @@ test.describe('a crossing the band', () => {
 		expect(Math.abs(settled - (gap - aim))).toBeLessThanOrEqual(3);
 	});
 
-	test('a held ↓ reads on across a band, and stops on the keyup (c668)', async ({ page }) => {
+	test('a held ↓ reads on across a band, and stops on the keyup', async ({ page }) => {
 		await openForHold(page);
 		const step = await page.evaluate(() => Math.round(innerHeight * 0.85));
 		const gap = 15;

@@ -37,7 +37,7 @@ async function command(page: Page, text: string) {
  * project's `baseURL`, which follows PLAYWRIGHT_PORT. A fixed
  * `http://localhost:4183` here was refused by SvelteKit's CSRF check (403) on
  * any other port before the gate was ever asked, so "refused" passed with no
- * gate at all (c476). A POST that doesn't ask for a document gets the action's
+ * gate at all. A POST that doesn't ask for a document gets the action's
  * own result as JSON: the redirect to the library, either way, and the reveal
  * cookie only when the command ran.
  */

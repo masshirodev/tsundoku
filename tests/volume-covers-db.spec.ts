@@ -16,7 +16,7 @@ const { setHidden } = await import('$lib/server/library');
 const { coverImageOfPage, coverPages } = await import('$lib/epub/epub');
 
 /**
- * A volume's own cover (c835), derived from its EPUB file and kept in the cover
+ * A volume's own cover, derived from its EPUB file and kept in the cover
  * directory with no new column: a manifest cover, or the image a `Cover` page
  * holds when the package names none (the shape Haibara's books have). Also the
  * lifetime the cover has when a volume moves: taken out, grouped again, a file

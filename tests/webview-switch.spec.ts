@@ -10,7 +10,7 @@ const dir = mkdtempSync(join(tmpdir(), 'tsundoku-webview-switch-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe('the WebView switch’s file', () => {
-	it('is off when there is none: every install starts off (card c978)', () => {
+	it('is off when there is none: every install starts off', () => {
 		expect(readSwitch(join(dir, 'none', 'webview.json'))).toBe(false);
 	});
 

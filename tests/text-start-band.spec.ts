@@ -227,7 +227,7 @@ describe('bandTitle', () => {
  */
 const quote = (text: string): LeadBlock => ({ tag: 'blockquote', text });
 
-describe('a short title line before a number-only heading (c741)', () => {
+describe('a short title line before a number-only heading', () => {
 	it('leaves the title out', () => {
 		const lines = leadLines([p('The Article'), h('Chapter 1'), p(LONG)]);
 		expect(lines).toEqual(['Chapter 1', 'The Article', 'Chapter 1 The Article']);
@@ -272,7 +272,7 @@ describe('a short title line before a number-only heading (c741)', () => {
 	});
 });
 
-describe('a spelled-out chapter number (c741)', () => {
+describe('a spelled-out chapter number', () => {
 	const ONES = 'one two three four five six seven eight nine'.split(' ');
 	const TEENS =
 		'ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split(' ');
@@ -346,7 +346,7 @@ describe('a spelled-out chapter number (c741)', () => {
 	// `<h1>Chapter One<br/>The Article</h1>` reaches the rule as 'Chapter OneThe
 	// Article', since a br adds no text: the word no longer ends on a boundary,
 	// so only the comparison that reads the words as words can match it.
-	describe('a spelled number with its separator gone (wave 36)', () => {
+	describe('a spelled number with its separator gone', () => {
 		const same: [string, string][] = [
 			['Chapter One: The Article', 'Chapter OneThe Article'],
 			['Chapter One The Article', 'Chapter OneThe Article'],
@@ -384,7 +384,7 @@ describe('a spelled-out chapter number (c741)', () => {
 	});
 });
 
-describe('a title in a blockquote (c741)', () => {
+describe('a title in a blockquote', () => {
 	it('with nothing else to read, the blockquote is the book’s line', () => {
 		const blocks = [quote('The Article'), p(LONG)];
 		expect(leadLine(blocks)).toBe('The Article');
@@ -422,7 +422,7 @@ describe('a title in a blockquote (c741)', () => {
 	});
 });
 
-describe('a bare leading number in the table of contents (c741)', () => {
+describe('a bare leading number in the table of contents', () => {
 	for (const toc of ['1. The Article', '1) The Article', '12.  The Article', '１． The Article'])
 		it(`"${toc}" is the title without its number`, () => {
 			expect(foldTitle(toc)).toBe('thearticle');
@@ -449,7 +449,7 @@ describe('a bare leading number in the table of contents (c741)', () => {
 	it('takes only the one leading number', () => {
 		expect(foldTitle('1. 2. Home')).toBe('2home');
 	});
-	describe('the same number with other punctuation (round 2)', () => {
+	describe('the same number with other punctuation', () => {
 		const SAME: [string, string][] = [
 			['1. The Article', '1 The Article'],
 			['1. The Article', '1: The Article'],
@@ -508,7 +508,7 @@ describe('a bare leading number in the table of contents (c741)', () => {
 	});
 });
 
-describe('kanji numerals against Arabic ones (c741)', () => {
+describe('kanji numerals against Arabic ones', () => {
 	const DIGIT = '一二三四五六七八九'.split('');
 	/** 1 to 199 in kanji, written here rather than asked of the code it checks. */
 	const kanji = (n: number): string => {
@@ -588,7 +588,7 @@ describe('kanji numerals against Arabic ones (c741)', () => {
 		expect(bandTitle('二十四の瞳', '二十四')).toBe(true);
 		expect(bandTitle('一期一会', '一')).toBe(true);
 	});
-	describe('a line that is only a kanji numeral is that number (round 2)', () => {
+	describe('a line that is only a kanji numeral is that number', () => {
 		it('against a prefixed form, both ways', () => {
 			expect(bandTitle('第一章', '一')).toBe(false);
 			expect(bandTitle('一', '第一章')).toBe(false);
@@ -649,7 +649,7 @@ describe('kanji numerals against Arabic ones (c741)', () => {
 			expect(bandTitle(LOTS, LOTS)).toBe(false);
 		});
 	});
-	describe('a bare numeral is number-only, so the lines beside it are read (round 2)', () => {
+	describe('a bare numeral is number-only, so the lines beside it are read', () => {
 		it('the line after it', () => {
 			const lines = leadLines([h('一'), h('旅立ち', 'h2'), p(LONG)]);
 			expect(lines).toEqual(['一', '旅立ち', '一 旅立ち']);

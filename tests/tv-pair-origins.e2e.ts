@@ -31,8 +31,8 @@ import { E2E_TOKEN } from '../playwright.config';
  *   (an unrelated setting changed), and a real visit (the app's link, the
  *   back button, the browser's reload) makes a new one. With no code at all
  *   (a restart), the library's MORE › SETTINGS makes one, and the row with
- *   `?/renew` refused still draws NO CODE YET (c580) and NEW CODE: each of
- *   those two cases on a server of its own, just started (c582).
+ *   `?/renew` refused still draws NO CODE YET and NEW CODE: each of
+ *   those two cases on a server of its own, just started.
  * - **c581**: a burned code past its 10 minutes stays BURNED on the DEVICES
  *   row, with no 5 s poll, as `/pair/tv` says.
  * - **c545**: 9E carries the server's name in `data-paired-name`, and the TV
@@ -227,7 +227,7 @@ const ownServers: Server[] = [];
 
 /**
  * A server of the case's own, just started, so it holds no TV code at all:
- * the state a restart leaves the owner's tailnet install in (c582). A or B
+ * the state a restart leaves the owner's tailnet install in. A or B
  * would reach it only if no case before had made a code on them, which held
  * only while these cases ran first, in a serial file.
  */
@@ -295,7 +295,7 @@ const paired = (port: number) => `tsundoku_paired_${port}`;
 /**
  * The library in the computer's browser, opened as a document: SETTINGS is
  * then reached only by the app's own links, a client-side navigation whose
- * load is a data request and makes no code (c531).
+ * load is a data request and makes no code.
  */
 async function libraryOn(at: Server) {
 	const context = await desk.newContext({
@@ -326,8 +326,8 @@ async function moreSettings(page: Page) {
 
 const renewPost = (u: URL) => u.pathname === '/settings' && u.search === '?/renew';
 
-// Each on a server of its own (c582), so neither depends on its place in the file.
-test('with no code at all, the library’s MORE › SETTINGS makes the code and draws it, and a reload of the data keeps it (c531 round 2)', async () => {
+// Each on a server of its own, so neither depends on its place in the file.
+test('with no code at all, the library’s MORE › SETTINGS makes the code and draws it, and a reload of the data keeps it', async () => {
 	test.setTimeout(150_000);
 	const C = await ownServer('nocode');
 	expect((await codeOn(C)).state, 'a fresh server has no code').toBe('none');
@@ -357,7 +357,7 @@ test('with no code at all, the library’s MORE › SETTINGS makes the code and 
 	}
 });
 
-test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and its NEW CODE makes one (c531 round 2)', async () => {
+test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and its NEW CODE makes one', async () => {
 	test.setTimeout(150_000);
 	const D = await ownServer('renewless');
 	expect((await codeOn(D)).state, 'a fresh server has no code').toBe('none');
@@ -370,7 +370,7 @@ test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and
 	await refused;
 	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('—');
-	// No code at all, not an expired one: its own line (c580).
+	// No code at all, not an expired one: its own line.
 	await expect(page.locator('.pair-tv .tvline')).toHaveText('NO CODE YET · MAKE A NEW CODE');
 	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toHaveCount(0);
 	await expect(page.getByLabel('Pairing code for the app')).toHaveCount(0);
@@ -386,7 +386,7 @@ test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and
 
 // ---- c246 ---------------------------------------------------------------------
 
-test('an expired code is made new when the TV opens /pair/tv, and it pairs (c246)', async () => {
+test('an expired code is made new when the TV opens /pair/tv, and it pairs', async () => {
 	const made = await newCode(A);
 	expect(made.state).toBe('live');
 	// Past the code's 10 minutes: what the first real TV found after 25.
@@ -417,7 +417,7 @@ test('an expired code is made new when the TV opens /pair/tv, and it pairs (c246
 	await expect(page.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 });
 
-test('a used code is kept while the computer shows ✓ USED, then made new for another TV (c246)', async () => {
+test('a used code is kept while the computer shows ✓ USED, then made new for another TV', async () => {
 	const { page: first } = await tv();
 	await pair(first, A);
 	const used = await codeOn(A);
@@ -441,7 +441,7 @@ test('a used code is kept while the computer shows ✓ USED, then made new for a
 	await expect(second.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 });
 
-test('a code that runs out while 9C is up says the new one is on the computer (c246)', async () => {
+test('a code that runs out while 9C is up says the new one is on the computer', async () => {
 	const made = await newCode(A);
 	const { page } = await tv();
 	await openPairing(page, A);
@@ -458,7 +458,7 @@ test('a code that runs out while 9C is up says the new one is on the computer (c
 	await expect(page.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 });
 
-test('a burned code stays burned, even after its 10 minutes, until the computer makes one (c246)', async () => {
+test('a burned code stays burned, even after its 10 minutes, until the computer makes one', async () => {
 	const made = await newCode(A);
 	const { page } = await tv();
 	await openPairing(page, A);
@@ -493,7 +493,7 @@ test('a burned code stays burned, even after its 10 minutes, until the computer 
 
 /**
  * The owner's SETTINGS on a server, in the computer's browser, signed in with
- * the suite's token: the DEVICES row with the TV's six digits (c245). At
+ * the suite's token: the DEVICES row with the TV's six digits. At
  * 127.0.0.1, as the owner's own browser on the computer would be; the row
  * itself is drawn wherever the server's ORIGIN makes a TV's cookie a door.
  */
@@ -522,7 +522,7 @@ async function shownDigits(page: Page) {
 
 /**
  * Counts every focus and visibility event the page sees from here on: the
- * row also refreshes on those (c265), and this file's cases are about what
+ * row also refreshes on those, and this file's cases are about what
  * its own tick does while the owner never leaves the window.
  */
 async function countReturns(page: Page) {
@@ -535,7 +535,7 @@ async function countReturns(page: Page) {
 	return () => page.evaluate(() => (window as unknown as { returns: number }).returns);
 }
 
-test('the DEVICES row draws the code the TV made in place of an expired one, on its own tick (c246)', async () => {
+test('the DEVICES row draws the code the TV made in place of an expired one, on its own tick', async () => {
 	const made = await newCode(A);
 	const page = await settingsOn(A);
 	expect(await shownDigits(page)).toBe(made.code);
@@ -632,7 +632,7 @@ async function toLibrary(page: Page) {
 const reloadOfData = (page: Page) =>
 	page.waitForResponse((r) => new URL(r.url()).pathname === '/settings/__data.json');
 
-test('a burned code stays burned through a reload of SETTINGS’ data, and a real visit makes a new one (c531)', async () => {
+test('a burned code stays burned through a reload of SETTINGS’ data, and a real visit makes a new one', async () => {
 	await newCode(A);
 	const page = await settingsOn(A);
 	let old = await burnOn(A);
@@ -693,11 +693,11 @@ test('a burned code stays burned through a reload of SETTINGS’ data, and a rea
 
 /**
  * The DEVICES row and `/pair/tv` once a burned code's 10 minutes have run
- * out (c581). `TvPairing.state` asked the clock first, so the row's refresh
+ * out. `TvPairing.state` asked the clock first, so the row's refresh
  * turned BURNED into EXPIRED and its 5 s poll, which a burned code never
  * needs, started again, while the TV's page still said NO TRIES LEFT.
  */
-test('a burned code past its 10 minutes stays BURNED on the DEVICES row, with no 5 s poll, as /pair/tv says (c581)', async () => {
+test('a burned code past its 10 minutes stays BURNED on the DEVICES row, with no 5 s poll, as /pair/tv says', async () => {
 	await newCode(A);
 	const page = await settingsOn(A);
 	const burned = await burnOn(A);
@@ -745,7 +745,7 @@ const PAIRED_JS = (() => {
 	return m[1];
 })();
 
-test('9E says the server’s name in data-paired-name, which the app’s PAIRED_JS reads (c545)', async () => {
+test('9E says the server’s name in data-paired-name, which the app’s PAIRED_JS reads', async () => {
 	const name = (hostname() || 'computer').toUpperCase();
 	const { page } = await tv();
 	// Not 9E yet: the script says nothing.
@@ -763,7 +763,7 @@ test('9E says the server’s name in data-paired-name, which the app’s PAIRED_
 
 // ---- c530 ---------------------------------------------------------------------
 
-test('two servers on one host keep their own pairing, after the other pairs and after FORGET on the other (c530)', async () => {
+test('two servers on one host keep their own pairing, after the other pairs and after FORGET on the other', async () => {
 	const { context, page } = await tv();
 	await pair(page, A);
 	await pair(page, B);
@@ -793,12 +793,12 @@ test('two servers on one host keep their own pairing, after the other pairs and 
 	expect(await signedIn(page, B)).toBe(true);
 });
 
-test('a TV paired before c530, with only the old name, stays paired and is moved to the new one (c530)', async () => {
+test('a TV paired before c530, with only the old name, stays paired and is moved to the new one', async () => {
 	// A pairing made the way it is now, then put back under the old shared
 	// name in a TV of its own: a jar exactly as a TV paired before this
 	// release keeps it. A new context, not the one that paired: 9E's page on A
 	// keeps asking A for a moment, and A rightly moves the old name the first
-	// time it sees it, before B could be asked (a red under load, wave 22).
+	// time it sees it, before B could be asked (a red under load).
 	const pairing = await tv();
 	await pair(pairing.page, A);
 	const token = (await pairing.context.cookies()).find((c) => c.name === paired(A.port))!.value;

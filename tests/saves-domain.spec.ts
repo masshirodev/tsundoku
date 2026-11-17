@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { saves, type FailedSave } from '../src/lib/saves.svelte';
 
 // The store behind the bands (doc/WAITING.md, "Writes that failed"): a list
-// keyed by save (c739, c686), whose callers on the series screen and in the
+// keyed by save, whose callers on the series screen and in the
 // reader only ever pass one failure at a time.
 
 const failure = (key: string, over: Partial<FailedSave> = {}): FailedSave => ({
@@ -48,7 +48,7 @@ describe('the list of failures', () => {
 		expect(saves.failed[1]).toBe(next);
 	});
 
-	it('never reads one kind of key as another (c686): a cover is not a rating', () => {
+	it('never reads one kind of key as another: a cover is not a rating', () => {
 		saves.fail(failure('cover:12'));
 		expect(saves.unsaved('cover:12')).toBe(true);
 		expect(saves.unsaved('rating:12')).toBe(false);

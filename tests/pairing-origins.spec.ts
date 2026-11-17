@@ -17,7 +17,7 @@ import { scrub } from '../src/lib/server/report-scrub.ts';
 process.env.DATABASE_PATH = ':memory:';
 
 /**
- * One paired cookie per origin (c530; doc/WIFI.md, doc/ANDROID.md). A cookie
+ * One paired cookie per origin (doc/WIFI.md, doc/TV-APP.md). A cookie
  * jar scopes by host, not port or scheme, so two tsundoku on one computer
  * shared `tsundoku_paired` and each pairing undid the other's. The name now
  * says the origin's port and scheme; one paired before keeps signing in and

@@ -2,7 +2,7 @@ import { type Locator, type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * A long sheet keeps its way out (c716): Sheet pins a head marked
+ * A long sheet keeps its way out: Sheet pins a head marked
  * `sheet-head`, so ✕ or CANCEL stays reachable at the end of the content, and
  * measures it so a focused row stops below it instead of under it. Runs on
  * every device at 600 px high, the short window the card names: MORE has its
@@ -57,7 +57,7 @@ async function aRowStopsBelowTheHead(sheet: Locator, row: Locator) {
 
 test.beforeEach(async ({ page }) => shortWindow(page));
 
-test('MORE, scrolled to its end in a short window, keeps ✕ and it closes (c716)', async ({
+test('MORE, scrolled to its end in a short window, keeps ✕ and it closes', async ({
 	page
 }, info) => {
 	test.skip(info.project.name === 'desktop', 'The desktop has the sidebar: no MORE cell');
@@ -73,9 +73,7 @@ test('MORE, scrolled to its end in a short window, keeps ✕ and it closes (c716
 	await expect(sheet).toBeHidden();
 });
 
-test('GROUP, whose head is inside its form, keeps CANCEL and it closes (c716)', async ({
-	page
-}) => {
+test('GROUP, whose head is inside its form, keeps CANCEL and it closes', async ({ page }) => {
 	await page.goto('/?sort=title');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	const tiles = page.locator('.grid .tile');

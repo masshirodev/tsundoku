@@ -19,7 +19,7 @@ test('the panel, as the mock measures it on this device', async ({ page }, info)
 	await page.goto('/?shelf=all&min=8');
 	const cell = page.locator('summary', { hasText: 'FILTER' }).filter({ visible: true });
 	await expect(cell).toHaveCount(1);
-	// No wait for hydration: a native open before it now survives it (c105).
+	// No wait for hydration: a native open before it now survives it.
 	expect(await px(cell, 'font-size')).toBe(device === 'desktop' ? '14px' : '13px');
 	if (device !== 'desktop') {
 		expect(await px(cell, 'padding-left')).toBe('14px');
@@ -32,7 +32,7 @@ test('the panel, as the mock measures it on this device', async ({ page }, info)
 		expect(Math.round(c.height)).toBe(39);
 	}
 	// On the band FILTER draws its own divider; in the desktop's top bar the
-	// cell before it draws that one, and FILTER the rule against SELECT (c431).
+	// cell before it draws that one, and FILTER the rule against SELECT.
 	if (device === 'desktop') {
 		expect(await px(cell, 'border-left-width')).toBe('0px');
 		expect(await px(page.locator('.filter-desk'), 'border-right-width')).toBe('1px');

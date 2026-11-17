@@ -20,7 +20,7 @@ import {
 	ZOOM_STEPS
 } from '$lib/reader/zoom';
 
-// Zoom in the image reader (doc/READER.md, "Zoom"; card c169).
+// Zoom in the image reader (doc/READER.md, "Zoom").
 describe('zoom', () => {
 	it('steps through round numbers from wherever a pinch left it, within 20%–500%', () => {
 		expect(stepZoom(1, 1)).toBe(1.25);
@@ -37,8 +37,8 @@ describe('zoom', () => {
 		expect(zoomLabel(1.25)).toBe('125%');
 	});
 
-	// The step list is a finite domain (c719): all of it, both ways, both ends.
-	it('walks the whole list up from 20% and down from 500%, and stops at each end (c719)', () => {
+	// The step list is a finite domain: all of it, both ways, both ends.
+	it('walks the whole list up from 20% and down from 500%, and stops at each end', () => {
 		const list = [0.2, 0.25, 0.33, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 		expect([...ZOOM_STEPS]).toEqual(list);
 		expect([ZOOM_MIN, ZOOM_MAX]).toEqual([0.2, 5]);
@@ -78,7 +78,7 @@ describe('zoom', () => {
 		]);
 	});
 
-	it('clamps a pinch and Ctrl + wheel to 20%–500%, and moves freely inside it (c719)', () => {
+	it('clamps a pinch and Ctrl + wheel to 20%–500%, and moves freely inside it', () => {
 		expect(clampZoom(9)).toBe(5);
 		expect(clampZoom(5.004)).toBe(5);
 		expect(clampZoom(0.1)).toBe(0.2);
@@ -93,7 +93,7 @@ describe('zoom', () => {
 		expect(pinchZoom(1, 100, 37)).toBe(0.37);
 	});
 
-	it('reads back a zoom saved anywhere in the range, and one saved under 50%–300% unchanged (c719)', () => {
+	it('reads back a zoom saved anywhere in the range, and one saved under 50%–300% unchanged', () => {
 		expect(keptZoom(0.2)).toBe(0.2);
 		expect(keptZoom(0.3)).toBe(0.3);
 		expect(keptZoom(5)).toBe(5);
@@ -136,7 +136,7 @@ describe('zoom', () => {
 	});
 });
 
-describe('double tap (c185)', () => {
+describe('double tap', () => {
 	it('goes to 100% from either side, and to 200% from 100%', () => {
 		expect(doubleTapZoom(0.2)).toBe(1);
 		expect(doubleTapZoom(0.5)).toBe(1);

@@ -208,7 +208,7 @@ describe('everything else is a search for the value', () => {
 	});
 });
 
-describe('a person on the source’s own text filter (card c456)', () => {
+describe('a person on the source’s own text filter', () => {
 	// Written out from the fixtures, not derived: which top-level text field
 	// each person's namespace fills, by name, in every real schema.
 	const EXPECTED: Record<string, Record<'author' | 'artist' | 'circle', string | null>> = {
@@ -296,7 +296,7 @@ describe('a person on the source’s own text filter (card c456)', () => {
 	});
 });
 
-describe('a preview’s people (card c456)', () => {
+describe('a preview’s people', () => {
 	it('is one name a link, split on commas', () => {
 		expect(splitPeople('Aoi Hanamura, Ren Kisaragi')).toEqual(['Aoi Hanamura', 'Ren Kisaragi']);
 		expect(splitPeople('ONE')).toEqual(['ONE']);
@@ -333,7 +333,7 @@ describe('a preview’s people (card c456)', () => {
 		['Jr., Sato', ['Jr.', 'Sato']],
 		['Oda, Eiichiro', ['Oda', 'Eiichiro']]
 	];
-	it('splits as every importer does, for the same strings (c508)', () => {
+	it('splits as every importer does, for the same strings', () => {
 		for (const [raw, want] of PEOPLE) {
 			expect(splitPeople(raw), raw).toEqual(want);
 			expect(people(raw), raw).toEqual(want);
@@ -452,14 +452,14 @@ describe('where a source page’s back cell may return', () => {
 			'/series/12/move',
 			'/series/abc',
 			'downloads/source/1',
-			// EXTENSIONS is the settings page's alone (card c727), never a source page's.
+			// EXTENSIONS is the settings page's alone, never a source page's.
 			'/browse/extensions',
 			'/browse/extensions?tab=installed'
 		])
 			expect(backOrigin(raw), String(raw)).toBe('');
 	});
 
-	it('refuses the encoded spellings of a host, a backslash and a climb (card c727)', () => {
+	it('refuses the encoded spellings of a host, a backslash and a climb', () => {
 		for (const raw of [
 			'/%2F%2Fevil.example/series/1',
 			'/%2f%2fevil.example/downloads/source/1',
@@ -492,7 +492,7 @@ describe('where a source page’s back cell may return', () => {
 	});
 });
 
-describe('where a source’s SETTINGS may return (card c727)', () => {
+describe('where a source’s SETTINGS may return', () => {
 	it('is EXTENSIONS, with its tab and filters, or what backOrigin accepts', () => {
 		expect(settingsOrigin('/browse/extensions')).toBe('/browse/extensions');
 		expect(settingsOrigin('/browse/extensions?tab=installed&q=open')).toBe(
@@ -569,7 +569,7 @@ describe('where a source’s SETTINGS may return (card c727)', () => {
 	});
 });
 
-describe('a source page’s own links keep the origin (card c453)', () => {
+describe('a source page’s own links keep the origin', () => {
 	const origin = '/downloads/source/100~abc?from=%2Fbrowse%2F100';
 	it('adds from= to a bare address, to one with a query, and before a fragment', () => {
 		for (const href of ['/browse/100', '/browse/100?tab=latest', '/browse/100/settings?/set']) {

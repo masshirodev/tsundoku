@@ -2,10 +2,10 @@ import { expect, test } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /**
- * The web app at 130% text (c591): the phone and tablet app follows Android's
- * font size up to 130% through the WebView's `textZoom` (doc/ANDROID.md),
- * which scales every computed font size and nothing else. A browser has no
- * text zoom, so the closest it gets is the card's
+ * The web app at 130% text: the phone and tablet app follows Android's
+ * font size up to 130% through the WebView's `textZoom` (doc/PHONE-APP.md on
+ * the `phone-app` branch), which scales every computed font size and nothing
+ * else. A browser has no text zoom, so the closest it gets is the card's
  * method: on a 360 × 780 phone, every element's computed `font-size` is
  * multiplied by 1.3 in place (`zoomText`), all read first and then written,
  * so nothing is scaled twice. Line heights that are unitless or in `em`
@@ -112,7 +112,7 @@ test('at 130% text every series row’s label fits its column, SHELVES included'
 });
 
 /**
- * The reader's bottom bar at 360 px (c616): every cell of it reachable and
+ * The reader's bottom bar at 360 px: every cell of it reachable and
  * fully on screen, and a tap at each cell's centre landing on that cell, at
  * 100% and at 130% text, on both readers. The card measured FULL SCREEN off
  * the right edge on the text reader at 100%, and CH. 28 → off it on the image
@@ -199,7 +199,7 @@ async function openReaderBy(page: Page, title: string) {
 	await expect(page.locator('.text-reader, .reader').first()).toBeVisible({ timeout: 15_000 });
 }
 
-test('the bottom bar keeps every cell reachable on a 360 px phone, on both readers, at 100% and 130% text (c616)', async ({
+test('the bottom bar keeps every cell reachable on a 360 px phone, on both readers, at 100% and 130% text', async ({
 	page
 }) => {
 	test.setTimeout(120_000);

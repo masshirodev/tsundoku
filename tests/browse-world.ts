@@ -29,7 +29,7 @@ function freePort(): string {
  * Each is picked **once**, by the OS, when nothing assigns it: a fixed default
  * had two runs in one worktree fight over the engine's 4195 (c625: the second
  * `playwright test` died at browse-setup.ts's `listen` with `EADDRINUSE`) and,
- * before that, over the repositories' 4196 (c340). The runner loads this module
+ * before that, over the repositories' 4196. The runner loads this module
  * first (playwright.config.ts imports it, for BROWSE_PORT's baseURL), pins the
  * ports into its environment, and the global setup that listens on them
  * (browse-setup.ts) shares that process while every worker inherits the
@@ -80,7 +80,7 @@ export type EngineCall = {
 const ENGINE = `http://127.0.0.1:${ENGINE_PORT}`;
 export const resetEngine = () => fetch(`${ENGINE}/__reset`, { method: 'POST' });
 export const engineDown = () => fetch(`${ENGINE}/__down`, { method: 'POST' });
-/** Every episode's video list comes back empty until the next reset: the player's NO SERVER (c999). */
+/** Every episode's video list comes back empty until the next reset: the player's NO SERVER. */
 export const noVideo = () => fetch(`${ENGINE}/__novideo`, { method: 'POST' });
 /** The next search waits [ms] while the engine "passes" example.org's browser check. */
 export const behindACheck = (ms = 3000) => fetch(`${ENGINE}/__check?ms=${ms}`, { method: 'POST' });

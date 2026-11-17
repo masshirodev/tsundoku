@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Rung 59 (doc/SETTINGS.md, "How a device is kept"; card c244): `tv` among
+// Rung 59 (doc/SETTINGS.md, "How a device is kept"): `tv` among
 // devices.kind's values, written into the schema's text for the reason rung 47
 // gives. On a file, as the live database is.
 process.env.DATABASE_PATH = ':memory:';

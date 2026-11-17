@@ -1,6 +1,6 @@
 /**
  * The library's SELECT outlives the shelf, the kind and the filter it was
- * made on (c698): a series ticked out of sight stays ticked, SHOW lists the
+ * made on: a series ticked out of sight stays ticked, SHOW lists the
  * whole selection to review or untick, and GROUP takes what SHOW lists, not
  * only the tiles on screen. A flow file, so it runs once, in
  * tablet-portrait; it only opens sheets and cancels them, so the shared seed
@@ -37,7 +37,7 @@ async function toKind(page: Page, word: string, param: string) {
 	await expect(kindCell(page, word)).toHaveAttribute('aria-current', 'true');
 }
 
-test('a series ticked on one kind stays ticked on another, SHOW lists both, and GROUP takes what SHOW keeps (c698)', async ({
+test('a series ticked on one kind stays ticked on another, SHOW lists both, and GROUP takes what SHOW keeps', async ({
 	page
 }) => {
 	await startSelecting(page);
@@ -96,7 +96,7 @@ test('a series ticked on one kind stays ticked on another, SHOW lists both, and 
 	await expect(count(page)).toHaveText('0 SELECTED');
 });
 
-test('a shelf switch keeps the selection, and SHOW still lists what is off the shelf (c698)', async ({
+test('a shelf switch keeps the selection, and SHOW still lists what is off the shelf', async ({
 	page
 }) => {
 	await startSelecting(page);
@@ -132,7 +132,7 @@ test('a shelf switch keeps the selection, and SHOW still lists what is off the s
 	);
 });
 
-test('a reload ends SELECT; a trip to /search and back keeps it, and ✕ ends it (c698)', async ({
+test('a reload ends SELECT; a trip to /search and back keeps it, and ✕ ends it', async ({
 	page
 }) => {
 	// The selection lives in the tab (src/lib/library/selection.ts,
@@ -170,14 +170,14 @@ test('a reload ends SELECT; a trip to /search and back keeps it, and ✕ ends it
 });
 
 /**
- * SELECT ALL on a library longer than one page (c737): the pages never loaded
+ * SELECT ALL on a library longer than one page: the pages never loaded
  * are ticked by id, and their facts are read by id (POST /api/library), so
  * SHOW lists every series and GROUP counts them all. Its own install (a port
  * from the OS, the seed plus 130 series titled to sort after it, past the
  * grid's 120-tile page), since the shared seed is one page and the cases
  * delete and hide.
  */
-test.describe('SELECT ALL past one page (c737)', () => {
+test.describe('SELECT ALL past one page', () => {
 	const dbPath = join(tmpdir(), `tsundoku-e2e-select-all-${process.pid}.sqlite`);
 	const library = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-select-all-'));
 	let server: ChildProcess | null = null;

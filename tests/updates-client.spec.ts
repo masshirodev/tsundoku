@@ -16,7 +16,7 @@ import {
 } from '../src/lib/updates';
 
 /**
- * The update modal on entry (doc/UPDATES.md, "Told on entry"; card c208):
+ * The update modal on entry (doc/UPDATES.md, "Told on entry"):
  * when it asks, its words, and the UPDATE loop it shares with SETTINGS. The
  * modal itself can't be reached end to end: it needs a release-dated build
  * and a manifest signed with the release key, which no test holds.

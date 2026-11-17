@@ -9,7 +9,7 @@ const { startFacts } = await import('$lib/server/start');
 const { tickingImport } = await import('$lib/server/import/log');
 
 /**
- * GET STARTED's facts (doc/ONBOARDING.md, "What ticks a step"; card c209):
+ * GET STARTED's facts (doc/ONBOARDING.md, "What ticks a step"):
  * a series a scan brought in is 03's, one ADD made is 06's, a browsing record
  * is 05's, the queue and what's downloaded are 07's, and a hidden series ticks
  * nothing for someone who can't see it.
@@ -132,7 +132,7 @@ describe('the facts', () => {
  * row still there that made the count non-zero -- and that row's job.
  * Each case builds a database of its own, climbed to the code's top rung.
  */
-describe('the import that ticked 03 (c634)', () => {
+describe('the import that ticked 03', () => {
 	const fresh = () => {
 		const conn = new Database(':memory:');
 		climb(conn);

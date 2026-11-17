@@ -15,7 +15,7 @@ const { parseIndex, langCode, newer, repoUrl, isNovelRepoAddress, NovelRepoError
 	await import('$lib/library/lnreader-index');
 type Fetcher = import('$lib/server/novels/plugins').Fetcher;
 
-// LNReader repositories and plugins (doc/NOVELS.md; card c148).
+// LNReader repositories and plugins (doc/NOVELS.md).
 
 afterAll(() => rmSync(store, { recursive: true, force: true }));
 
@@ -176,7 +176,7 @@ describe('a plugin', () => {
 });
 
 describe('the host the app builds', () => {
-	it('solves a site’s check with the app’s own solver (c152)', () => {
+	it('solves a site’s check with the app’s own solver', () => {
 		// The one line that puts the card into production. Every other spec builds
 		// its own host with its own solve, so nothing would notice this going.
 		const opts = plugins.hostOptions();
@@ -184,7 +184,7 @@ describe('the host the app builds', () => {
 		expect(opts.store).toBe(store);
 	});
 
-	it('fetches a page bound to the solver’s browser through the app’s own solver (c335)', () => {
+	it('fetches a page bound to the solver’s browser through the app’s own solver', () => {
 		// The same line for page mode: without it the host would ask for pages
 		// and hear only "this app has no solver to fetch a page through".
 		const opts = plugins.hostOptions();

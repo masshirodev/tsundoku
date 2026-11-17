@@ -11,7 +11,7 @@ import { expect, hydrated, test } from './fixtures';
  * silently redraw the screen. That is what this is here to stop; it is not
  * pedantry.
  *
- * The series screen's LISTS row (c424; doc/SERIES.md): 1B, every state in
+ * The series screen's LISTS row (doc/SERIES.md): 1B, every state in
  * the 440px side panel, pinned on The Greatest Estate Developer (the seed's
  * one linked series, signed out, so its line drops two cells, SIGN IN → and
  * EDIT, in equal columns). Read-only. It runs in tablet-landscape alone, the
@@ -23,8 +23,8 @@ import { expect, hydrated, test } from './fixtures';
  *
  * Regenerating overwrites this file. Hand edits belong in a sibling spec.
  * Three hand edits must survive a regeneration: the series is opened by its
- * title (`openByTitle`, c519), not `/series/7`, once the library has
- * hydrated (c439), and region7's widths below.
+ * title (`openByTitle`), not `/series/7`, once the library has
+ * hydrated, and region7's widths below.
  */
 
 const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
@@ -36,14 +36,14 @@ const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
 // hand edit too: regenerating the file (gen-conformance) drops it, and needs
 // no skip back, since the config is what keeps it to its project.
 //
-// Hand edit (c519): the series is found by its title, through the library as
+// Hand edit: the series is found by its title, through the library as
 // a person would open it, not by the seed's id (`/series/7` moved whenever the
 // seed reordered its series). gen-conformance takes one URL, so regenerating
 // writes a fixed `/series/<id>` back: keep this lookup when you regenerate.
 const TITLE = 'The Greatest Estate Developer';
 
 //
-// Hand edit (c439): the tile is clicked once the library has hydrated. This
+// Hand edit: the tile is clicked once the library has hydrated. This
 // file's `test` is `@playwright/test`'s (generated so; c542 moves it), whose
 // `goto` waits for neither network quiet nor hydration, and a click on the
 // server's markup before then does nothing: the second gate of wave 24 timed

@@ -233,7 +233,7 @@ describe('whether a firewall may be in the way', () => {
 		expect(noPhoneYet({ ...at, live: false })).toBe(false);
 		expect(noPhoneYet({ ...at, madeAt: null })).toBe(false);
 	});
-	it('says nothing on a settled computer: a reach before this code, or a paired phone (round 2)', () => {
+	it('says nothing on a settled computer: a reach before this code, or a paired phone', () => {
 		// A phone reached an earlier code, then NEW CODES: the same firewall let it in.
 		expect(noPhoneYet({ ...at, madeAt: 9000, reachedAt: 999, now: 9000 + QUIET_MS })).toBe(false);
 		// Phones paired long ago, none open now, and a code kept past its 30 s.
@@ -299,12 +299,12 @@ describe('the panel’s answer (wifiAnswer)', () => {
 		pairing.redeem(pairing.current()!.code, T0 + 10, 'Phone');
 		expect((await wifiAnswer({ now: T0 + QUIET_MS }))!.noPhoneYet).toBe(false);
 	});
-	it('asks nothing once a phone reached this computer before the code now up (round 2)', async () => {
+	it('asks nothing once a phone reached this computer before the code now up', async () => {
 		status = { ...status, reachedAt: T0 - 60_000 };
 		pairing.fresh(T0);
 		expect((await wifiAnswer({ now: T0 + 10 * QUIET_MS }))!.noPhoneYet).toBe(false);
 	});
-	it('asks nothing of a computer a phone is paired with, even on new listeners (round 2)', async () => {
+	it('asks nothing of a computer a phone is paired with, even on new listeners', async () => {
 		const token = addPaired({ label: 'Phone', address: '192.168.77.40' }, T0 - 86_400_000);
 		linkPaired(token, 'dev-firewall-paired');
 		try {

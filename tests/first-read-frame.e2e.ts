@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures';
 
 /**
- * GET STARTED in two parts (the FIRST READ handoff, board 1; card c209), in a real
+ * GET STARTED in two parts (the FIRST READ handoff, board 1), in a real
  * browser, on /start of the shared seeded server: the parts' heads and every
  * step's row. 05's open body isn't measured here: the seeded server has no
  * extension, so FIRST READ waits on 02.

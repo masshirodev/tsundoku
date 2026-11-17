@@ -68,7 +68,7 @@ async function signedIn(browser: Browser, info: TestInfo) {
 test.beforeAll(async ({ browser }, info) => {
 	// The hook waits up to 60 s for its own preview to answer, then makes a Work through the app (SELECT, GROUP, a name, CREATE):
 	// past the default 30 s on a loaded box, where the hook ran out in wave
-	// 24's first gate (c439), as `work-end-frame`'s did in wave 20's (c477).
+	// 24's first gate, as `work-end-frame`'s did in wave 20's.
 	// Measured in wave 25 at a load of about 30 (the works-frame project, 3
 	// copies): 4.1-9.8 s. So 60 s for the preview plus 60 s for the Work. In a hook, test.setTimeout sets the
 	// hook's own budget (Playwright's test.d.ts, "Changing timeout for a
@@ -221,7 +221,7 @@ test('The library with Works: footLabel matches the handoff', async ({ page }) =
 	expect(footLabelStyle.display).toBe('block');
 });
 
-test('A Work’s CONTINUE row opens its Work, as its tile does (c841)', async ({ page }) => {
+test('A Work’s CONTINUE row opens its Work, as its tile does', async ({ page }) => {
 	await page.goto(`${base}/`);
 	const band = page.locator('.cont .row.work').first().locator('a.band');
 	await expect(band).toHaveAttribute('href', `/work/${workId}`);

@@ -67,7 +67,7 @@ import {
 } from '$lib/library/highlights';
 
 /**
- * Highlights' pure rules (c701; doc/HIGHLIGHTS.md): what each screen says,
+ * Highlights' pure rules (doc/HIGHLIGHTS.md): what each screen says,
  * in which order, and what leaves as Markdown. The words are the handoff's
  * (doc/handoffs/highlights/: Main, Page, Series, Out).
  */
@@ -152,7 +152,7 @@ const clip = (o: Partial<Highlight> = {}) =>
 		...o
 	});
 
-describe('the player’s ?t= (c734)', () => {
+describe('the player’s ?t=', () => {
 	it('takes plain seconds, 0 included, which wins over a saved place like any other', () => {
 		for (const [raw, t] of [
 			['0', 0],
@@ -462,7 +462,7 @@ describe('getting them out', () => {
 	});
 });
 
-// ---- H3: a page kept from the image reader (c703) ------------------------------------------
+// ---- H3: a page kept from the image reader ------------------------------------------
 
 const kp = (id: number, page: number, pageEnd: number | null = null): KeptPage => ({
 	id,
@@ -473,7 +473,7 @@ const kp = (id: number, page: number, pageEnd: number | null = null): KeptPage =
 	bytes: 1.4 * 1024 * 1024
 });
 
-describe('the reader’s HIGHLIGHT cell (c703, Manga M1, M3, M4, M7)', () => {
+describe('the reader’s HIGHLIGHT cell (Manga M1, M3, M4, M7)', () => {
 	it('ranks its states as the handoff does: every combination of the four facts', () => {
 		const states: string[] = [];
 		for (const incognito of [false, true])
@@ -542,7 +542,7 @@ describe('the reader’s HIGHLIGHT cell (c703, Manga M1, M3, M4, M7)', () => {
 	});
 });
 
-describe('a spread’s choice (c703, Manga M2)', () => {
+describe('a spread’s choice (Manga M2)', () => {
 	it('R→L: the right page first, then the left, then BOTH as one', () => {
 		expect(spreadChoices([13, 14], true, [])).toEqual([
 			{ label: 'P. 14', where: 'RIGHT', page: 13, pageEnd: null, keptId: null },
@@ -561,7 +561,7 @@ describe('a spread’s choice (c703, Manga M2)', () => {
 	});
 });
 
-describe('the gutter rule and the page sheet (c703, Manga M3, M6)', () => {
+describe('the gutter rule and the page sheet (Manga M3, M6)', () => {
 	it('sits on the outer side, away from the spine: every side in both directions', () => {
 		expect(
 			(['left', 'right', 'center'] as const).flatMap((side) =>
@@ -587,7 +587,7 @@ describe('the gutter rule and the page sheet (c703, Manga M3, M6)', () => {
 	});
 });
 
-// ---- H2: a passage kept from the text reader (c702) ------------------------------------
+// ---- H2: a passage kept from the text reader ------------------------------------
 
 describe('flatten: a chapter as the rules read it', () => {
 	it('collapses white space, drops the ends and joins blocks by a newline', () => {
@@ -842,7 +842,7 @@ describe('joinSpans: a selection overlapping a highlight joins it', () => {
 	});
 });
 
-describe('a book’s language as the platform takes it (c702)', () => {
+describe('a book’s language as the platform takes it', () => {
 	// What `firstText(xml, 'language')` hands over: whatever the book's maker typed.
 	it.each([
 		['en_US', 'en-US'],
@@ -878,7 +878,7 @@ describe('a book’s language as the platform takes it (c702)', () => {
 	});
 });
 
-describe('mergeNotes: a reader’s words are never dropped (c702)', () => {
+describe('mergeNotes: a reader’s words are never dropped', () => {
 	const AB = 'a\n\nb';
 	it('nothing asked is no change', () => {
 		expect(mergeNotes('kept', '')).toBe('kept');

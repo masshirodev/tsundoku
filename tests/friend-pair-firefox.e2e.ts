@@ -339,7 +339,7 @@ async function ownInstall() {
  * the real link over the real Wi-Fi listener, never a row written by hand,
  * and the computer's page is never reloaded: it asks by itself.
  */
-test("a phone paired over Wi-Fi ticks 04 on the computer's open GET STARTED, without a reload (c722)", async ({
+test("a phone paired over Wi-Fi ticks 04 on the computer's open GET STARTED, without a reload", async ({
 	page,
 	browser,
 	request
@@ -398,13 +398,12 @@ type Launch = { name: string; browser: 'firefox' | 'chromium'; prefs?: Record<st
  */
 const LAUNCHES: { launch: Launch; options?: BrowserContextOptions; title: string }[] = [
 	{
-		title:
-			'Firefox as Playwright ships it (HTTPS-First off): the link lands once, signed in (c723)',
+		title: 'Firefox as Playwright ships it (HTTPS-First off): the link lands once, signed in',
 		launch: { name: 'firefox, https_first off', browser: 'firefox' }
 	},
 	{
 		title:
-			'Firefox with HTTPS-First on and its own exemptions as they are, in Portuguese: the link lands once, signed in (c723)',
+			'Firefox with HTTPS-First on and its own exemptions as they are, in Portuguese: the link lands once, signed in',
 		launch: {
 			name: 'firefox, https_first on',
 			browser: 'firefox',
@@ -414,7 +413,7 @@ const LAUNCHES: { launch: Launch; options?: BrowserContextOptions; title: string
 	},
 	{
 		title:
-			'Firefox with HTTPS-First on and its local-address and custom-port exemptions off: the link still lands once (c723)',
+			'Firefox with HTTPS-First on and its local-address and custom-port exemptions off: the link still lands once',
 		launch: {
 			name: 'firefox, https_first on, no exemptions',
 			browser: 'firefox',
@@ -426,7 +425,7 @@ const LAUNCHES: { launch: Launch; options?: BrowserContextOptions; title: string
 		}
 	},
 	{
-		title: 'Chromium as a Pixel 7: the link lands once, signed in (c723)',
+		title: 'Chromium as a Pixel 7: the link lands once, signed in',
 		launch: { name: 'chromium pixel 7', browser: 'chromium' },
 		// Its context options, as Playwright's documentation spreads a device.
 		options: devices['Pixel 7']
@@ -461,7 +460,7 @@ for (const { title, launch, options } of LAUNCHES)
  * error page: the link is never asked for over http, so the code stays live.
  * Without this case, "no ClientHello" above could mean the relay is blind.
  */
-test('the relay sees an https attempt: Firefox in HTTPS-Only mode never asks for the link over http (c723)', async ({
+test('the relay sees an https attempt: Firefox in HTTPS-Only mode never asks for the link over http', async ({
 	playwright,
 	request
 }) => {

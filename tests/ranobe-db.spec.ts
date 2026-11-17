@@ -21,7 +21,7 @@ const MUSHOKU = idOf('Mushoku Tensei');
 const HONZUKI = idOf('Honzuki no Gekokujou');
 const VILLAINESS = idOf('Villainess Level 99');
 const KEN = idOf('Tensei Shitara Ken Deshita');
-// A manhwa the seed links to AniList 900001: a comic, read as the work's chapters (c98).
+// A manhwa the seed links to AniList 900001: a comic, read as the work's chapters.
 const ESTATE = idOf('The Greatest Estate Developer');
 
 // The catalogue links a novel would have from AniList (doc/LINKS.md).
@@ -238,7 +238,7 @@ describe('the pass', () => {
 		expect(sentReads().some((u) => u.startsWith('e3:'))).toBe(false);
 	});
 
-	it("sends a comic's chapters once its work counts them, and only those it lists (c98)", async () => {
+	it("sends a comic's chapters once its work counts them, and only those it lists", async () => {
 		// The first pass: w51 counts nothing yet, so nothing of it went, and a
 		// comic is never searched, given an edition, or suggested one.
 		expect(sentReads(firstPass).some((u) => u.startsWith('w51'))).toBe(false);

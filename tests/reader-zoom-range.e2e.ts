@@ -91,7 +91,7 @@ const pagedBox = (page: Page) =>
 		return { pages: boxes.length, left, right, top, bottom, h: boxes[0].height };
 	});
 
-test('paged: − walks down to 20% and stops, + up to 500% and stops; the page shrinks centred (c719)', async ({
+test('paged: − walks down to 20% and stops, + up to 500% and stops; the page shrinks centred', async ({
 	page
 }) => {
 	await open(page);
@@ -112,7 +112,7 @@ test('paged: − walks down to 20% and stops, + up to 500% and stops; the page s
 	await expect.poll(async () => (await pagedBox(page)).h).toBeCloseTo(fitted.h * 5, 0);
 });
 
-test('paged: a kept 20% survives a reload (c719)', async ({ page }) => {
+test('paged: a kept 20% survives a reload', async ({ page }) => {
 	await open(page);
 	const fitted = await pagedBox(page);
 	const sheet = await openSheet(page);
@@ -126,7 +126,7 @@ test('paged: a kept 20% survives a reload (c719)', async ({ page }) => {
 	await expect(sheetOf(page).locator('.zval')).toHaveText('20%');
 });
 
-test('paged, fit width at 20%: the page is centred both ways, not hung from the top (c719)', async ({
+test('paged, fit width at 20%: the page is centred both ways, not hung from the top', async ({
 	page
 }) => {
 	await open(page);
@@ -141,9 +141,7 @@ test('paged, fit width at 20%: the page is centred both ways, not hung from the 
 	expect((box.top + box.bottom) / 2).toBeCloseTo(vp.height / 2, 0);
 });
 
-test('paged, a spread at 20%: both pages, side by side, the pair centred (c719)', async ({
-	page
-}) => {
+test('paged, a spread at 20%: both pages, side by side, the pair centred', async ({ page }) => {
 	const vp = page.viewportSize()!;
 	test.skip(vp.width <= vp.height, 'spreads are landscape only');
 	await page.addInitScript(() => localStorage.setItem('tsundoku.reader.spreads', 'true'));
@@ -171,7 +169,7 @@ const stripBox = (page: Page) =>
 		return { left: r.left, width: r.width };
 	});
 
-test('vertical: − walks down to 20% and stops, + up to 500% and stops; the strip stays centred (c719)', async ({
+test('vertical: − walks down to 20% and stops, + up to 500% and stops; the strip stays centred', async ({
 	page
 }) => {
 	await open(page);
@@ -188,7 +186,7 @@ test('vertical: − walks down to 20% and stops, + up to 500% and stops; the str
 	await expect.poll(async () => (await stripBox(page)).width).toBeCloseTo(full * 5, 0);
 });
 
-test('vertical: a kept 20% survives a reload, kept apart from paged (c719)', async ({ page }) => {
+test('vertical: a kept 20% survives a reload, kept apart from paged', async ({ page }) => {
 	await open(page);
 	await toStrip(page);
 	const full = (await stripBox(page)).width;
@@ -206,7 +204,7 @@ test('vertical: a kept 20% survives a reload, kept apart from paged (c719)', asy
 	await expect.poll(async () => (await stripBox(page)).width).toBeCloseTo(full * 0.2, 0);
 });
 
-test('vertical at 20%: a chapter band keeps a reader’s width, centred over the strip (c719)', async ({
+test('vertical at 20%: a chapter band keeps a reader’s width, centred over the strip', async ({
 	page
 }) => {
 	await open(page);
@@ -226,7 +224,7 @@ test('vertical at 20%: a chapter band keeps a reader’s width, centred over the
 	expect(b.left + b.width / 2).toBeCloseTo(vw / 2, 0);
 });
 
-test('vertical at 20%: the scrubber still takes the strip to the chapter’s last page (c719)', async ({
+test('vertical at 20%: the scrubber still takes the strip to the chapter’s last page', async ({
 	page
 }) => {
 	await open(page);
@@ -248,7 +246,7 @@ test('vertical at 20%: the scrubber still takes the strip to the chapter’s las
 	).toBeInViewport();
 });
 
-test('vertical at 20% by finger: a tap beside the strip shows the controls, and a double tap goes to 100% (c719)', async ({
+test('vertical at 20% by finger: a tap beside the strip shows the controls, and a double tap goes to 100%', async ({
 	page
 }) => {
 	test.skip(!test.info().project.use.hasTouch, 'a finger');

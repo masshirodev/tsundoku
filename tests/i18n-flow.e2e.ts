@@ -4,7 +4,7 @@ import { expect, test } from './fixtures';
 import { revealOn } from './helpers/reveal';
 
 /**
- * The languages (doc/I18N.md; card c210), end to end: the browser's language
+ * The languages (doc/I18N.md), end to end: the browser's language
  * decides until the device chooses, the choice is a cookie the server reads
  * on the first byte, and AUTO hands it back to the browser.
  */
@@ -33,7 +33,7 @@ test.describe('a browser that speaks Portuguese', () => {
 		await expect(page.getByRole('heading', { level: 1, name: 'PRIMEIROS PASSOS' })).toBeVisible();
 	});
 
-	test('the series screen’s two offers speak Portuguese (c587)', async ({ page, context }) => {
+	test('the series screen’s two offers speak Portuguese', async ({ page, context }) => {
 		// Both offers are the screen's own state, and no flow file may share a
 		// series with another (`doc/TESTING.md`), so this case seeds its own:
 		// three hidden doujin singles and a Work of two of them, in the hidden
@@ -83,7 +83,7 @@ test.describe('a browser that speaks Portuguese', () => {
 			await expect(
 				page.locator('.sugg.offer:visible').getByText('PODE CONTINUAR KAZE NO UTA · COMO PARTE 3')
 			).toBeVisible();
-			// Its second lines too: the count (a plural) and the reason (wave 31).
+			// Its second lines too: the count (a plural) and the reason.
 			await expect(page.locator('.sugg:not(.offer):visible .sugg-head .dim')).toHaveText(
 				'3 LIVROS · "KAZE NO UTA …"'
 			);
@@ -108,7 +108,7 @@ test.describe('a browser that speaks Portuguese', () => {
 		if (failed) throw failed;
 	});
 
-	test('the library’s own band speaks Portuguese when a Work is made and added to (c587)', async ({
+	test('the library’s own band speaks Portuguese when a Work is made and added to', async ({
 		page,
 		context
 	}) => {

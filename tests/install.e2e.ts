@@ -11,10 +11,10 @@ import { expect, test } from './fixtures';
 let wait: { asked: number; controlled?: number } | null = null;
 
 // The figure the 90 s is set against goes on every result, red ones above all
-// (c497; doc/TESTING.md, "Load"). It is written here, not in the case: a
+// (doc/TESTING.md, "Load"). It is written here, not in the case: a
 // case's own code stops at its first throw, and after a timeout nothing more
 // of it runs at all, where an `afterEach` runs on every outcome with a budget
-// of its own (c507's lesson, c563). Until c563 a red run recorded nothing.
+// of its own (c507's lesson). Until c563 a red run recorded nothing.
 test.afterEach(() => {
 	if (!wait) return;
 	const { asked, controlled } = wait;
@@ -29,9 +29,9 @@ test.afterEach(() => {
 test('Chromium finds nothing stopping an install', async ({ page, browserName }) => {
 	// The wait's own 90 s, plus the steps around it, so the wait can run to
 	// the end and fail as itself rather than be cut short by the test's
-	// budget (c563). Before it, the fixtures' `goto` (network quiet, then
+	// budget. Before it, the fixtures' `goto` (network quiet, then
 	// hydration): 11.5 s at worst, measured at a load of about 55
-	// (`tv-library-top`, wave 21; doc/TESTING.md, "Load"), given 30 s. After it, two CDP calls: well under a second, given 30 s.
+	// (`tv-library-top`, doc/TESTING.md, "Load"), given 30 s. After it, two CDP calls: well under a second, given 30 s.
 	test.setTimeout(150_000);
 	test.skip(browserName !== 'chromium', 'installability is a Chromium question');
 	await page.goto('/');
@@ -39,8 +39,8 @@ test('Chromium finds nothing stopping an install', async ({ page, browserName })
 	// preview every other test's context is precaching from: 10-16 s with six
 	// contexts alone at a load average of 25, and past the old 30 s on one to
 	// four device projects in every loaded whole run of waves 19 and 20. Slow,
-	// not stuck, so it gets offline-flow's measured 90 s (c439, c477). Wave 22
-	// (c497): 3.4-8.7 s alone, 5 runs per device project at a load of 20-25;
+	// not stuck, so it gets offline-flow's measured 90 s. Wave 22
+	//: 3.4-8.7 s alone, 5 runs per device project at a load of 20-25;
 	// the 90 s is for a whole run's contexts all precaching at once.
 	const timing: { asked: number; controlled?: number } = { asked: Date.now() };
 	wait = timing;

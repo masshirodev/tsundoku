@@ -16,7 +16,7 @@ import java.security.MessageDigest
 import java.util.concurrent.ExecutorService
 
 /**
- * The app updating itself (c614; doc/UPDATES.md, "The Android apps"): it
+ * The app updating itself (doc/UPDATES.md, "The Android apps"): it
  * looks at the release host's `latest.json`, at most once a day and when
  * asked; offers a newer release's APK for its own form; downloads it into
  * its cache, checked against the signed size and SHA-256; and hands it to

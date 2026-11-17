@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { summarize, type Project, type Row } from './helpers/not-run-reporter';
 
 /**
- * The end-of-run note on tests that did not run (c439): the reds that kept
+ * The end-of-run note on tests that did not run: the reds that kept
  * a dependant project out are named, and a test skipped on purpose is not
  * "did not run".
  */

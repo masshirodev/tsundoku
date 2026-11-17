@@ -16,7 +16,7 @@ const { forgetSourceUse } = await import('$lib/server/library-sources');
 const { setSetting } = await import('$lib/server/settings');
 const manage = await import('$lib/server/engine/manage');
 
-// EXTENSIONS on the engine (doc/BROWSE.md; card c144).
+// EXTENSIONS on the engine (doc/BROWSE.md).
 
 afterAll(() => rmSync(store, { recursive: true, force: true }));
 

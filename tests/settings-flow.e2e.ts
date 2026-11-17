@@ -2,7 +2,7 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * SETTINGS, one page (doc/SETTINGS.md; card c171, Settings.dc.html). The
+ * SETTINGS, one page (doc/SETTINGS.md, Settings.dc.html). The
  * e2e server is shared by parallel workers, so this sets only what no other
  * spec reads: WATCHING's defaults, DOWNLOADING, and this browser's own
  * values (each context has its own storage). MODE's per-kind defaults would
@@ -103,9 +103,7 @@ test('WATCHING follows the player until a default is set, and says what that mea
 	);
 });
 
-test('AUDIO KEPT (c160): the original always, a choice of the rest, and back to all', async ({
-	page
-}) => {
+test('AUDIO KEPT: the original always, a choice of the rest, and back to all', async ({ page }) => {
 	await page.goto('/settings');
 	const kept = row(page, 'AUDIO KEPT');
 	await expect(kept.getByRole('button', { name: '✓ ORIGINAL · ALWAYS' })).toBeDisabled();
@@ -153,9 +151,7 @@ test('DEVICES lists this one once it has checked in, kept on the workstation', a
 	await expect(devices.locator('.row.device .scope').first()).toHaveText('KEPT ON THE WORKSTATION');
 });
 
-test('05 — LIBRARY: IMPORT A BACKUP, for a later import (c438, Import-Doors C)', async ({
-	page
-}) => {
+test('05 — LIBRARY: IMPORT A BACKUP, for a later import (Import-Doors C)', async ({ page }) => {
 	await page.goto('/settings');
 	const r = row(page, 'IMPORT A BACKUP');
 	// The shared seed has never imported a backup.
@@ -285,7 +281,7 @@ test('MORE in the library’s bar: the sidebar’s foot as a sheet', async ({ pa
 	// The seeded library has no repository, so GET STARTED isn't finished and leads (doc/ONBOARDING.md).
 	await expect(sheet.locator('.row')).toHaveText([
 		/GET STARTED\s*\d \/ 7 →/,
-		// TO LINK while anything waits (c475; doc/LIBRARY.md): the seed queues
+		// TO LINK while anything waits (doc/LIBRARY.md): the seed queues
 		// Mount Hua and Yofukashi no Uta, and links-flow decides them one at a
 		// time and undoes each, so the count moves but never reaches nothing.
 		/TO LINK →\s*\d+/,
@@ -293,7 +289,7 @@ test('MORE in the library’s bar: the sidebar’s foot as a sheet', async ({ pa
 		/DOWNLOADS →/,
 		/SETTINGS →/,
 		/HELP →\s*7 TOPICS/,
-		// The sidebar's RESCAN, asked through the same question (c561): no
+		// The sidebar's RESCAN, asked through the same question: no
 		// arrow, since it asks rather than goes.
 		/^RESCAN$/,
 		// Live since c438: a link to the log, dated once a backup has come in.

@@ -5,7 +5,7 @@
  * file, c562).
  *
  * This file added the hydration wait to `goto`, `reload`, `goBack` and
- * `goForward` for the specs that imported it (c439, wave 19), while the
+ * `goForward` for the specs that imported it, while the
  * fixtures were another slot's. Since wave 21 the fixtures do that for every
  * spec that takes their `test` (c477; not every spec does: doc/TESTING.md,
  * "E2E specs", has the generated count), so what is left here is a

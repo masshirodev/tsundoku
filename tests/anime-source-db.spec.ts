@@ -21,7 +21,7 @@ const animeFollow = await import('$lib/server/anime/follow');
 const queue = await import('$lib/server/engine/queue');
 const { forgetSourceUse } = await import('$lib/server/library-sources');
 
-// An Aniyomi source on the engine (doc/ANIME.md; card c154): the same
+// An Aniyomi source on the engine (doc/ANIME.md): the same
 // questions a Mihon source answers, under their anime names, and an anime
 // added as a series of episodes by season.
 const ANIME = '7000';
@@ -152,7 +152,7 @@ describe('SAME TITLE (2026-10-29)', () => {
 
 // Before the anime below is added: its episodes' addresses are this one's too.
 describe('a source that adds hidden', () => {
-	it('ADDED HIDDEN: added from a source that adds hidden, it starts hidden, a browsing record once ADD promotes it (c435)', async () => {
+	it('ADDED HIDDEN: added from a source that adds hidden, it starts hidden, a browsing record once ADD promotes it', async () => {
 		const flags = await import('$lib/server/engine/source-flags');
 		const row = (id: number) =>
 			db.prepare(`SELECT hidden, in_library AS inLibrary FROM series WHERE id = ?`).get(id);
@@ -280,7 +280,7 @@ describe('an anime, previewed and added', () => {
 		expect(calls.at(-1)?.method).toBe('getSearchAnime');
 	});
 
-	it('is followed: its source asked at once and every six hours, new episodes made and queued (c158)', async () => {
+	it('is followed: its source asked at once and every six hours, new episodes made and queued', async () => {
 		const seriesId = await downloads.addToLibrary(id);
 		await downloads.setFollowed(seriesId, true);
 		await expect.poll(() => animeFollow.animeCheckedAt(seriesId)).not.toBeNull();
@@ -309,7 +309,7 @@ describe('an anime, previewed and added', () => {
 		expect(await animeFollow.followAnime(at + 14 * 3600_000)).toEqual({ series: 0, queued: 0 });
 	});
 
-	it('is refreshed without following: new episodes become entries, and nothing is queued (c220)', async () => {
+	it('is refreshed without following: new episodes become entries, and nothing is queued', async () => {
 		const seriesId = await downloads.addToLibrary(id);
 		db.exec('DELETE FROM download_queue');
 		later = [

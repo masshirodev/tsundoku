@@ -67,7 +67,7 @@ describe('latest.json (doc/UPDATES.md)', () => {
 		expect(openManifest(signed(badHash), raw)).toMatchObject({ ok: false });
 	});
 
-	it('carries the Android apps, and refuses a malformed one as any other file (c614)', () => {
+	it('carries the Android apps, and refuses a malformed one as any other file', () => {
 		const r = openManifest(signed(manifest), raw);
 		expect(r.ok && r.manifest.files.android?.app?.name).toBe('tsundoku-app.apk');
 		const bad = { ...manifest, files: { ...manifest.files, android: { app: file('../x.apk') } } };

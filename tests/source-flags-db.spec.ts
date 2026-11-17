@@ -309,7 +309,7 @@ describe('HIDDEN SOURCE', () => {
 		}
 	});
 
-	it('counts a shown plugin’s series as reveal lets them be seen, as a Mihon package’s (c506)', () => {
+	it('counts a shown plugin’s series as reveal lets them be seen, as a Mihon package’s', () => {
 		// Beside each family's one visible series, a second one hidden for its
 		// own reasons: one of two is not "mostly hidden", so both stay shown.
 		const extra = [
@@ -444,7 +444,7 @@ describe('OFF HISTORY', () => {
 	});
 });
 
-describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
+describe('ADDED HIDDEN, and the ADD that hid it', () => {
 	// ADD on a series the library already knows answers without the engine
 	// (`addToLibrary`'s `keepOrPromote`), so each state is reached by the door
 	// the preview's ADD AND DOWNLOAD calls.
@@ -614,7 +614,7 @@ describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
 			return { r, id, key, to: addedLanding(r, id, `/browse/${LONE}?tab=latest`, false, params) };
 		};
 
-		describe('an accepted UNDO’s way back (c690)', () => {
+		describe('an accepted UNDO’s way back', () => {
 			const ORIGIN = '/series/12?tab=tags';
 			const event = (first: number, id: string, from: string) =>
 				({
@@ -732,7 +732,7 @@ describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
 					sourceHidden: true,
 					sourceName: null
 				});
-				// Inside reveal the source is here, so the band names it (c605);
+				// Inside reveal the source is here, so the band names it;
 				// `sourceHidden` still says what outside reveal would be.
 				expect(await addedBand(at.searchParams, null, true)).toMatchObject({
 					sourceHidden: true,
@@ -820,7 +820,7 @@ describe('ADDED HIDDEN, and the ADD that hid it (c505)', () => {
 	});
 });
 
-describe('CONCEAL ITS SERIES (c523)', () => {
+describe('CONCEAL ITS SERIES', () => {
 	// The route's own module: what the settings page and BROWSE call.
 	const conceal = () => import('../src/routes/browse/conceal.server');
 	const works = () => import('$lib/server/works');
@@ -955,7 +955,7 @@ describe('CONCEAL ITS SERIES (c523)', () => {
 	// A count on a size past it (COMMON.md): 600 conceals, 601 is refused, and
 	// the count is the source's own shown series plus the other parts of their
 	// Works (`conceal.server.ts`), so the mix is 599 + 1 and then 600 + 1.
-	it('conceals 600 and refuses 601, counting a Work’s other parts too (c606)', async () => {
+	it('conceals 600 and refuses 601, counting a Work’s other parts too', async () => {
 		const { concealCount, conceal: press, concealBand, undoConceal } = await conceal();
 		const { createWork, ungroup } = await works();
 		const CAP = '320';
@@ -1015,7 +1015,7 @@ describe('CONCEAL ITS SERIES (c523)', () => {
 	});
 });
 
-describe('BROWSE’s own band actions off the engine backend (c605)', () => {
+describe('BROWSE’s own band actions off the engine backend', () => {
 	// `downloadsBackend()` is ENGINE_URL and ENGINE_TOKEN both set; this spec's
 	// own environment has the token and no URL, and only a case that needs the
 	// engine puts one there.
@@ -1061,7 +1061,7 @@ describe('BROWSE’s own band actions off the engine backend (c605)', () => {
 	});
 });
 
-describe('a refused UNDO’s landing and words (c664)', () => {
+describe('a refused UNDO’s landing and words', () => {
 	// The band's own form, as AddedBand posts it: series and preview, nothing else.
 	const form = (series: string, preview: string) => {
 		const f = new FormData();
@@ -1127,7 +1127,7 @@ describe('a refused UNDO’s landing and words (c664)', () => {
 		const { refusedWords, UNDO_REFUSED } = await import('../src/routes/browse/added.server');
 		expect(refusedWords('409')).toBe(UNDO_REFUSED);
 		// `undoAdd` is a local DELETE and never asks the engine, so an engine that
-		// is down refuses no UNDO (c690): a typed `refused=503` means nothing.
+		// is down refuses no UNDO: a typed `refused=503` means nothing.
 		for (const code of [null, '', '503', '410', '409 ', '0', 'UNDO'])
 			expect(refusedWords(code), String(code)).toBeNull();
 	});
@@ -1136,7 +1136,7 @@ describe('a refused UNDO’s landing and words (c664)', () => {
 		const { standingRefusal, UNDO_REFUSED } = await import('../src/routes/browse/added.server');
 		expect(standingRefusal('409', band(true))).toBe(UNDO_REFUSED);
 		expect(standingRefusal('409', band(false))).toBeNull();
-		// A typed 503 hides no UNDO the server would take, touched or not (c690).
+		// A typed 503 hides no UNDO the server would take, touched or not.
 		expect(standingRefusal('503', band(false))).toBeNull();
 		expect(standingRefusal('503', band(true))).toBeNull();
 		// No band drawn, or a code with no words: nothing to say.

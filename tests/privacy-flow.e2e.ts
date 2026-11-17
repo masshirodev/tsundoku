@@ -191,7 +191,7 @@ async function endIncognito(page: Page) {
 	expect(names).not.toContain('tsundoku_incognito');
 }
 
-test('image reader: a page still to come when the app is left writes nothing incognito (c680)', async ({
+test('image reader: a page still to come when the app is left writes nothing incognito', async ({
 	page
 }) => {
 	const { id, entry } = await seriesAndEntry(page);
@@ -207,7 +207,7 @@ test('image reader: a page still to come when the app is left writes nothing inc
 	expect(readingIn(id)).toEqual(before);
 });
 
-test('image reader: closing on the way back writes nothing incognito (c680)', async ({ page }) => {
+test('image reader: closing on the way back writes nothing incognito', async ({ page }) => {
 	const { id, entry } = await seriesAndEntry(page);
 	await command(page, '/incognito');
 	const before = readingIn(id);
@@ -223,7 +223,7 @@ test('image reader: closing on the way back writes nothing incognito (c680)', as
 	);
 });
 
-test('text reader: a page still to come when the app is left writes nothing incognito (c680)', async ({
+test('text reader: a page still to come when the app is left writes nothing incognito', async ({
 	page
 }) => {
 	const { id, entry } = await seriesAndEntry(page, NOVEL);
@@ -238,7 +238,7 @@ test('text reader: a page still to come when the app is left writes nothing inco
 	expect(readingIn(id)).toEqual(before);
 });
 
-test('text reader: closing on the way back writes nothing incognito (c680)', async ({ page }) => {
+test('text reader: closing on the way back writes nothing incognito', async ({ page }) => {
 	const { id, entry } = await seriesAndEntry(page, NOVEL);
 	await command(page, '/incognito');
 	const before = readingIn(id);
@@ -269,9 +269,7 @@ async function openSeriesEnd(page: Page, title: string) {
 	return { id, end };
 }
 
-test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', async ({
-	page
-}) => {
+test('a hidden series read under /reveal offers UNHIDE, not HIDE again', async ({ page }) => {
 	await command(page, '/reveal');
 	// Hidden before this page is drawn, so `hidden` is the series', not this
 	// page's answer. A row of its own: this hid Isekai Ojisan, and `library-flow`
@@ -301,16 +299,16 @@ test('a hidden series read under /reveal offers UNHIDE, not HIDE again (c673)', 
 	} catch (e) {
 		failed = e;
 	}
-	// The row goes, shown or hidden, whatever the body did (c649).
+	// The row goes, shown or hidden, whatever the body did.
 	expect.soft(removeOwnSeries([own.id])).toBe(0);
 	if (failed) throw failed;
 });
 
-test('a refused library row says why, in the row (c673)', async ({ page }) => {
+test('a refused library row says why, in the row', async ({ page }) => {
 	const { end } = await openSeriesEnd(page, 'Isekai Ojisan');
 	// A failure from any form but UNHIDE's is not the stale Work (c714's case,
 	// below), even carrying that refusal's own words, which hold HIDE and HIDE
-	// ALL: the row says its own sentence and never the action's (round 2).
+	// ALL: the row says its own sentence and never the action's.
 	const refusal = 'A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT';
 	await page.route(/\/series\/\d+\?\/delete$/, (route) =>
 		route.fulfill({
@@ -382,7 +380,7 @@ function insertHiddenSeries(...titles: string[]) {
  * Those rows gone, with any Work they made, whatever the page was left doing:
  * the database, not a form that needs a live page. Answers how many of their
  * entries are left, or the error, rather than throwing, so a failure here is
- * reported beside the body's and cannot replace it (c649). Everything that
+ * reported beside the body's and cannot replace it. Everything that
  * hangs off a series or an entry cascades, or is `SET NULL`.
  */
 function removeOwnSeries(ids: number[]): unknown {
@@ -453,7 +451,7 @@ const ROW_WORDS = [
 	'WORDS'
 ];
 
-test('UNHIDE refused because the series joined a Work says so, and no other refusal does (c714)', async ({
+test('UNHIDE refused because the series joined a Work says so, and no other refusal does', async ({
 	page
 }) => {
 	const SENTENCE = 'THE SERIES CHANGED · RELOAD';
@@ -529,7 +527,7 @@ test('UNHIDE refused because the series joined a Work says so, and no other refu
 	} catch (e) {
 		failed = e;
 	}
-	// The library as this file found it, whatever the body did (c649).
+	// The library as this file found it, whatever the body did.
 	expect.soft(removeOwnSeries([own.id, partner.id])).toBe(0);
 	if (failed) throw failed;
 });

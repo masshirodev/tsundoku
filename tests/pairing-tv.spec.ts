@@ -20,7 +20,7 @@ import {
 process.env.DATABASE_PATH = ':memory:';
 
 /**
- * The TV's typed code (c236; doc/TV.md, "Claims to check"): six digits, one
+ * The TV's typed code (doc/TV.md, "Claims to check"): six digits, one
  * TV, once, ten minutes, and five wrong tries burn it. The clock and the
  * digits are given, as `Pairing`'s are, so every answer the route can give is
  * pinned without a server.
@@ -80,7 +80,7 @@ describe('a TV code (doc/TV.md)', () => {
 	 * paired and has nothing it can type gets a code, except where only the
 	 * computer may make one. Every state a code can be in, as the doors reach it.
 	 */
-	describe('renewForTv (c246)', () => {
+	describe('renewForTv', () => {
 		const burn = (p: TvPairing, at: number) => {
 			for (let i = 0; i < TV_TRIES; i += 1) p.redeem('999999', at, 'tv');
 			expect(p.state(at)).toBe('burned');
@@ -116,7 +116,7 @@ describe('a TV code (doc/TV.md)', () => {
 			const c = p.fresh(0);
 			burn(p, 1);
 			expect(p.renewForTv(2)).toBe(false);
-			// Burned first, then the clock ran out: still burned (c581).
+			// Burned first, then the clock ran out: still burned.
 			expect(p.state(CODE_MS)).toBe('burned');
 			expect(p.state(CODE_MS * 50)).toBe('burned');
 			// And PAIR with the right digits says so too, not THAT CODE EXPIRED.
@@ -192,7 +192,7 @@ describe('a TV code (doc/TV.md)', () => {
 	it('names a TV a TV in DEVICES, not an Android tablet', () => {
 		const ua =
 			'Mozilla/5.0 (Linux; Android 9; BRAVIA 4K GB Build/PTT1.190515.001.S52) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/94.0.4606.80 Mobile Safari/537.36 TsundokuTV/1.0.0';
-		// The app says itself and its version where a browser's name was (c521).
+		// The app says itself and its version where a browser's name was.
 		expect(pairedLabel(ua)).toBe('Android TV · app 1.0.0');
 		// The phone's own label is unchanged.
 		expect(pairedLabel('Mozilla/5.0 (Linux; Android 14; Pixel 7) Mobile Safari Chrome/131')).toBe(
@@ -214,12 +214,12 @@ describe("the TV app's user agent (doc/ANDROID.md)", () => {
 
 	it('names the row a TV, whatever kind the page said of itself', () => {
 		// /api/devices/sync reads the same user agent and stores the row as a TV
-		// (c244): the page's own kind is only what its screen can say.
+		//: the page's own kind is only what its screen can say.
 		expect(deviceLabel(tv, isTvApp(tv) ? 'tv' : 'desktop')).toBe('Android TV · app 1.0.0');
 	});
 });
 
-describe("a TV's cookie on the owner's tailnet (c245; doc/SIGN-IN.md)", () => {
+describe("a TV's cookie on the owner's tailnet (doc/SIGN-IN.md)", () => {
 	it('opens only on the instance’s own public host', () => {
 		// https mode: tailscale serve's certificate name, and the port serve.ts
 		// puts in ORIGIN (443 has none).
@@ -252,7 +252,7 @@ describe("a TV's cookie on the owner's tailnet (c245; doc/SIGN-IN.md)", () => {
 	});
 });
 
-describe("where the TV's six digits are drawn (c245; doc/WIFI.md)", () => {
+describe("where the TV's six digits are drawn (doc/WIFI.md)", () => {
 	const block = (o: Partial<Parameters<typeof tvBlockFor>[0]> = {}) =>
 		tvBlockFor({ hasWifi: false, viaLan: false, paired: false, friend: false, door: true, ...o });
 
@@ -272,7 +272,7 @@ describe("where the TV's six digits are drawn (c245; doc/WIFI.md)", () => {
 		expect(block({ friend: true, hasWifi: true })).toBe(false);
 	});
 
-	it('draws nowhere the hook refuses every TV cookie: no ORIGIN, or a loopback one (c264)', () => {
+	it('draws nowhere the hook refuses every TV cookie: no ORIGIN, or a loopback one', () => {
 		// The token install with no door: `yarn run dev`, `vite preview` and
 		// serve.ts's local mode. A TV paired there would land on /login.
 		expect(block({ door: false })).toBe(false);
@@ -284,7 +284,7 @@ describe("where the TV's six digits are drawn (c245; doc/WIFI.md)", () => {
 						expect(block({ hasWifi, viaLan, paired, friend, door: false })).toBe(false);
 	});
 
-	it('has a door exactly where tailnetDoor can open for some host (c264)', () => {
+	it('has a door exactly where tailnetDoor can open for some host', () => {
 		// The same ORIGIN the hook reads, judged the same way: whatever fails
 		// tailnetHost fails here, and the block's door is that answer.
 		for (const origin of [
@@ -304,7 +304,7 @@ describe("where the TV's six digits are drawn (c245; doc/WIFI.md)", () => {
 		}
 	});
 
-	it("reads the process's ORIGIN when given none, as the hook does (c264)", () => {
+	it("reads the process's ORIGIN when given none, as the hook does", () => {
 		const kept = process.env.ORIGIN;
 		try {
 			delete process.env.ORIGIN;
@@ -320,7 +320,7 @@ describe("where the TV's six digits are drawn (c245; doc/WIFI.md)", () => {
 	});
 });
 
-describe("a friend's paired cookie (c245; doc/SIGN-IN.md)", () => {
+describe("a friend's paired cookie (doc/SIGN-IN.md)", () => {
 	it('signs in only over Wi-Fi, never on a localhost request', () => {
 		const token = addPaired({ label: 'Android phone · Chrome', address: '192.168.1.23:42143' });
 		// The read stays in the friend branch: off Wi-Fi it is not attempted, so

@@ -18,7 +18,7 @@ const { keepQuote, quoteHighlights, QuoteError, setAnchors, validQuote } =
 	await import('$lib/server/highlights/quotes');
 
 /**
- * Highlights H2, the store's half (card c702; doc/HIGHLIGHTS.md, "Quotes"):
+ * Highlights H2, the store's half (doc/HIGHLIGHTS.md, "Quotes"):
  * what the reader's HIGHLIGHT reaches. The body is the shape `TextReader`
  * posts; the rules that read the book are in `highlights-domain.spec.ts`.
  */

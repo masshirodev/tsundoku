@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /**
- * The player in portrait on a phone (c387, doc/ANIME.md "The player"): the
+ * The player in portrait on a phone (doc/ANIME.md "The player"): the
  * scrubber under the picture seeks on a tap and follows a drag, shows the time
  * under the finger while it drags, and a drag never scrolls what is below.
  * On the browse server's "Tsukiakari no Ryokōsha", whose episodes are the
@@ -50,7 +50,7 @@ const position = (page: Page) =>
 		return v.currentTime / v.duration;
 	});
 
-test('the portrait scrubber seeks on a tap and follows a drag, without scrolling (c387)', async ({
+test('the portrait scrubber seeks on a tap and follows a drag, without scrolling', async ({
 	page
 }) => {
 	test.setTimeout(60_000);
@@ -94,7 +94,7 @@ test('the portrait scrubber seeks on a tap and follows a drag, without scrolling
 	// the browser hands the finger to the page's handlers instead of panning.
 	// Asked of the style, since the scroll check at the end is structural:
 	// the row sits outside the scrolling .pbody and the page itself does not
-	// scroll, so it would hold with or without the rule (round 2, finding 3).
+	// scroll, so it would hold with or without the rule (finding 3).
 	await expect(track).toHaveCSS('touch-action', 'none');
 	const before = await page.evaluate(() => ({
 		body: document.querySelector('.pbody')!.scrollTop,

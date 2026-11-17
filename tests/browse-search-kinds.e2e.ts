@@ -1,5 +1,5 @@
 /**
- * SEARCH THE SOURCES' KIND band (c699): ALL asks every source, as before, and
+ * SEARCH THE SOURCES' KIND band: ALL asks every source, as before, and
  * a kind asks only its own sources, so an anime search does not wait on the
  * manga extensions. In the browse world, because only it has installed
  * sources of more than one kind (a Mihon manga source, an Aniyomi anime
@@ -14,14 +14,14 @@ import { ANIME_SOURCE, engineCalls, SOURCES } from './browse-world';
 // file's searches carry a word no other file searches for, and its calls are
 // read by it.
 const Q = 'kindband';
-/** The anime source's one search hit, from the fake's `getSearchAnime` (c735). */
+/** The anime source's one search hit, from the fake's `getSearchAnime`. */
 const ANIME_HIT = 'Moonlit Search Hit';
 const kinds = (page: Page) => page.getByRole('navigation', { name: 'Kinds' });
 const sources = (page: Page) => page.getByRole('navigation', { name: 'Sources' });
 const searchCalls = async () =>
 	(await engineCalls()).filter((c) => c.method.startsWith('getSearch') && c.search === Q);
 
-test('ALL asks every kind’s sources, a kind only its own, and the kind stays through a reload (c699)', async ({
+test('ALL asks every kind’s sources, a kind only its own, and the kind stays through a reload', async ({
 	page
 }) => {
 	await page.goto(`/downloads/search?q=${Q}`);
@@ -74,7 +74,7 @@ test('ALL asks every kind’s sources, a kind only its own, and the kind stays t
 	await expect(sources(page).getByRole('link', { name: SOURCES.open.name })).toBeVisible();
 });
 
-test('a re-ask under a kind is refused for a source of another kind (c699)', async ({ page }) => {
+test('a re-ask under a kind is refused for a source of another kind', async ({ page }) => {
 	const ask = (source: string, kind: string) =>
 		page.request.get(`/downloads/search/ask?${new URLSearchParams({ q: Q, source, kind })}`);
 	expect((await ask(SOURCES.open.id, 'anime')).status()).toBe(404);
@@ -82,7 +82,7 @@ test('a re-ask under a kind is refused for a source of another kind (c699)', asy
 	expect((await ask(ANIME_SOURCE.id, 'anime')).status()).toBe(200);
 });
 
-test('the library’s search hands its kind to SEARCH THE SOURCES (c699)', async ({ page }) => {
+test('the library’s search hands its kind to SEARCH THE SOURCES', async ({ page }) => {
 	await page.goto('/?kind=anime');
 	const cell = page.getByRole('link', { name: 'Search' }).filter({ visible: true }).first();
 	await expect(cell).toHaveAttribute('href', '/search?kind=anime');
@@ -100,13 +100,13 @@ test('the library’s search hands its kind to SEARCH THE SOURCES (c699)', async
 
 // A library kind no source family stores: nothing stored says a source serves
 // manhwa, so its search asks the kind serving its medium, the Mihon sources'
-// (c736). Two words of their own, so a parallel run of the cases above cannot
+//. Two words of their own, so a parallel run of the cases above cannot
 // land in the call log these read.
 for (const [word, query] of [
 	['manhwa', 'kindmanhwa'],
 	['doujin', 'kinddoujin']
 ] as const) {
-	test(`a library filtered to ${word} asks only the manga sources (c736)`, async ({ page }) => {
+	test(`a library filtered to ${word} asks only the manga sources`, async ({ page }) => {
 		const asked = async () =>
 			(await engineCalls()).filter((c) => c.method.startsWith('getSearch') && c.search === query);
 		await page.goto(`/?kind=${word}`);
@@ -139,7 +139,7 @@ for (const [word, query] of [
 	});
 }
 
-test('a typed `?kind=manhwa` reads as MANGA, and the page’s own links say manga (c736)', async ({
+test('a typed `?kind=manhwa` reads as MANGA, and the page’s own links say manga', async ({
 	page
 }) => {
 	const query = 'kindtyped';

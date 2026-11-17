@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { inUseOf, withInUse, type HasOrigin } from '../src/routes/servers-in-use';
 
 /**
- * The page's own server wins over the bridge's flag (c261's S1 and S2; c610).
+ * The page's own server wins over the bridge's flag (c261's S1 and S2).
  *
  * The bridge's `inUse` is the server with the newest OPENED, written only once
  * a page has finished loading, so the first library after a switch reads a
@@ -12,7 +12,7 @@ import { inUseOf, withInUse, type HasOrigin } from '../src/routes/servers-in-use
  * mixed-case host, an explicit default port, a trailing slash or a path.
  *
  * Every e2e case passes its base URL verbatim, so the e2e suite stays green
- * with the normalisation gone (c610). These cases are the only ones that hold
+ * with the normalisation gone. These cases are the only ones that hold
  * it: replace `clean(s.origin) === at` with `s.origin === here` and the
  * `SAME` table goes red.
  */

@@ -12,7 +12,7 @@ import {
 import { num, upper } from '$lib/i18n/format';
 import { countLine, importDoneLine, startView, trailDone } from '../src/lib/library/start';
 
-/** The languages (doc/I18N.md; card c210): two files that agree, and who decides. */
+/** The languages (doc/I18N.md): two files that agree, and who decides. */
 
 type Messages = Record<string, unknown>;
 const read = (l: string) =>
@@ -98,7 +98,7 @@ describe('in Portuguese', () => {
 		overwriteGetLocale(() => 'en');
 		expect(num(1234)).toBe('1,234');
 	});
-	it('03 done by an import names it in Portuguese, one series and many (c511)', () => {
+	it('03 done by an import names it in Portuguese, one series and many', () => {
 		overwriteGetLocale(() => 'pt-BR');
 		expect(importDoneLine({ id: 1, app: 'mihon', series: 1 })).toBe(
 			'Feito · backup do Mihon · 1 série'
@@ -108,7 +108,7 @@ describe('in Portuguese', () => {
 		);
 		expect(m.start_done_link_import()).toBe('REGISTRO DE IMPORTAÇÃO →');
 	});
-	it('the series screen’s two offers say their words from messages/ (c587)', () => {
+	it('the series screen’s two offers say their words from messages/', () => {
 		// English is the copy as it was: a phone screen's locators match it.
 		expect(m.offer_might_be_one_series()).toBe('MIGHT BE ONE SERIES');
 		expect(m.offer_not_a_series()).toBe('NOT A SERIES');
@@ -124,7 +124,7 @@ describe('in Portuguese', () => {
 			'TWO SERIES FROM ONE ENTRY · JOIN THEM IN MIGHT BE ONE SERIES'
 		);
 		// The library's ADDED TO / IS A WORK band, and the offers' own second
-		// lines, landed with the count (wave 31, c587).
+		// lines, landed with the count.
 		expect(m.offer_added_to({ name: 'ISEKAI' })).toBe('ADDED TO ISEKAI');
 		expect(m.offer_work_made({ name: 'ISEKAI' })).toBe('ISEKAI IS A WORK');
 		expect(m.offer_why_name()).toBe("ITS TITLE STARTS WITH THE WORK'S NAME");

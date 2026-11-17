@@ -11,7 +11,7 @@ import {
 import type { TmdbCollection, TmdbShowFacts } from '$lib/library/tmdb';
 
 /**
- * What surrounds a film or a show (card c990), against the handoff's boards
+ * What surrounds a film or a show, against the handoff's boards
  * (doc/handoffs/movies-shows/Collection.dc.html, Show-Desk.dc.html): each case
  * is a board, in the board's words.
  */

@@ -3,7 +3,7 @@ import { expect, test } from './fixtures';
 import { GENRE, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
- * A tag on the series screen with the remote (card c313; doc/FOCUS.md): at
+ * A tag on the series screen with the remote (doc/FOCUS.md): at
  * 960×540 with no pointer, the D-pad reaches a tag value (through DETAILS,
  * which folds TAGS on a TV since c425), OK opens its sheet
  * with the first row focused, and BACK closes it and gives focus back to the
@@ -21,7 +21,7 @@ test.afterAll(async () => {
 });
 
 /**
- * What the page shows one second into a wait on `tag-search` (c452), as the
+ * What the page shows one second into a wait on `tag-search`, as the
  * page itself saw it: once a link starts a navigation, Playwright waits for
  * it before it reads the page again, so the old page writes down its busy
  * element, its words and whether it is focused, in sessionStorage, which the
@@ -59,7 +59,7 @@ type Mark = { row: string; inTags: boolean; text: string; toward: string | null 
 const mark = (page: Page, value: string) =>
 	page.evaluate((v): Mark => {
 		const a = document.activeElement as HTMLElement | null;
-		// The copy that is drawn: TAGS is in the markup twice (c837), and the other is display: none.
+		// The copy that is drawn: TAGS is in the markup twice, and the other is display: none.
 		const target = [...document.querySelectorAll<HTMLElement>('.tags a')].find(
 			(t) => t.getClientRects().length > 0 && t.innerText.trim() === v
 		);
@@ -84,7 +84,7 @@ const mark = (page: Page, value: string) =>
 		};
 	}, value);
 
-/** Whether the focus is on DETAILS while it is folded (c425). */
+/** Whether the focus is on DETAILS while it is folded. */
 const onFoldedDetails = (page: Page) =>
 	page.evaluate(
 		() => document.activeElement?.matches('[data-row="details"][aria-expanded="false"]') ?? false
@@ -92,7 +92,7 @@ const onFoldedDetails = (page: Page) =>
 
 /**
  * The way a remote reaches a tag: ↓ down the panel, OK on DETAILS where it is
- * folded (on a TV TAGS is one of the rows it folds, c425), ↓ on to the TAGS row
+ * folded (on a TV TAGS is one of the rows it folds), ↓ on to the TAGS row
  * (the pad meets it at its EDIT cell, on the right), ← into its values, then
  * the arrow toward the value, one press at a time. At most `n` presses; the
  * path is the error.
@@ -156,7 +156,7 @@ test('the pad reaches a tag, OK opens its sheet on the first row, BACK closes it
 		name: new RegExp(`IN ${SOURCE.name.toUpperCase()}`)
 	});
 	await expect(toSource).toBeFocused();
-	// The source's filters are slow and nothing has asked for them yet (c452):
+	// The source's filters are slow and nothing has asked for them yet:
 	// the row says it is finding them, and stays the focused stop, readable.
 	world.schema({ slowMs: 3000 });
 	await recordWait(page);
@@ -180,7 +180,7 @@ test('the pad reaches a tag, OK opens its sheet on the first row, BACK closes it
  * c837: every tag is a stop, wrapped lines and all, and `+ N MORE ↓` is one
  * too. Tags go in through the EDIT sheet on this file's own world.
  */
-test('the pad reaches every tag past a wrapped line and through + N MORE ↓, and OK opens one (c837)', async ({
+test('the pad reaches every tag past a wrapped line and through + N MORE ↓, and OK opens one', async ({
 	page
 }) => {
 	await page.goto(`${world.base}/series/${world.ids.gallery}`);

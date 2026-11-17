@@ -12,7 +12,7 @@ import java.security.Signature
 import java.util.Base64
 
 /**
- * latest.json as the app opens it (c614; ReleaseCheck.kt), against
+ * latest.json as the app opens it (ReleaseCheck.kt), against
  * tests/update-manifest.spec.ts's cases for the computer's `openManifest`.
  * The JDK signs with a key of the test's own; the release key's private half
  * never leaves the workstation.

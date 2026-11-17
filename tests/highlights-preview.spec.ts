@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { startPreview } from './highlights-preview';
 
 /**
- * The highlights e2e files' preview wait (c701, round 2): a port someone else
+ * The highlights e2e files' preview wait: a port someone else
  * serves is an error, never a run against their server and database.
  */
 let other: Server | null = null;

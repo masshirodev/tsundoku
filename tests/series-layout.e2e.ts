@@ -60,7 +60,7 @@ test('the series frame matches the design for this device', async ({ page }, inf
 	expect(rail.width).toBe(frame.rail);
 });
 
-test('ABOUT and TAGS stand above the other rows, where the fold is not in the way (c837)', async ({
+test('ABOUT and TAGS stand above the other rows, where the fold is not in the way', async ({
 	page
 }, info) => {
 	const tv = info.project.name === 'tv';
@@ -97,7 +97,7 @@ test('ABOUT and TAGS stand above the other rows, where the fold is not in the wa
 // picture drawn by the element's own stylesheet unless the element says
 // `data-picture`. The fold's stripes are that picture. A hover needs a fine
 // pointer, which only the desktop project has.
-test('hovering the fold keeps its stripes (c488)', async ({ page }, info) => {
+test('hovering the fold keeps its stripes', async ({ page }, info) => {
 	test.skip(info.project.name !== 'desktop', 'a hover needs a fine pointer');
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
@@ -113,7 +113,7 @@ test('hovering the fold keeps its stripes (c488)', async ({ page }, info) => {
 });
 
 /**
- * DETAILS (c425) folds FILE on a phone and a TV: open it the way the owner
+ * DETAILS folds FILE on a phone and a TV: open it the way the owner
  * does, by its line, and wait for the answer, which comes once the page runs.
  */
 async function openDetails(page: import('@playwright/test').Page) {
@@ -140,7 +140,7 @@ async function openDetails(page: import('@playwright/test').Page) {
  * line in equal columns on the phone (390), the 440 panel and the TV's 352
  * column; the tablet in portrait has the width and keeps them inline.
  */
-test('FILE keeps its text whole, and its cells drop under it where the panel is narrow (c526)', async ({
+test('FILE keeps its text whole, and its cells drop under it where the panel is narrow', async ({
 	page
 }, info) => {
 	const name = info.project.name;
@@ -209,16 +209,16 @@ test('a novel shows its contents without numbers, and a typeset cover', async ({
 	await page.locator('.grid .tile', { hasText: 'Mushoku Tensei' }).click();
 	await expect(page.getByText('01 — CONTENTS')).toBeVisible();
 	await expect(page.getByText('NO COVER · EPUB')).toBeVisible();
-	// LAYOUT is a row DETAILS folds on a phone and a TV (c425).
+	// LAYOUT is a row DETAILS folds on a phone and a TV.
 	await openDetails(page);
 	// The row itself: while the series is still arriving its outline draws the same
-	// label, in both copies of the bands (c556), and a text locator refuses two.
+	// label, in both copies of the bands, and a text locator refuses two.
 	await expect(page.locator('form.row .label', { hasText: /^LAYOUT$/ })).toBeVisible();
 	await expect(page.locator('.entry .num')).toHaveCount(0);
 });
 
 /**
- * c422, rewritten for LISTS (c424): on a one-season anime with Ranobe
+ * c422, rewritten for LISTS: on a one-season anime with Ranobe
  * configured, Ranobe's line sits under AniList's, the full width of the row,
  * never beside it. c422 fixed LINK and TRACKING crushing to one word a line at
  * the owner's ~460 px panel; LISTS replaced both rows, so the same widths now
@@ -233,7 +233,7 @@ test('a novel shows its contents without numbers, and a typeset cover', async ({
  * of the same build on a port the OS hands out. Only tablet-portrait starts
  * it: the widths are set per case, so the other projects would only repeat it.
  */
-test.describe('a one-season anime with Ranobe (c422)', () => {
+test.describe('a one-season anime with Ranobe', () => {
 	test.describe.configure({ mode: 'serial' });
 	const dbPath = join(tmpdir(), `tsundoku-e2e-series-ranobe-${process.pid}.sqlite`);
 	let server: ChildProcess | null = null;
@@ -243,7 +243,7 @@ test.describe('a one-season anime with Ranobe (c422)', () => {
 	test.beforeAll(async () => {
 		// The hook seeds one anime and waits up to 60 s for its own preview:
 		// 1.6 s alone at this commit, past the default 30 s once the box is
-		// loaded (c599). In a hook, test.setTimeout sets the hook's own budget
+		// loaded. In a hook, test.setTimeout sets the hook's own budget
 		// (Playwright's test.d.ts, "Changing timeout for a beforeAll").
 		test.setTimeout(120_000);
 		test.skip(
@@ -327,7 +327,7 @@ test.describe('a one-season anime with Ranobe (c422)', () => {
 		}) => {
 			await page.setViewportSize({ width, height: 900 });
 			await page.goto(`${base}/series/${seriesId}`);
-			// At 390 the panel is a phone's, and DETAILS folds LISTS (c425).
+			// At 390 the panel is a phone's, and DETAILS folds LISTS.
 			await openDetails(page);
 			await expect(page.getByRole('heading', { name: 'Ranma ½ (2024)' })).toBeVisible();
 			await screenSettled(page);

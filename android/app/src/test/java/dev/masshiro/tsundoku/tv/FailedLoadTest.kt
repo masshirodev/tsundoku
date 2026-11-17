@@ -7,7 +7,7 @@ import org.junit.Test
 
 /**
  * FailedLoad in every order WebView can report a failed main-frame load
- * (c532): the failed load's own finish never counts, whatever came between,
+ *: the failed load's own finish never counts, whatever came between,
  * and the next finish of that server does.
  */
 class FailedLoadTest {
@@ -23,7 +23,7 @@ class FailedLoadTest {
 	}
 
 	@Test
-	fun `error, started, finished - a committed error page does not count either (c532)`() {
+	fun `error, started, finished - a committed error page does not count either`() {
 		// The order wave 21's FailedLoad lost: its start cleared the mark the
 		// finish was about to read, and the dead server became the last used.
 		val f = FailedLoad()
@@ -85,7 +85,7 @@ class FailedLoadTest {
 	private val b = "http://192.168.1.40:42143"
 
 	@Test
-	fun `a failed load with no finish does not swallow the retry's visit (round 2)`() {
+	fun `a failed load with no finish does not swallow the retry's visit`() {
 		// SERVERS -> B, B is down: onReceivedError shows 9D at once and the
 		// failed URL never finishes. B comes back, 9D's probe opens it again.
 		val f = FailedLoad()

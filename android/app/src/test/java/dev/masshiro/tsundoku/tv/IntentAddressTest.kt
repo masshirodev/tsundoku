@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The address handed to the app from outside (c260): a launch extra or a
+ * The address handed to the app from outside: a launch extra or a
  * `tsundoku://connect?url=` link. It is not typed on the TV, so the parser is
  * stricter than [Address.originOf]: http or https, a host, and nothing but the
  * origin.
@@ -38,7 +38,7 @@ class IntentAddressTest {
 	fun `a port outside 1 to 65535 is refused, not dropped`() {
 		// java.net.URI reports both of these as a port rather than failing to
 		// parse, so a branch that only tested the upper bound would drop the
-		// port and probe the default one instead (c260).
+		// port and probe the default one instead.
 		assertNull(Address.intentOrigin("http://zen.local:999999"))
 		assertNull(Address.intentOrigin("http://zen.local:0"))
 		assertNull(Address.intentOrigin("https://zen.tailnet.ts.net:65536"))

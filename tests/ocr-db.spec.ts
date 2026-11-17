@@ -15,7 +15,7 @@ afterAll(() => rmSync(work, { recursive: true, force: true }));
  * `<folder>.mokuro` with one block per page, as mokuro 0.2 does. With FAIL
  * set it fails, as a crashed run would.
  *
- * It is CommonJS, so it is named `.cjs` (c321): a file with no extension takes
+ * It is CommonJS, so it is named `.cjs`: a file with no extension takes
  * its module type from the nearest package.json, and when TMPDIR is inside the
  * worktree (the waves keep it at `temp/`) that is the repo's `"type": "module"`,
  * where `require` is undefined. The fake then crashed on every batch, and three

@@ -14,7 +14,7 @@ process.env.ENGINE_TOKEN = 'engine-secret';
 const covers = mkdtempSync(join(tmpdir(), 'tsundoku-pictures-'));
 process.env.COVER_DIR = covers;
 
-// Episode pictures (doc/ANIME.md, "Episode pictures"; card c225): the
+// Episode pictures (doc/ANIME.md, "Episode pictures"): the
 // source's own through the engine's /image/ proxy, else a frame of the
 // downloaded file, else a frame of the stream through the loopback proxy.
 // A fake engine serves a picture, the fixture clip as a video, and the list.

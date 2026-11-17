@@ -47,7 +47,7 @@ function world(opts: { max?: number; fail?: (url: string) => boolean } = {}) {
 	return { held, asked, aborted, revoked, decoded, later, answer };
 }
 
-describe('online pages (c1038)', () => {
+describe('online pages', () => {
 	it('names an online version', () => {
 		expect(isOnlineVersion('online-1794877950032')).toBe(true);
 		expect(isOnlineVersion('3f2a')).toBe(false);

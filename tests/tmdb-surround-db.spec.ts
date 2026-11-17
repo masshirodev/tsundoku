@@ -8,7 +8,7 @@ const { setTmdbFetch, tmdbCollection, tmdbShowFacts } = await import('$lib/serve
 const sur = await import('$lib/server/tmdb-surround');
 
 /**
- * What surrounds a film or a show, the workstation's half (card c990): the
+ * What surrounds a film or a show, the workstation's half: the
  * cache is filled by id alone, read without waiting on TMDB, and the library
  * is read as the viewer may see it. TMDB is a stub answering by path.
  */

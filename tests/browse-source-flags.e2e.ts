@@ -74,7 +74,7 @@ async function flip(page: Page, title: string, on: boolean) {
 
 /**
  * A case's body and its cleanup, so a failed cleanup cannot hide the body's
- * (c649). A `try`/`finally` reports whichever threw last, so a cleanup that
+ *. A `try`/`finally` reports whichever threw last, so a cleanup that
  * failed over an already failed body replaced the body's own assertion with
  * its own (a `page.goto` timing out, `ok()` false). Here the body's failure is
  * kept and rethrown after the cleanup, and the cleanup's is thrown only when
@@ -189,7 +189,7 @@ test('ADDED HIDDEN: + ADD TO LIBRARY from it adds the series hidden, and says so
 	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?.*added=hidden`));
 	const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
 	await expect(band).toBeVisible();
-	// What the series page's band would say (c505): its chapters, none downloading, and UNDO.
+	// What the series page's band would say: its chapters, none downloading, and UNDO.
 	await expect(band).toContainText(
 		/TAG SOURCE ADDS ITS SERIES HIDDEN · \d+ CHAPTERS? · NONE DOWNLOADED · REVEAL SHOWS IT/
 	);
@@ -199,7 +199,7 @@ test('ADDED HIDDEN: + ADD TO LIBRARY from it adds the series hidden, and says so
 	await page.reload();
 	await expect(band.getByRole('button', { name: 'UNDO' })).toBeVisible();
 	// Inside reveal the source is here, so the band names it and has no tail to
-	// point at something hidden from this viewer (c605).
+	// point at something hidden from this viewer.
 	await reveal(context, true);
 	await page.goto(bandUrl);
 	await expect(band).toContainText(`${SOURCE.name.toUpperCase()} ADDS ITS SERIES HIDDEN`);
@@ -237,7 +237,7 @@ test('ADDED HIDDEN: + ADD TO LIBRARY from it adds the series hidden, and says so
 	await flip(page, 'Added hidden', false);
 });
 
-test('ADDED HIDDEN: ADD AND DOWNLOAD outside reveal says what it queued, and UNDO is refused once it is read (c505)', async ({
+test('ADDED HIDDEN: ADD AND DOWNLOAD outside reveal says what it queued, and UNDO is refused once it is read', async ({
 	page,
 	context
 }) => {
@@ -257,7 +257,7 @@ test('ADDED HIDDEN: ADD AND DOWNLOAD outside reveal says what it queued, and UND
 	const queued = at.searchParams.get('queued');
 	const series = Number(at.searchParams.get('series'));
 	// The queue's answer is carried: the preview's one chapter, queued because
-	// this ADD hid it (c435), and the band says so, as the series page's does.
+	// this ADD hid it, and the band says so, as the series page's does.
 	expect(queued).toBe('1');
 	const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
 	await expect(band).toContainText('ADDS ITS SERIES HIDDEN · 1 CHAPTER · 1 DOWNLOADING');
@@ -304,12 +304,12 @@ test('ADDED HIDDEN: ADD AND DOWNLOAD outside reveal says what it queued, and UND
 	await flip(page, 'Added hidden', false);
 });
 
-test('ADDED HIDDEN: the first ADD from a source with nothing else here leaves it mostly hidden, so the band and UNDO are on BROWSE, naming no source (c505)', async ({
+test('ADDED HIDDEN: the first ADD from a source with nothing else here leaves it mostly hidden, so the band and UNDO are on BROWSE, naming no source', async ({
 	page,
 	context
 }) => {
 	// About twenty navigations, two switch flips and two ADDs: 5.4-15.7 s alone,
-	// and every copy of five ran out the 30 s once beside a build (c607).
+	// and every copy of five ran out the 30 s once beside a build.
 	test.slow();
 	// COLD has no series in this world: the ADD makes it 1 of 1 hidden, more
 	// than half, so its own page is not found outside reveal (mostlyHidden).
@@ -421,7 +421,7 @@ async function flipAddedHidden(page: Page, id: string, on: boolean) {
 }
 
 /**
- * The two doors a person without script walks (c605, c606). Nothing the doors
+ * The two doors a person without script walks. Nothing the doors
  * themselves need is a handler: the refused UNDO, CONCEAL's question and its
  * band are each a form or a link, so the browser posts them and the server
  * answers with the page, which is what a phone with its scripts off gets.
@@ -429,7 +429,7 @@ async function flipAddedHidden(page: Page, id: string, on: boolean) {
 test.describe('without script', () => {
 	test.use({ javaScriptEnabled: false });
 
-	test('a refused UNDO says why in the band, and inside reveal the band names the source (c605)', async ({
+	test('a refused UNDO says why in the band, and inside reveal the band names the source', async ({
 		page,
 		context,
 		browser
@@ -437,7 +437,7 @@ test.describe('without script', () => {
 		const coldPreview = `/downloads/source/${coldPreviewId}?from=${encodeURIComponent(`/browse/${COLD.id}`)}`;
 		const band = page.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' });
 		// Declared here, not in the try: a step that throws before its own close
-		// would leave the context open for the rest of the file (c665).
+		// would leave the context open for the rest of the file.
 		let setup: BrowserContext | undefined;
 		const mark = (series: number, entry: number, read: boolean) =>
 			page.request.post(url(`/series/${series}?/mark`), {
@@ -514,7 +514,7 @@ test.describe('without script', () => {
 			},
 			async () => {
 				// The context this case opened, if a step above threw before its own
-				// close. Soft, so a close that fails does not hide the body's error (c649).
+				// close. Soft, so a close that fails does not hide the body's error.
 				await setup
 					?.close()
 					.catch((e) => expect.soft(e, 'the setup context closed').toBeUndefined());
@@ -528,7 +528,7 @@ test.describe('without script', () => {
 		);
 	});
 
-	test('a refused UNDO on a source page the ADDs have mostly hidden lands on BROWSE and says why (c605)', async ({
+	test('a refused UNDO on a source page the ADDs have mostly hidden lands on BROWSE and says why', async ({
 		page,
 		context,
 		browser
@@ -555,7 +555,7 @@ test.describe('without script', () => {
 		// Set when the reload's UNDO takes the series out: nothing left to unread.
 		let undone = false;
 		// Declared here, not in the try: a step that throws before its own close
-		// would leave the context open for the rest of the file (c665).
+		// would leave the context open for the rest of the file.
 		let setup: BrowserContext | undefined;
 		await reveal(context, false);
 		await flipAddedHidden(page, SOURCE.id, true);
@@ -611,7 +611,7 @@ test.describe('without script', () => {
 				// The tap, on the page drawn before the source went hidden: the
 				// source page's action is refused, and that page cannot draw the
 				// answer (its load 404s), so the refusal lands on BROWSE's band --
-				// where a bare post used to land on a "not found" page (c605).
+				// where a bare post used to land on a "not found" page.
 				const [answer] = await Promise.all([
 					page.waitForResponse((r) => r.url().includes(`/browse/${SOURCE.id}?/undoAdd`)),
 					band.getByRole('button', { name: 'UNDO' }).click()
@@ -625,7 +625,7 @@ test.describe('without script', () => {
 				expect((await page.request.get(url(`/series/${series}`))).status()).toBe(200);
 				await reveal(context, false);
 
-				// The refusal does not outlive its cause (c664): unread, and the same
+				// The refusal does not outlive its cause: unread, and the same
 				// URL -- which a reload would load again -- draws UNDO, and the server
 				// takes it. A refusal that stayed would hide an UNDO it would accept.
 				await reveal(context, true);
@@ -645,7 +645,7 @@ test.describe('without script', () => {
 				// Put back: unread, every ADD undone, and the switch off (reveal on,
 				// where the hidden source's settings page is found).
 				// The context this case opened, closed here whatever happened above;
-				// soft, so its own failure does not hide the body's (c649, c665).
+				// soft, so its own failure does not hide the body's.
 				await setup
 					?.close()
 					.catch((e) => expect.soft(e, 'the setup context closed').toBeUndefined());
@@ -665,7 +665,7 @@ test.describe('without script', () => {
 		);
 	});
 
-	test('a no-script UNDO refused on a source page keeps the tag origin in ← (c664)', async ({
+	test('a no-script UNDO refused on a source page keeps the tag origin in ←', async ({
 		page,
 		context,
 		browser
@@ -685,7 +685,7 @@ test.describe('without script', () => {
 		let entry = 0;
 		let preview = '';
 		// Declared here, not in the try: a step that throws before its own close
-		// would leave the context open for the rest of the file (c665).
+		// would leave the context open for the rest of the file.
 		let setup: BrowserContext | undefined;
 		await reveal(context, false);
 		await flipAddedHidden(page, SOURCE.id, true);
@@ -703,7 +703,7 @@ test.describe('without script', () => {
 				// result's tile tapped from it, so the preview is opened with that
 				// origin and its ADD answers with the source page again, `from` kept.
 				// One ADD of five leaves the source found, so the band is drawn here
-				// rather than on BROWSE (c664).
+				// rather than on BROWSE.
 				await sp.goto(url(`/browse/${SOURCE.id}?from=${encodeURIComponent(origin)}`));
 				const tile = sp.locator('a.tile[href^="/downloads/source/"]').first();
 				await expect(tile).toBeVisible();
@@ -739,7 +739,7 @@ test.describe('without script', () => {
 				await expect(back).toHaveAttribute('href', origin);
 
 				// A refused origin adds nothing to the action: ← would be an open
-				// redirect (c664). The band is the same; only the `from` is refused.
+				// redirect. The band is the same; only the `from` is refused.
 				const evil = new URL(bandUrl);
 				evil.searchParams.set('from', '//evil.example');
 				await page.goto(evil.href);
@@ -769,7 +769,7 @@ test.describe('without script', () => {
 			async () => {
 				// Put back: unread, the ADD undone, and the switch off. The context
 				// this case opened is closed here whatever happened above; soft, so
-				// its own failure does not hide the body's (c649, c665).
+				// its own failure does not hide the body's.
 				await setup
 					?.close()
 					.catch((e) => expect.soft(e, 'the setup context closed').toBeUndefined());
@@ -789,7 +789,7 @@ test.describe('without script', () => {
 		);
 	});
 
-	test('CONCEAL asks through ?ask=conceal and its band draws, both without a handler (c606)', async ({
+	test('CONCEAL asks through ?ask=conceal and its band draws, both without a handler', async ({
 		page,
 		context
 	}) => {
@@ -855,7 +855,7 @@ test('OFF HISTORY: a read from it is logged, but never in HISTORY, inside reveal
 	await expect(rows).toHaveCount(1);
 });
 
-test('NEVER TRACKED: the source stays listed and searchable, and the series screen’s LISTS row says why nothing is sent (c522)', async ({
+test('NEVER TRACKED: the source stays listed and searchable, and the series screen’s LISTS row says why nothing is sent', async ({
 	page
 }) => {
 	// `tagged` is this world's series from the source (`mihon:100:/manga/tagged`).
@@ -886,7 +886,7 @@ test('NEVER TRACKED: the source stays listed and searchable, and the series scre
 	);
 });
 
-test('CONCEAL ITS SERIES hides what the source shows, a Work whole, says so, and UNDO brings back only that (c523)', async ({
+test('CONCEAL ITS SERIES hides what the source shows, a Work whole, says so, and UNDO brings back only that', async ({
 	page,
 	context
 }) => {

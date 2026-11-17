@@ -117,7 +117,7 @@ describe('swipes', () => {
 	});
 });
 
-describe('the slide of a paged turn (c441)', () => {
+describe('the slide of a paged turn', () => {
 	it('is the numbers both readers had: 220 ms, 8px before a drag, a quarter at an edge, 40px to turn', () => {
 		expect(TURN_MS).toBe(220);
 		expect(DRAG_PX).toBe(8);
@@ -243,7 +243,7 @@ describe('reading time', () => {
 		expect(c.lap(10_005_000)).toBe(5_000);
 	});
 
-	it('gives text its own cap: a long page of prose is not cut at two minutes (c443)', () => {
+	it('gives text its own cap: a long page of prose is not cut at two minutes', () => {
 		expect(IDLE_CAP_MS).toBe(2 * 60_000);
 		const text = new ProgressClock(0, IDLE_CAPS.text);
 		expect(text.lap(4 * 60_000)).toBe(4 * 60_000);
@@ -254,7 +254,7 @@ describe('reading time', () => {
 	});
 });
 
-describe('watching time (c443)', () => {
+describe('watching time', () => {
 	/** Plays from `from` seconds for `seconds` at `rate`, a timeupdate every 250 ms of wall time. */
 	function play(
 		c: WatchClock,
@@ -349,7 +349,7 @@ describe('watching time (c443)', () => {
 	});
 });
 
-describe('what counts as watching (c481)', () => {
+describe('what counts as watching', () => {
 	const playing = {
 		paused: false,
 		seeking: false,
@@ -490,7 +490,7 @@ describe('shapeOf', () => {
 	});
 });
 
-describe('the text reader’s fonts (c442)', () => {
+describe('the text reader’s fonts', () => {
 	it('lists Plex first and OpenDyslexic beside it, each with a stack that keeps JP and KR', () => {
 		expect(TEXT_FONTS.map((f) => [f.id, f.name, f.word, f.lazy])).toEqual([
 			['serif', 'Plex Serif', 'SERIF', false],
@@ -538,7 +538,7 @@ describe('the text reader’s fonts (c442)', () => {
 	});
 });
 
-describe('one finger turns a page (c515)', () => {
+describe('one finger turns a page', () => {
 	const first = { pointerId: 7, isPrimary: true };
 	const second = { pointerId: 8, isPrimary: false };
 
@@ -577,7 +577,7 @@ describe('one finger turns a page (c515)', () => {
 	});
 });
 
-describe('a novel’s reading direction (c440)', () => {
+describe('a novel’s reading direction', () => {
 	const layouts = ['paged', 'scroll'] as const;
 	const directions = ['ltr', 'rtl'] as const;
 
@@ -631,7 +631,7 @@ describe('a novel’s reading direction (c440)', () => {
 	});
 });
 
-describe('a novel’s WIDTH (c437)', () => {
+describe('a novel’s WIDTH', () => {
 	const at = (w: number, h: number, width: (typeof TEXT_WIDTHS)[number][0], vertical = false) =>
 		textFrame(w, h, DEFAULT_SETTINGS, vertical, width);
 	const devices = [
@@ -727,7 +727,7 @@ describe('a novel’s WIDTH (c437)', () => {
 	});
 });
 
-describe('the text reader’s place in the URL (c554)', () => {
+describe('the text reader’s place in the URL', () => {
 	it('reads ?at=b.o as every link before c554 wrote it, and b.o.y with SCROLL’s line height', () => {
 		expect(parseAt('12.340')).toEqual({ block: 12, offset: 340, y: null });
 		expect(parseAt('12.340.57')).toEqual({ block: 12, offset: 340, y: 57 });
@@ -754,7 +754,7 @@ describe('the text reader’s place in the URL (c554)', () => {
 	});
 });
 
-describe('isReaderPath (c565, round 2)', () => {
+describe('isReaderPath', () => {
 	it('is a reader for any entry, whatever the text reader replaceStates in place', () => {
 		expect(isReaderPath('/read/385', '/read/')).toBe(true);
 		expect(isReaderPath('/read/386', '/read/')).toBe(true);
@@ -767,7 +767,7 @@ describe('isReaderPath (c565, round 2)', () => {
 	});
 });
 
-describe('sheetTakesWheel (c655): only a sheet with room that way keeps the wheel', () => {
+describe('sheetTakesWheel: only a sheet with room that way keeps the wheel', () => {
 	const box = (scrollTop: number, clientHeight: number, scrollHeight: number) => ({
 		scrollTop,
 		clientHeight,
@@ -789,7 +789,7 @@ describe('sheetTakesWheel (c655): only a sheet with room that way keeps the whee
 	});
 });
 
-describe('libraryCells (c655, c673)', () => {
+describe('libraryCells', () => {
 	// The row's whole domain, each of its six switches both ways.
 	const bools = [false, true];
 	const states = bools.flatMap((inLibrary) =>
@@ -846,7 +846,7 @@ describe('libraryCells (c655, c673)', () => {
 		});
 	});
 
-	it('a hidden series keeps UNHIDE beside DELETE (c673), and its answer is terminal', () => {
+	it('a hidden series keeps UNHIDE beside DELETE, and its answer is terminal', () => {
 		expect(libraryCells(state({ seriesHidden: true }))).toEqual({
 			cell: 'delete',
 			unhide: 'unhide'

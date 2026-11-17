@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 process.env.DATABASE_PATH = ':memory:';
 
 // The sample has no files to make a thumbnail from: what's checked is that
-// the covers are asked for, for the series the decision made (card c63).
+// the covers are asked for, for the series the decision made.
 const refreshCovers = vi.fn(async () => ({ made: 0, kept: 0, none: 0, failed: 0 }));
 vi.mock('$lib/server/covers', async (original) => ({
 	...(await original<typeof import('$lib/server/covers')>()),
@@ -35,7 +35,7 @@ describe('GROUP AS A SERIES', () => {
 		).toBe(2);
 		expect(dupes.reviewQueue(true)).toEqual([]);
 		// Its cover is remade from the files, off the request: a series of books
-		// wears its first book's (c63: GROUP here once left it with none).
+		// wears its first book's (GROUP here once left it with none).
 		expect(refreshCovers).toHaveBeenCalledTimes(1);
 		const [opts] = refreshCovers.mock.calls[0] as unknown as [{ ids: number[]; remote: boolean }];
 		expect(opts.remote).toBe(false);

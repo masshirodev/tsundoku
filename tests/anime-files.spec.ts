@@ -16,7 +16,7 @@ import {
 	tvshowNfo
 } from '$lib/library/anime-files';
 
-// Anime on disk (doc/ANIME.md, "Downloading"; card c157): Jellyfin's TV layout.
+// Anime on disk (doc/ANIME.md, "Downloading"): Jellyfin's TV layout.
 describe('an episode’s place', () => {
 	it('is Jellyfin’s: Season NN, the series and SxxEyy in the name', () => {
 		expect(seriesFolderName('Tsukiakari no Ryokōsha')).toBe('Tsukiakari no Ryokōsha');
@@ -119,7 +119,7 @@ describe('the mux', () => {
 		).toContain('-map 0:v:0 -map 0:a? -c copy');
 		expect(iso3('ko')).toBe('kor');
 		expect([iso3('HI'), iso3('ta')]).toEqual(['hin', 'tam']);
-		// From the player's one table (c419), which the mux's 19 left as und.
+		// From the player's one table, which the mux's 19 left as und.
 		expect(['HU', 'NB', 'NN', 'pt-BR', 'ES-419', 'ZH-HANT', 'YUE', 'fil'].map(iso3)).toEqual([
 			'hun',
 			'nob',
@@ -135,7 +135,7 @@ describe('the mux', () => {
 	});
 });
 
-describe('what a download keeps (c160)', () => {
+describe('what a download keeps', () => {
 	const audio = ['ja', 'en', 'es', 'pt'].map((lang) => ({ lang, src: `/a/${lang}` }));
 	const subs = ['en', 'ja', 'fr'].map((lang) => ({ lang, src: `/s/${lang}` }));
 
@@ -165,7 +165,7 @@ describe('what a download keeps (c160)', () => {
 	});
 });
 
-// ---- films and shows on disk (card c991) --------------------------------------------------------
+// ---- films and shows on disk --------------------------------------------------------
 
 describe('a film’s file and NFO', () => {
 	it('is named as its folder, with Jellyfin’s part suffix past the first', () => {

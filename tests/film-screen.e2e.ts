@@ -164,9 +164,7 @@ test.afterAll(async () => {
 	if (work) rmSync(work, { recursive: true, force: true });
 });
 
-test('a film: one cell, no list, the collection and ABOUT on the stage (c992)', async ({
-	page
-}) => {
+test('a film: one cell, no list, the collection and ABOUT on the stage', async ({ page }) => {
 	await page.goto(`${BASE}/series/${filmId}`);
 	await expect(page.locator('.panel .count').first()).toHaveText('2024 · 1 H 58');
 	await expect(page.locator('.cta').first()).toContainText('▶ PLAY');
@@ -194,7 +192,7 @@ test('a film: one cell, no list, the collection and ABOUT on the stage (c992)', 
 	await expect(page).toHaveURL(new RegExp(`/series/${wakeId}`));
 });
 
-test('KIND: CHANGE, the sheet says what a pick does, and the band says it was done (c992)', async ({
+test('KIND: CHANGE, the sheet says what a pick does, and the band says it was done', async ({
 	page
 }) => {
 	await page.goto(`${BASE}/series/${filmId}`);
@@ -228,7 +226,7 @@ test('KIND: CHANGE, the sheet says what a pick does, and the band says it was do
 	await expect(page.locator('.kind-row').first()).toContainText('Movie');
 });
 
-test('a show: TMDB’s seasons as heads, SEASONS under LISTS, and SEASON 3 IS OUT with NOT THIS (c992)', async ({
+test('a show: TMDB’s seasons as heads, SEASONS under LISTS, and SEASON 3 IS OUT with NOT THIS', async ({
 	page
 }) => {
 	await page.goto(`${BASE}/series/${secondSeason}`);

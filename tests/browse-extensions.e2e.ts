@@ -15,7 +15,7 @@ import { revealOn } from './helpers/reveal';
  * This page's writes still waiting for their answer (every request but a
  * GET), so the afterEach can wait for them before it puts anything back:
  * a HIDDEN SOURCE or an INSTALL a timed-out case left on the server would
- * otherwise land after the put-back and undo it (c569).
+ * otherwise land after the put-back and undo it.
  */
 let writes = new Set<import('@playwright/test').Request>();
 
@@ -23,10 +23,10 @@ let writes = new Set<import('@playwright/test').Request>();
 const WEBTOONS = 'eu.kanade.tachiyomi.extension.all.webtoons';
 
 /**
- * Whether this case asked the browse world to hold a form post (c636), read
+ * Whether this case asked the browse world to hold a form post, read
  * off the requests themselves: the teardown's late check only means something
  * where a hold was sent, and waiting for it in every case that installs Good
- * Novels was 5.2 s of nothing (c665).
+ * Novels was 5.2 s of nothing.
  */
 let holdSent = false;
 
@@ -40,12 +40,12 @@ test.beforeEach(async ({ page, baseURL }) => {
 	const reset = await page.request.post(`${origin}/browse/extensions?/remove`, {
 		form: { pkg: WEBTOONS },
 		// Without `accept: text/html` SvelteKit answers the action 200, not 303,
-		// and the check below would never see the redirect it wants (c665).
+		// and the check below would never see the redirect it wants.
 		headers: { origin, accept: 'text/html' },
 		maxRedirects: 0
 	});
 	// A refused reset would leave the leftover in place and the case would fail
-	// later at INSTALL, which is the confusing symptom c607 fixed (c665).
+	// later at INSTALL, which is the confusing symptom c607 fixed.
 	expect.soft(reset.status(), 'leftover Webtoons removed').toBe(303);
 	// The stronger half: whatever the answer, it is not installed now. Asked of
 	// the server's own markup, not through a page: a hydrated page here would
@@ -121,7 +121,7 @@ test.afterEach(async ({ page }, testInfo) => {
 	// on. The c636 case's evidence is here, in the teardown that holds it, not
 	// in the case that runs next (review 2). Only where a hold was sent: no
 	// other case can leave one in flight, and the wait was 5.2 s of nothing in
-	// all of them (c665).
+	// all of them.
 	let late = -1;
 	if (holdSent) {
 		await new Promise((r) => setTimeout(r, HOLD_MAX_MS + 200));
@@ -212,9 +212,7 @@ test('a repository is added, an extension installed, updated, taken back and rem
 // A page of the context's own, not the fixture's: that one's goto waits for
 // hydration, which is exactly what this case must beat (library-top-bar's
 // FILTER case, c105).
-test('AVAILABLE’s FILTER tapped before the page hydrates stays open (c473)', async ({
-	context
-}) => {
+test('AVAILABLE’s FILTER tapped before the page hydrates stays open', async ({ context }) => {
 	const page = await context.newPage();
 	// Hold the app's scripts back, so the server's markup is all there is.
 	let release!: () => void;
@@ -290,7 +288,7 @@ test('BROWSE’s languages are set once in SETTINGS, and one always stays', asyn
 	await expect(row.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('an LNReader repository is asked, added, a novel plugin installed in the host, browsed and removed (c148, c149)', async ({
+test('an LNReader repository is asked, added, a novel plugin installed in the host, browsed and removed', async ({
 	page
 }) => {
 	const row = (name: string) => page.locator('.rows .row', { hasText: name });
@@ -304,10 +302,10 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	// world's one database, which every browse-* file shares, and the case puts
 	// both back only at its end. A red before then left Good Novels installed
 	// and hidden: this case's REMOVE, a rerun's INSTALL and every later reader
-	// of BROWSE's sources went red behind it, one red becoming several (c507).
+	// of BROWSE's sources went red behind it, one red becoming several.
 	// So the afterEach below puts both back whatever happened, timeouts
 	// included: a finally in the body shares the test's budget, and after a
-	// timeout its requests throw before they are sent (review, wave 23).
+	// timeout its requests throw before they are sent (review).
 	lnPluginInstalled = true;
 	const origin = new URL(test.info().project.use.baseURL!).origin;
 	const reveal = () => revealOn(page.context(), origin);
@@ -322,7 +320,7 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(row('Good Novels')).not.toContainText('FAILED');
 
 	// BROWSE lists it under NOVELS, and its page is a novel source's. Its SETTINGS
-	// holds only tsundoku's own switches (c435): the plugin keeps none of its own.
+	// holds only tsundoku's own switches: the plugin keeps none of its own.
 	await page.goto('/browse');
 	const novels = page.locator('.label', { hasText: 'NOVELS' });
 	await expect(novels).toBeVisible();
@@ -346,7 +344,7 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(page.locator('.band')).toContainText('IS NOT ON THE INTERNET');
 	await expect(page.locator('.band')).toContainText('TRY AGAIN');
 	// Not a site's check, so TRY AGAIN has nothing to forget and doesn't say it
-	// will (c294); `again` itself is never kept in the URL.
+	// will; `again` itself is never kept in the URL.
 	await expect(page.locator('.band')).not.toContainText('SOLVES THE CHECK AFRESH');
 	await expect(page.locator('.band a.again')).not.toHaveAttribute('href', /again=/);
 	await page.goto('/browse/ln:goodnovels?again=1');
@@ -362,7 +360,7 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(page.locator('form.set')).toHaveCount(0);
 	await expect(page.getByText(/only tsundoku's switches above/)).toBeVisible();
 
-	// HIDDEN SOURCE hides the plugin in EXTENSIONS too (c435, round 2): neither
+	// HIDDEN SOURCE hides the plugin in EXTENSIONS too: neither
 	// INSTALLED nor AVAILABLE's NOVELS names it outside reveal; inside reveal both do.
 	const hiddenSource = page.locator('form.own', { hasText: 'Hidden source' }).getByRole('switch');
 	await page.waitForLoadState('networkidle');
@@ -392,9 +390,7 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(row('Good Novels')).toHaveCount(0);
 });
 
-test('a switch still being written when the case ends is put back after it (c636)', async ({
-	page
-}) => {
+test('a switch still being written when the case ends is put back after it', async ({ page }) => {
 	const row = (name: string) => page.locator('.rows .row', { hasText: name });
 	const own = (title: string) => page.locator('form.own', { hasText: title }).getByRole('switch');
 	// The plugin, so the afterEach's put-back has switches to reach at all
@@ -415,7 +411,7 @@ test('a switch still being written when the case ends is put back after it (c636
 	// (tests/browse-setup.ts's TSUNDOKU_TEST_HOLD, `x-tsundoku-hold`). The
 	// afterEach must wait for it before its put-back, or the write lands after
 	// the switches were turned off and leaves HIDDEN SOURCE on for the next
-	// case -- whose last assertion says it is off (c569, below).
+	// case -- whose last assertion says it is off (below).
 	await page.evaluate(() => {
 		void fetch('/browse/ln:goodnovels/settings?/flag', {
 			method: 'POST',

@@ -10,7 +10,7 @@ const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const works = await import('$lib/server/works');
 const { NO_FILTERS } = await import('$lib/library/filters');
-/** One kind, as the KIND band asks it (c436): `?kind=` on whichever shelf, here ALL. */
+/** One kind, as the KIND band asks it: `?kind=` on whichever shelf, here ALL. */
 const kind = (k: 'manga' | 'manhwa') => ({ ...NO_FILTERS, kind: k });
 
 /** A fresh library per test: a Work changes every count and every list. */
@@ -72,7 +72,7 @@ describe('browsing shows the run as one tile', () => {
 		expect(lib.countTiles(true)).toBe(before - 1);
 		const shelves = lib.listShelves({ reveal: true, withNew: false });
 		expect(shelves.find((s) => s.key === 'all')?.count).toBe(before - 1);
-		// The KIND band's MANGA cell counts the Work once too (c436).
+		// The KIND band's MANGA cell counts the Work once too.
 		expect(lib.kindCounts({ reveal: true, shelf: 'all' }).kinds.manga).toBe(
 			lib.listSeries({ reveal: true, filters: kind('manga') }).length - 1
 		);
@@ -97,7 +97,7 @@ describe('browsing shows the run as one tile', () => {
 		// One Work on each, not one per part.
 		expect(workTiles({ reveal: true, filters: kind('manga') })).toHaveLength(1);
 		expect(workTiles({ reveal: true, filters: kind('manhwa') })).toHaveLength(1);
-		// And the band counts it once under each kind, and once in ALL (c436).
+		// And the band counts it once under each kind, and once in ALL.
 		const band = lib.kindCounts({ reveal: true, shelf: 'all' });
 		expect([band.kinds.manga, band.kinds.manhwa]).toEqual([
 			tiles({ reveal: true, filters: kind('manga'), limit: 1000 }).length,
@@ -307,7 +307,7 @@ describe('CONTINUE is one row per Work', () => {
 	});
 });
 
-describe('CONTINUE’s Work arm pays for the rows it shows (c332)', () => {
+describe('CONTINUE’s Work arm pays for the rows it shows', () => {
 	// Every row's place is decided before any Work's parts are read, so these
 	// pin that the keys alone give the same rows, order and count.
 	const runs = () => {

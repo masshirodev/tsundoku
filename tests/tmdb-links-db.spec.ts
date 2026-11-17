@@ -10,7 +10,7 @@ const { linkCover, linkState, refreshLinks, setAnilistFetch } =
 	await import('$lib/server/catalogue');
 
 /**
- * TMDB links (card c989; doc/LINKS.md, "TMDB links"): the AniList link's rules
+ * TMDB links (doc/LINKS.md, "TMDB links"): the AniList link's rules
  * in TMDB's terms. No network: TMDB is a stub that answers by path, and
  * AniList refuses, as it does for every spec.
  */

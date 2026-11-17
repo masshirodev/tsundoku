@@ -18,17 +18,17 @@ import { E2E_TOKEN } from '../playwright.config';
  * silently redraw the screen. That is what this is here to stop; it is not
  * pedantry.
  *
- * Source: doc/handoffs/select-search/Search-Tablet.dc.html (the search, selecting; c698)
+ * Source: doc/handoffs/select-search/Search-Tablet.dc.html (the search, selecting)
  * Extracted at 2026-11-08T04:57:10.018Z at 1440x2400.
  *
  * Regenerating overwrites this file: the hand-written preamble below (its own
  * install, the selecting state, the project it runs in) and the `./fixtures`
- * import (the generator still writes `@playwright/test`; c542) must be put
+ * import (the generator still writes `@playwright/test`) must be put
  * back (doc/LIBRARY.md, "SELECT across the search").
  */
 
 /**
- * Kept by hand over the generator's output (c698). The board draws a Work
+ * Kept by hand over the generator's output. The board draws a Work
  * found by its name, a tag chip and a ticked hit beside an unticked one; the
  * shared seed has no Work and no such tag, and a frame spec that wrote to the
  * shared database would change what the flow specs beside it see. So: a

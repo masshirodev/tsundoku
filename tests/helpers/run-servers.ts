@@ -4,7 +4,7 @@ import { join } from 'node:path';
 /**
  * The servers a run starts outside Playwright's own webServer, recorded in the
  * run's directory so the next run can stop them when this one was killed
- * (c689). No side effects: `run-dir.ts` calls `sweepRuns` as the config loads,
+ *. No side effects: `run-dir.ts` calls `sweepRuns` as the config loads,
  * and `run-servers.spec.ts` calls it on a folder of its own.
  *
  * A runner killed outright (an agent's session ending, a `kill -9`) runs no

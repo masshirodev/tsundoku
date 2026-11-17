@@ -10,7 +10,7 @@ const page = (top: number, height = VIEW, waited = 0): Guessing => ({
 	waited
 });
 
-describe('a key step over pages still guessing their size (c913)', () => {
+describe('a key step over pages still guessing their size', () => {
 	it('goes the whole step when nothing is guessing', () => {
 		expect(guessStep([], 0, STEP, VIEW)).toEqual({ by: STEP, stop: null });
 	});

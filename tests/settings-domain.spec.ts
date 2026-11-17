@@ -31,7 +31,7 @@ import { modeLine } from '../src/routes/settings/mode-line';
 
 const section = (id: string) => SECTIONS.find((s) => s.id === id)!;
 
-describe('TYPEFACE (c442)', () => {
+describe('TYPEFACE', () => {
 	it('allows exactly the text reader’s fonts, in its order, and defaults to its default', () => {
 		const row = section('novels').rows.find((r) => r.id === 'typeface')!;
 		const control = row.control as {
@@ -44,7 +44,7 @@ describe('TYPEFACE (c442)', () => {
 	});
 });
 
-describe('the catalogue (card c171)', () => {
+describe('the catalogue', () => {
 	it('has the eight sections in the handoff’s order, numbered', () => {
 		expect(SECTIONS.map((s) => `${s.n} ${s.id}`)).toEqual([
 			'01 images',
@@ -210,7 +210,7 @@ describe('the page’s lines', () => {
 			'STANDS IN: JA 2 H AGO'
 		);
 		expect(audioLine(undefined, null, NOW)).toBe("NONE SET · THE SOURCE'S ORIGINAL PLAYS FIRST");
-		// Named from the player's one table (c419), variants and all, not
+		// Named from the player's one table, variants and all, not
 		// from a list of ten that left PT-BR and HU as their codes.
 		expect(audioLine('PT-BR', null, NOW)).toBe(
 			'EVERY ANIME STARTS IN PORTUGUESE (BRAZIL), UNLESS A SERIES DIFFERS'
@@ -253,7 +253,7 @@ describe('the page’s lines', () => {
 });
 
 describe('MODE’s and LAYOUT’s N SERIES DIFFER → list (2A)', () => {
-	it('says what the series reads by, a novel kept R→L included, beside or without its layout (c552)', () => {
+	it('says what the series reads by, a novel kept R→L included, beside or without its layout', () => {
 		// Every combination of the two things a series can differ by.
 		expect(modeLine({ kind: 'manga', direction: 'ltr', rtl: false })).toBe(
 			'L→R · MANGA · CHOSEN IN THE READER'

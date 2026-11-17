@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Release versions and Android's versionCode (c614; Versions.kt). */
+/** Release versions and Android's versionCode (Versions.kt). */
 class VersionsTest {
 	@Test
 	fun `a later day, and a later N on the same day, are newer`() {

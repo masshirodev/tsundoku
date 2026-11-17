@@ -272,7 +272,7 @@ describe('the Hentoid import', () => {
 });
 
 describe('Mihon’s local manga', () => {
-	it('is not imported any more: no local folder, no hidden root (c191)', () => {
+	it('is not imported any more: no local folder, no hidden root', () => {
 		expect(db().prepare(`SELECT name FROM roots WHERE path LIKE '%/local'`).get()).toBeUndefined();
 		expect(series('Local Book')).toBeUndefined();
 		expect(series('No Artist Here')).toBeUndefined();
@@ -408,7 +408,7 @@ describe('an import a dead process left open', () => {
  * `series_links` mirror (`syncSeriesLink` mirrors season 1 alone), so the
  * keep-test has to ask the season rows too.
  */
-describe('an empty series the owner touched is never pruned (c382)', () => {
+describe('an empty series the owner touched is never pruned', () => {
 	const seasons = () => import('$lib/server/season-links');
 	const works = () => import('$lib/server/works');
 	const cand = (anilistId: number) => ({
@@ -479,7 +479,7 @@ describe('an empty series the owner touched is never pruned (c382)', () => {
 			db().prepare(`SELECT id FROM roots WHERE path = ?`).get(hentoid) as { id: number }
 		).id;
 		const now = 1_800_001_200_000;
-		// What an earlier import made of folders with no pages (card c64): empty
+		// What an earlier import made of folders with no pages: empty
 		// series, the state the prune exists for, made as tests/hentoid-pageless-db
 		// makes them.
 		const add = (title: string) =>
@@ -670,7 +670,7 @@ describe('a backup from a source with ADDED HIDDEN (c503, the owner’s (a))', (
 	});
 });
 
-describe('a novel’s R→L survives a backup’s fold (c551)', () => {
+describe('a novel’s R→L survives a backup’s fold', () => {
 	// Folder series imported before a backup knew them, set to R→L by the
 	// owner (series.text_direction, rung 69), then folded into the URL's series
 	// once a backup names them (import/fold.ts): one renamed, so `carryEdit`
@@ -687,7 +687,7 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 	const textDirection = (id: number) =>
 		one<{ text_direction: string | null }>(`SELECT text_direction FROM series WHERE id = ?`, id)
 			.text_direction;
-	// The third: renamed and chosen L→R ('ltr', as REMEMBER L→R stores it, c617)
+	// The third: renamed and chosen L→R ('ltr', as REMEMBER L→R stores it)
 	// while the old URL series had R→L, so carryEdit's owner's edit must win over
 	// the survivor's own. The fourth: renamed and never chosen (NULL) over the
 	// same R→L, so there is no choice to carry and the survivor keeps its own.
@@ -795,11 +795,11 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 		expect(textDirection(id)).toBe('rtl');
 	});
 
-	it('carries a renamed folder’s chosen L→R over the survivor’s R→L: the owner’s edit wins whole (c617)', () => {
+	it('carries a renamed folder’s chosen L→R over the survivor’s R→L: the owner’s edit wins whole', () => {
 		expect(textDirection(urlSeries.get('Novel Turned')!)).toBe('ltr');
 	});
 
-	it('leaves the survivor’s R→L when the renamed folder never chose one (c617)', () => {
+	it('leaves the survivor’s R→L when the renamed folder never chose one', () => {
 		const id = urlSeries.get('Novel Unset')!;
 		// The rename did carry, so this is carryEdit's path and not the fill-in.
 		expect(one<{ title: string }>(`SELECT title FROM series WHERE id = ?`, id).title).toBe(
@@ -817,11 +817,11 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 		expect(textDirection(id)).toBe('rtl');
 	});
 
-	it('keeps a survivor’s chosen L→R over an unrenamed folder’s R→L: a choice is not a gap to fill (c617)', () => {
+	it('keeps a survivor’s chosen L→R over an unrenamed folder’s R→L: a choice is not a gap to fill', () => {
 		expect(textDirection(urlSeries.get('Novel Chosen')!)).toBe('ltr');
 	});
 
-	it('GROUP takes a first volume’s chosen L→R over a later R→L, and a later one’s over never chosen (c617)', () => {
+	it('GROUP takes a first volume’s chosen L→R over a later R→L, and a later one’s over never chosen', () => {
 		const rootId = one<{ root_id: number }>(
 			`SELECT root_id FROM series WHERE id = ?`,
 			urlSeries.get('Novel Kept')!
@@ -856,7 +856,7 @@ describe('a novel’s R→L survives a backup’s fold (c551)', () => {
 	});
 });
 
-describe('ADDED HIDDEN reaches a Mihon download folder imported before its backup (c571)', () => {
+describe('ADDED HIDDEN reaches a Mihon download folder imported before its backup', () => {
 	// Each case a library of its own: tsundoku's downloads hold one folder, and
 	// tsundoku's own backup beside them (when it comes) names the same manga,
 	// as in c503's attach case: one Mihon root. (The library's backup in

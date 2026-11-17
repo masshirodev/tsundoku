@@ -4,7 +4,7 @@ import { topics, ask, neighbours, notHere, topicBySlug } from '../src/lib/help/t
 import { parseSearch } from '../src/lib/library/search';
 import { sectionFor } from '../src/lib/settings/catalog';
 
-/** HELP's topics (doc/HELP.md; card c208): their shape, where a "?" lands, and /help. */
+/** HELP's topics (doc/HELP.md): their shape, where a "?" lands, and /help. */
 
 afterEach(() => overwriteGetLocale(() => 'en'));
 
@@ -26,7 +26,7 @@ describe('the topics', () => {
 		expect(all).not.toMatch(/https?:\/\//);
 		expect(all).not.toMatch(HIDDEN);
 	});
-	it("03 points at FIRST READ's steps, apart from its In short (c209)", () => {
+	it("03 points at FIRST READ's steps, apart from its In short", () => {
 		expect(topicBySlug('downloading')!.pointer).toEqual({
 			text: 'GET STARTED walks through it once: steps 05 to 07.',
 			label: '05 — 07 →',
@@ -34,7 +34,7 @@ describe('the topics', () => {
 		});
 		expect(topicBySlug('start')!.short[0]).toMatch(/^Seven steps in two parts/);
 	});
-	it('04 says a firewall can keep the phone out, on Windows and on Linux (c721)', () => {
+	it('04 says a firewall can keep the phone out, on Windows and on Linux', () => {
 		const wifi = topicBySlug('phone')!.parts.find((p) => p.id === 'wifi')!;
 		const said = wifi.paras!.join(' ');
 		expect(said).toMatch(/Windows asks once/);
@@ -46,7 +46,7 @@ describe('the topics', () => {
 			.paras!.join(' ');
 		expect(pt).toMatch(/O Linux não pergunta nada/);
 	});
-	it('03 names both doors to EXTENSIONS: BROWSE, and the row in SETTINGS (c725)', () => {
+	it('03 names both doors to EXTENSIONS: BROWSE, and the row in SETTINGS', () => {
 		const part = topicBySlug('downloading')!.parts.find((p) => p.id === 'extensions')!;
 		expect(part.paras!.join(' ')).toContain(
 			'EXTENSIONS lives in BROWSE, beside the sources it gives. SETTINGS › 07 — BROWSE has a row that opens it too'

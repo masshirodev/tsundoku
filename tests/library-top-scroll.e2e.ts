@@ -11,9 +11,9 @@ import { revealOn } from './helpers/reveal';
 
 /**
  * The library as it scrolls, and the SERIES TO LINK band put away
- * (doc/LIBRARY.md, "The top bar" and "The band"; c433, c430), the KIND band
- * pinned under the top bar (c436), and BACK TO TOP after a resize past the
- * width that draws FILTER where it was opened (c474).
+ * (doc/LIBRARY.md, "The top bar" and "The band"), the KIND band
+ * pinned under the top bar, and BACK TO TOP after a resize past the
+ * width that draws FILTER where it was opened.
  *
  * Its own preview and its own seeded database, one per device project: the
  * band's cases add and take away a series to link, which the shared server's
@@ -64,7 +64,7 @@ function seed(): void {
 		// Rated, so a rating chosen in FILTER leaves a list as tall as the
 		// fillers (c557's landing needs the room to put the band under the bar).
 		db.prepare(`UPDATE series SET rating = 8 WHERE origin_key LIKE 'filler:%'`).run();
-		// A shelf as tall as the fillers (c589): picking it mid-grid from ALL
+		// A shelf as tall as the fillers: picking it mid-grid from ALL
 		// would land partway down it if a shelf kept the scroll.
 		const shelf = db
 			.prepare(`INSERT INTO collections (name, position) VALUES (?, 99)`)
@@ -326,7 +326,7 @@ test('✕ puts the band away; it stays away on reload, and a new series to link 
 		await page.waitForFunction(() => document.cookie.includes('tsundoku_js=1'));
 		await expect(band(page)).toHaveCount(0);
 		// The counts it measures by, followed down: no hidden series, and none
-		// counted with them since reveal was off (c430).
+		// counted with them since reveal was off.
 		expect(
 			await page.evaluate(() =>
 				JSON.parse(localStorage.getItem('tsundoku.library.links-put-away') ?? 'null')
@@ -341,7 +341,7 @@ test('✕ puts the band away; it stays away on reload, and a new series to link 
 	}
 });
 
-test('reveal off and on is no news: the band stays away until a series really is new (c430)', async ({
+test('reveal off and on is no news: the band stays away until a series really is new', async ({
 	page
 }) => {
 	// Eight loads, each waited to hydration: past the default 30 s on the phone
@@ -388,7 +388,7 @@ test('reveal off and on is no news: the band stays away until a series really is
 		await expect(band(page)).toContainText('04 SERIES TO LINK');
 
 		// Putting the band away hides the band only: the links review's own door
-		// (c475) still counts the queue, in the sidebar or under MORE.
+		// still counts the queue, in the sidebar or under MORE.
 		await putAway(page).click();
 		await expect(band(page)).toHaveCount(0);
 		const sidebarRow = page.locator('aside.sidebar').getByRole('link', { name: /^TO LINK/ });
@@ -474,7 +474,7 @@ test('the KIND band sits under the tabs, over the grid, 40px, and pins under the
 });
 
 /**
- * Landed at the band's own place (c436's round 2, c557): the grid's first
+ * Landed at the band's own place (c436's round 2): the grid's first
  * tile directly under the band, the band's top on the held bar's bottom
  * (±1px), and the band no longer pinned.
  */
@@ -554,7 +554,7 @@ test('a kind chosen from the pinned band opens at its start: the band under the 
 
 // ---- c557: a FILTER choice from the pinned band lands at the grid's start ----------
 
-test('a FILTER choice from the pinned band opens the new results at their start; one already on, or made at the top, moves nothing (c557)', async ({
+test('a FILTER choice from the pinned band opens the new results at their start; one already on, or made at the top, moves nothing', async ({
 	page
 }, info) => {
 	const firstTitle = (p: Page) => p.locator('.grid .tile .title').first().textContent();
@@ -662,7 +662,7 @@ test('DONE tapped while a FILTER choice from the pinned band loads still lands a
 	await landedAtBand(page, 'FORM: SERIES');
 });
 
-test('a press on the rating blocks that chooses nothing leaves no note: a kind chosen later at the top moves nothing (c557, round 2)', async ({
+test('a press on the rating blocks that chooses nothing leaves no note: a kind chosen later at the top moves nothing', async ({
 	page
 }, info) => {
 	const filter = page.locator(isDesktop(info.project.name) ? '.filter-desk' : '.kfilter');
@@ -751,7 +751,7 @@ const whatIsAt = (els: Locator) =>
 		})
 	);
 
-test('an open SORT list is over the KIND band, at the top and pinned, under the top bar, and the band is back over the grid once it closes (c590)', async ({
+test('an open SORT list is over the KIND band, at the top and pinned, under the top bar, and the band is back over the grid once it closes', async ({
 	page
 }) => {
 	await page.goto(`${BASE}/?shelf=all&sort=title`);
@@ -788,7 +788,7 @@ test('an open SORT list is over the KIND band, at the top and pinned, under the 
 	expect(pinned.some((c) => c.underBar)).toBe(true);
 	for (const c of pinned)
 		expect(c, `${c.label} pinned`).toMatchObject(c.underBar ? { inBar: true } : { top: true });
-	// BACK TO TOP stays out of the way while it is open (c433).
+	// BACK TO TOP stays out of the way while it is open.
 	await expect(toTop(page)).toHaveCount(0);
 
 	// Closed: the band is at its own layer again, over the grid it is pinned on.
@@ -802,7 +802,7 @@ test('an open SORT list is over the KIND band, at the top and pinned, under the 
 	expect(atBand).toBe(true);
 });
 
-test('FILTER’s open panel is over the KIND band and the grid, at the top and pinned (c590)', async ({
+test('FILTER’s open panel is over the KIND band and the grid, at the top and pinned', async ({
 	page
 }, info) => {
 	await page.goto(`${BASE}/?shelf=all&sort=title`);
@@ -829,12 +829,12 @@ test('FILTER’s open panel is over the KIND band and the grid, at the top and p
 
 // ---- c589: a shelf opens at its top -------------------------------------------------
 
-test.describe('a shelf from the tabs or the sidebar (c589)', () => {
+test.describe('a shelf from the tabs or the sidebar', () => {
 	// The service worker answers `__data.json` itself once it controls the
 	// page, past page.route (doc/TESTING.md, "Load").
 	test.use({ serviceWorkers: 'block' });
 
-	test('a shelf picked mid-grid opens at its top, the one showing too, and BACK finds the old place (c589)', async ({
+	test('a shelf picked mid-grid opens at its top, the one showing too, and BACK finds the old place', async ({
 		page
 	}, info) => {
 		const desktop = isDesktop(info.project.name);

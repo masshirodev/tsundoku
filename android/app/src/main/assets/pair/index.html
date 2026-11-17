@@ -24,7 +24,7 @@
 			})();
 		</script>
 		<!--
-			The TV app's own screens (c236; TV-Pair.dc.html 9A, 9B, 9D). 9C and
+			The TV app's own screens (TV-Pair.dc.html 9A, 9B, 9D). 9C and
 			9E are the computer's `/pair/tv`, because the code is posted there and
 			the paired cookie is set there; these three are before the TV can
 			reach anything.
@@ -35,7 +35,7 @@
 			the 4px+3px ink focus mark. No font is shipped: the TV's WebView uses
 			its own (Roboto), so the wordmark is the one exception to Plex.
 
-			On a phone or a tablet (c521; PhoneApp-*.dc.html) the same screens
+			On a phone or a tablet (PhoneApp-*.dc.html) the same screens
 			reflow: under 600 px a column, its one action pinned at the bottom
 			(the keyboard's top edge when it is open: the app pads the WebView
 			by it, Insets.kt); from 600 the TV's arrangement in flow at a 24 px
@@ -289,7 +289,7 @@
 			.address-meta {
 				top: 236px;
 				line-height: 1.5;
-				/* The question writes the whole address here (c683), one token
+				/* The question writes the whole address here, one token
 				   with no spaces: it must break rather than run off a phone's
 				   column, where the end of a host is what says whose it is. */
 				overflow-wrap: anywhere;
@@ -304,7 +304,7 @@
 			}
 			/* c260 · a given address, checked before anything is typed. It is
 			   neither 9A nor 9B: the app was handed the address, so there is no
-			   field. The label keeps 9B's with-band rhythm below (c246). */
+			   field. The label keeps 9B's with-band rhythm below. */
 			.connect {
 				top: 164px;
 				display: flex;
@@ -312,7 +312,7 @@
 				gap: 16px;
 			}
 			/* 9B with a band: the band ends at 148, so the column moves down by
-			   its 56, exactly as 9C's does (c246, doc/ANDROID.md). Every box still
+			   its 56, exactly as 9C's does (doc/TV-APP.md). Every box still
 			   ends inside the 540 frame: the actions at 356 + 56, the checking
 			   line at 424. */
 			#address.with-band .address-label {
@@ -1003,7 +1003,7 @@
 				<div class="band" id="refused" role="status" hidden>
 					<div>○ THAT ADDRESS WAS REFUSED · NOTHING WAS SAVED</div>
 					<!-- Every rule Address.intentOrigin refuses by, and no other
-					     (c307): LOGIN is userinfo, a username, a password or both.
+					    : LOGIN is userinfo, a username, a password or both.
 					     The row does not wrap, and a TV's monospace is 0.6 em a
 					     glyph, wider than a desktop's: tv-app-pair.e2e.ts checks
 					     that this fits beside the first line at that width. -->
@@ -1038,7 +1038,7 @@
 				<div class="safe address-actions">
 					<!-- data-start: the mark lands on NEXT, not on the field. A field
 					     that takes focus asks the WebView for the TV's number pad, and
-					     the pad covers these two buttons (c247). A remote without
+					     the pad covers these two buttons. A remote without
 					     number keys reaches TYPE THE WHOLE ADDRESS from here. -->
 					<button class="btn pri" type="button" data-focus data-start id="next">NEXT →</button>
 					<button class="btn" type="button" data-focus id="whole-toggle">
@@ -1151,7 +1151,7 @@
 			const connectLine = document.getElementById('connect-line');
 			const refusedBand = document.getElementById('refused');
 			/*
-			 * The device the copy names (c521): the TV's words are exactly what
+			 * The device the copy names: the TV's words are exactly what
 			 * they were; a phone or tablet says itself where the TV did, and the
 			 * phone's header is short, as the Wi-Fi phone screens' is
 			 * (PhoneApp-Calls.dc.html, THE FRAME).
@@ -1225,8 +1225,8 @@
 
 			/*
 			 * The phone app raises Android's keyboard for a field this page
-			 * focused itself (c521): the WebView won't for focus a script gives.
-			 * A TV's bridge does nothing here (c247).
+			 * focused itself: the WebView won't for focus a script gives.
+			 * A TV's bridge does nothing here.
 			 */
 			function showKeyboard() {
 				if (bridge && typeof bridge.keyboard === 'function') bridge.keyboard();
@@ -1247,7 +1247,7 @@
 				refusedBand.hidden = true;
 				screens.address.classList.remove('with-band');
 				// Every door into 9B starts clean: a probe a given address
-				// superseded (c260) must not leave NEXT disabled or its
+				// superseded must not leave NEXT disabled or its
 				// CHECKING line behind.
 				if (name === 'address') {
 					next.disabled = false;
@@ -1374,7 +1374,7 @@
 			 * a typed field may carry a path, a query, userinfo or a different
 			 * host case, while the bridge answers with Address.originOf's origin.
 			 * Both sides go through this, so neither normalisation has to match
-			 * the other exactly (c260).
+			 * the other exactly.
 			 */
 			const atOrigin = (u) => {
 				try {
@@ -1386,7 +1386,7 @@
 
 			function probe() {
 				// CONNECT is one press: Enter in the field while its answer is
-				// out must not ask a second time (c683).
+				// out must not ask a second time.
 				if (asking && next.disabled) return;
 				const at = origin();
 				if (!at) {
@@ -1396,7 +1396,7 @@
 					return;
 				}
 				// The band describes the attempt that was refused, not this one:
-				// a new probe is a new question, so the band goes with it (c260).
+				// a new probe is a new question, so the band goes with it.
 				refusedBand.hidden = true;
 				// The question's own band stays up, and the column stays under it.
 				if (!asking) screens.address.classList.remove('with-band');
@@ -1420,14 +1420,14 @@
 				stopRetry();
 				// The scheme is stripped without case, as hostOf and connect() do:
 				// a TV keyboard that capitalises the first letter types HTTP://,
-				// and the line must read the host, not the scheme (c621).
+				// and the line must read the host, not the scheme.
 				checking.textContent = 'CHECKING ' + at.replace(/^https?:\/\//i, '') + '…';
 				next.disabled = true;
 				// A late answer for this origin may have filled the 2 s window
 				// while the question was up; this press must not be swallowed by
 				// it, or CHECKING never ends (c683, as connect() does for c260).
 				// By origin: that is what the bridge answers with, and the field
-				// can hold a path or capitals the owner typed (c859).
+				// can hold a path or capitals the owner typed.
 				if (asking) seen.delete(atOrigin(at));
 				if (bridge) bridge.probe(at);
 				else checking.textContent = 'THE APP BRIDGE IS MISSING · THIS PAGE OPENS FROM THE APK';
@@ -1436,7 +1436,7 @@
 			wholeToggle.addEventListener('click', () => {
 				// On the question this is the way out: 9B as START leaves it, and
 				// an answer still owed to a CONNECT already pressed no longer
-				// counts, because the owner has just said otherwise (c683).
+				// counts, because the owner has just said otherwise.
 				if (asking) {
 					lastOrigin = '';
 					addressAs('pair');
@@ -1465,7 +1465,7 @@
 				// Nothing that arrives by a fragment is stored unasked, whoever
 				// wrote the fragment (#lost= holds it in routeHash): this page holds
 				// that itself, so it does not rest on the activity and this page
-				// agreeing about the list (c683).
+				// agreeing about the list.
 				if (!known(at)) {
 					ask(at);
 					return;
@@ -1474,12 +1474,12 @@
 				// The third door into 9B's refusal state, and the one that used
 				// to leave the flag behind: hiding the screen does not hide the
 				// band, so a failure for this address would read as a failure
-				// for the refusal and be dropped (c260).
+				// for the refusal and be dropped.
 				refusedBand.hidden = true;
 				screens.address.classList.remove('with-band');
 				const shown = at.replace(/^https?:\/\//i, '');
 				// A given address here is one in the list: it opens once it
-				// answers (c261), and a new one has gone to ask() above (c683).
+				// answers, and a new one has gone to ask() above.
 				mode = 'pair';
 				moving = '';
 				backStep = null;
@@ -1494,7 +1494,7 @@
 				connectLine.textContent = 'CHECKING ' + shown + '…';
 				// A typed probe for the same origin within the bridge's 2 s
 				// dedupe window must not swallow this one: its answer is just as
-				// true for a given address, so let it through (c260).
+				// true for a given address, so let it through.
 				seen.delete(at);
 				bridge.probe(at);
 			}
@@ -1558,7 +1558,7 @@
 				fill();
 				last.value = at;
 				document.getElementById('address-label').textContent = '01 — THE ADDRESS IN THE LINK';
-				// Two lines, always (c863): the address alone on the first, so its
+				// Two lines, always: the address alone on the first, so its
 				// 80 characters at a TV's 9 px fit the 864 px column whole, and
 				// the wrap never depends on where a host happens to allow a
 				// break. With THE WHOLE ADDRESS: in front it took 99, a third
@@ -1570,7 +1570,7 @@
 				document.getElementById('already').hidden = false;
 				screens.address.classList.add('with-band');
 				// With no server to go back to, BACK is the app's: its first press
-				// only asks for a second (c859), and this page stays up meanwhile.
+				// only asks for a second, and this page stays up meanwhile.
 				backStep = leaveQuestion;
 				wholeToggle.focus();
 			}
@@ -1584,7 +1584,7 @@
 			 * With no server the app answers the first BACK with a toast and
 			 * this document stays, so the question goes back to what it was
 			 * before CONNECT: the dropped answer would otherwise be the only
-			 * thing that ever lifted CHECKING and the disabled button (c859).
+			 * thing that ever lifted CHECKING and the disabled button.
 			 * Disabling CONNECT took the mark off it, so the mark goes back to
 			 * the button it was pressed on, or OK would do nothing here.
 			 */
@@ -1609,7 +1609,7 @@
 				// The second door into 9B, and the 9D retry outlives the screen
 				// unless it is stopped first: its next tick would probe the old
 				// origin, fail, and replace the refusal with 9D for an address
-				// nobody handed in. #change stops it the same way (c260).
+				// nobody handed in. #change stops it the same way.
 				stopRetry();
 				mode = 'pair';
 				moving = '';
@@ -1638,18 +1638,18 @@
 				// Only the current attempt's answer counts. A given address
 				// supersedes a typed probe by moving lastOrigin (connect()), and
 				// the answer for the attempt it replaced must neither store that
-				// address nor leave for its /pair/tv — success included (c260).
+				// address nor leave for its /pair/tv — success included.
 				// Compare origins, not raw strings: the field keeps a path and
-				// the bridge answers with the origin alone (c260).
+				// the bridge answers with the origin alone.
 				if (atOrigin(at) !== atOrigin(lastOrigin)) return;
 				// A refusal band is up: a failure for an earlier attempt must not
-				// erase "NOTHING WAS SAVED" (c260). A success still pairs: the
+				// erase "NOTHING WAS SAVED". A success still pairs: the
 				// given address only replaced the remembered one after it answered.
 				// Every door into this state clears the flag (probe, show, connect),
 				// so a visible band means a refusal nothing has superseded yet.
 				if (!ok && !refusedBand.hidden) return;
 				// A given address is being checked with no screen in front of it
-				// (c260), which the two-screen test below would otherwise drop.
+				//, which the two-screen test below would otherwise drop.
 				if (!connecting && screens.address.hidden && screens.lost.hidden) return;
 				if (ok) {
 					stopRetry();
@@ -1680,7 +1680,7 @@
 				// A retry of the attempt 9D is already showing failed again: that
 				// is one more in the count, not a new 9D. Entering again would put
 				// the mark back on TRY AGAIN, rebuild the other servers' rows
-				// under it and probe each of them again, every 5 s (c261, round 2).
+				// under it and probe each of them again, every 5 s.
 				if (!screens.lost.hidden && lostFor && atOrigin(at) === atOrigin(lostFor)) {
 					paint();
 					return;
@@ -1701,7 +1701,7 @@
 			 * given address that did not answer, or for another origin. Never a
 			 * retry of the same one, which the probe's answer above keeps to
 			 * paint(). Its retry stores what answers, so an origin nobody chose
-			 * must not reach it: routeHash asks instead (c683).
+			 * must not reach it: routeHash asks instead.
 			 */
 			function lost(at) {
 				lastOrigin = at;
@@ -1846,7 +1846,7 @@
 							? `${others[0].shown} is still here. `
 							: `${others[0].shown} and ${others.length - 1} more are still here. `;
 				// S8 is shown with two or more servers, so the library's bar has
-				// its server cell (S1, wave 24) as well as MORE › SERVERS.
+				// its server cell (S1) as well as MORE › SERVERS.
 				document.getElementById('added-prose').textContent =
 					still +
 					'Switch from the name at the top of the library, or MORE › SERVERS. Each keeps its own pairing, so switching never asks for digits again.';
@@ -1911,7 +1911,7 @@
 				// A remote's number keys type into the address field wherever
 				// the mark is, so a remote without them never has the pad under
 				// its fingers: focusing the field is the only thing that asks
-				// the WebView for it (c247).
+				// the WebView for it.
 				if (!screens.address.hidden && !entry && /^\d$/.test(e.key)) {
 					e.preventDefault();
 					last.value = (last.value + e.key).slice(0, whole ? 80 : 3);
@@ -1960,8 +1960,8 @@
 				}
 			};
 			/*
-			 * A door that acts is taken once (c685). #connect= probes and, on an
-			 * answer, opens a server in the list; #ask= (c683) puts the question
+			 * A door that acts is taken once. #connect= probes and, on an
+			 * answer, opens a server in the list; #ask= puts the question
 			 * up; #lost= opens 9D for a server in the list, whose retry opens it
 			 * once it answers, and asks about any other. The
 			 * entry keeps its fragment otherwise, and routeHash runs on every
@@ -1991,7 +1991,7 @@
 					// The activity writes this for any main-frame load that failed,
 					// so a page can name an origin here by opening its own closed
 					// port, and 9D's retry stores what answers. Only the list's own
-					// reach 9D; one just remembered is in the list already (c683).
+					// reach 9D; one just remembered is in the list already.
 					const at = decode(hash.slice(5));
 					settle();
 					if (known(at)) lost(at);
@@ -2004,7 +2004,7 @@
 					ask(decode(hash.slice(4)));
 				} else if (hash.startsWith('long=')) {
 					// Settled so the same address handed in twice draws its band twice:
-					// a fragment that stays is no hashchange the second time (c685).
+					// a fragment that stays is no hashchange the second time.
 					settle();
 					refused(TOO_LONG);
 				} else if (hash.startsWith('bad=')) refused();
@@ -2014,14 +2014,14 @@
 				else show('welcome');
 			}
 			// A singleTask activity that is already open gets the second launch
-			// as a hash change on this same file, not a new document (c260).
+			// as a hash change on this same file, not a new document.
 			window.addEventListener('hashchange', routeHash);
 			fill();
 			routeHash();
 
 			/*
 			 * The camera band and the strip above the keyboard take this page's
-			 * colour (c521; Insets.kt). The app reads it on load; a phone switched
+			 * colour (Insets.kt). The app reads it on load; a phone switched
 			 * between dark and light while this page is open changes it with no
 			 * load, so the page says it again. rgb() through a canvas, since the
 			 * light theme's paper computes as oklch().

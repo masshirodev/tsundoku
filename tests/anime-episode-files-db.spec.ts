@@ -55,7 +55,7 @@ beforeEach(() => {
 	db.prepare(`DELETE FROM series`).run();
 });
 
-describe('the episode files’ sweep (c454)', () => {
+describe('the episode files’ sweep', () => {
 	it('deletes a removed episode’s picture and sprite, and keeps a present one’s', () => {
 		const show = series('anime');
 		const kept = entry(show, 1);

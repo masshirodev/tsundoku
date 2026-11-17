@@ -34,7 +34,7 @@ test.afterAll(async () => {
 });
 
 const fromBrowse = `/browse/${SOURCE.id}`;
-/** Where the source's Author text field sits, for its `f<i>` key (card c456). */
+/** Where the source's Author text field sits, for its `f<i>` key. */
 const AUTHOR = SCHEMA.findIndex((f) => f.name === 'Author');
 const previewPath = `/downloads/source/${previewId}?from=${encodeURIComponent(fromBrowse)}`;
 const at = (page: Page) => new URL(page.url());
@@ -49,7 +49,7 @@ async function open(page: Page, url: string) {
 	await page.waitForLoadState('networkidle');
 }
 /**
- * What the page shows one second into a wait on `tag-search` (c452), as the
+ * What the page shows one second into a wait on `tag-search`, as the
  * page itself saw it: once a link starts a navigation, Playwright waits for
  * it before it reads the page again, so the old page writes down its busy
  * element, its words and whether it is focused, in sessionStorage, which the
@@ -141,7 +141,7 @@ test('with the filters slow on a cold cache, the series paints at once and IN <S
 	expect(u.searchParams.get(`f${GENRE}.1`), u.href).toBe('1');
 	expect(u.searchParams.get('from'), u.href).toBe(`/series/${world.ids.tagged}`);
 	world.schema('ok');
-	// While the browser waited on the filters, the row said so (c452).
+	// While the browser waited on the filters, the row said so.
 	expect((await recorded(page))?.text).toBe(
 		`IN ${SOURCE.name.toUpperCase()} FINDING ${SOURCE.name.toUpperCase()}'S FILTERS… →`
 	);
@@ -183,7 +183,7 @@ test('with the filters slow on a cold cache, the preview paints at once and a ge
  * and a line says why; the landing is still FILTERED; BACK, from the bfcache
  * or not, shows the preview without the line.
  */
-test('a genre on the preview says it is finding the filters while it waits, and BACK clears it (c452)', async ({
+test('a genre on the preview says it is finding the filters while it waits, and BACK clears it', async ({
 	page
 }) => {
 	world.reset();
@@ -336,7 +336,7 @@ test('a genre the filters spell otherwise still matches; one they lack is a sear
 	await page.getByRole('link', { name: 'Back to the preview' }).click();
 	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
 
-	// The author fills the source's own Author field (card c456), not the title search.
+	// The author fills the source's own Author field, not the title search.
 	await page.getByRole('link', { name: 'Aoi Hanamura', exact: true }).click();
 	await expect(page).toHaveURL(/tab=filtered/);
 	expect(at(page).searchParams.get(`f${AUTHOR}`)).toBe('Aoi Hanamura');
@@ -475,7 +475,7 @@ test('a series with a bare tag and the same value under tag: still renders its T
  * looked up by value, so both found the first and linked to `?tag=Mecha`, and
  * the library page of `tag:Mecha` could not be reached from the row.
  */
-test('a bare tag and its tag: twin, typed on EDIT, link each to its own library tag (c451)', async ({
+test('a bare tag and its tag: twin, typed on EDIT, link each to its own library tag', async ({
 	page
 }) => {
 	await open(page, series(world.ids.edited));
@@ -533,7 +533,7 @@ for (const [door, key, title] of [
 	});
 
 /**
- * c452's `pageshow` clear, pinned (c538). BACK above passes with the clear
+ * c452's `pageshow` clear, pinned. BACK above passes with the clear
  * removed: a BACK that is not from the bfcache draws the page again, so the
  * busy mark is gone either way. Here the page that set the mark is the one
  * shown again, as the bfcache gives it back: the navigation the tap starts is
@@ -569,7 +569,7 @@ async function busyThenPageshow(page: Page, link: string) {
 	return seen;
 }
 
-test('a page the bfcache shows again clears its busy mark: the series’ IN <SOURCE> (c538, c452)', async ({
+test('a page the bfcache shows again clears its busy mark: the series’ IN <SOURCE>', async ({
 	page
 }) => {
 	world.reset();
@@ -582,7 +582,7 @@ test('a page the bfcache shows again clears its busy mark: the series’ IN <SOU
 	await expect(sheet.getByText(/FINDING .+'S FILTERS/)).toHaveCount(0);
 });
 
-test('a page the bfcache shows again clears its busy mark: the preview’s genre (c538, c452)', async ({
+test('a page the bfcache shows again clears its busy mark: the preview’s genre', async ({
 	page
 }) => {
 	world.reset();

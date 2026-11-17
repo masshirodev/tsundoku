@@ -14,14 +14,14 @@ import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /**
- * `scripts/build-lock.mjs` (c625), run as the webServer runs it, in a git
+ * `scripts/build-lock.mjs`, run as the webServer runs it, in a git
  * checkout of its own with stand-in commands: the build appends to `builds`
  * and makes `.svelte-kit/output`, and the server is a `sleep`. Each case is a
  * door into the output folder: two builds at once, a build under a running
  * preview (the same tree, or a changed one), a holder or a user that died, a
  * port that already answers, a build that fails, a wait that runs out, a
  * runner that dies without stopping it, and two or three waiters on one dead
- * holder (c729), held at the moment of their race by `BUILD_LOCK_PAUSE` and
+ * holder, held at the moment of their race by `BUILD_LOCK_PAUSE` and
  * let go together, so the interleaving that lost is the one run every time.
  *
  * Each wrapper is started as Playwright starts its webServer, the leader of a

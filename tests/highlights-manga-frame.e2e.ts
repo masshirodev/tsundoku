@@ -29,7 +29,7 @@ import { startPreview } from './highlights-preview';
  */
 
 /*
- * Hand-written below this line and above the first case (c703), and dropped by
+ * Hand-written below this line and above the first case, and dropped by
  * a regeneration: the generator writes a bare `page.goto('/')`, where these
  * states (a kept page's sheet, a spread's choice) exist only inside the
  * reader, after a page is kept. So the file seeds a database of its own and

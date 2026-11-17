@@ -300,7 +300,7 @@ function seed() {
 		at(6)
 	]);
 	// Highlights: one pointing at season 2's second episode, and one that lost
-	// its entry on season 3 and waits to rejoin (round 2). `highlights` names a
+	// its entry on season 3 and waits to rejoin. `highlights` names a
 	// series with no foreign key, so the merge's walk must ask its column.
 	insert(
 		`INSERT INTO highlights (id, kind, series_id, entry_id, origin_key, number, season,
@@ -346,7 +346,7 @@ describe('merging three seasons', () => {
 		]);
 		expect(dump()).not.toEqual(before);
 		// One show; the absorbed ids are held by placeholder rows, which no
-		// library listing sees (round 2).
+		// library listing sees.
 		expect(db.prepare(`SELECT COUNT(*) AS n FROM series WHERE in_library = 1`).get()).toEqual({
 			n: 1
 		});
@@ -438,7 +438,7 @@ describe('merging three seasons', () => {
 
 	it('ends the Work of the seasons merged, and the undo brings it back', () => {
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
-		// The Work itself is gone; a placeholder row holds its id (round 2).
+		// The Work itself is gone; a placeholder row holds its id.
 		expect(db.prepare(`SELECT COUNT(*) AS n FROM works WHERE reserve_at IS NULL`).get()).toEqual({
 			n: 0
 		});
@@ -679,7 +679,7 @@ describe('taking one season out', () => {
 	});
 });
 
-describe('the episodes’ files, and the show’s folder (round 2)', () => {
+describe('the episodes’ files, and the show’s folder', () => {
 	/** A real folder per season, each holding `Episode 1.mkv`: the same name twice. */
 	function giveFiles() {
 		const root = mkdtempSync(join('temp', 'seasons-files-'));
@@ -798,7 +798,7 @@ describe('the episodes’ files, and the show’s folder (round 2)', () => {
 		}
 	});
 
-	it('hands a streaming first season’s show the next folder it finds, so later files survive (round 3)', () => {
+	it('hands a streaming first season’s show the next folder it finds, so later files survive', () => {
 		const files = giveFiles();
 		const e = ids();
 		try {
@@ -839,7 +839,7 @@ function episodeIds(): Record<string, number> {
 	return { s1e1: row(101, 1), s2e1: row(102, 1), s2e2: row(102, 2), s3e1: row(103, 1) };
 }
 
-describe('what the show is used for while merged (round 2)', () => {
+describe('what the show is used for while merged', () => {
 	it('carries the log, the queue, the failures and the tracker state to the right series', () => {
 		const e = episodeIds();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
@@ -955,7 +955,7 @@ describe('what the show is used for while merged (round 2)', () => {
 	});
 });
 
-describe('FOLLOW is the last season’s (round 2)', () => {
+describe('FOLLOW is the last season’s', () => {
 	const list = (url: string) => {
 		const ask = sourceMangaId('7', url);
 		source.lists.set(ask, [{ url: `${url}/ep-3`, name: 'Episode 3', episode_number: 3 }]);
@@ -1000,7 +1000,7 @@ describe('FOLLOW is the last season’s (round 2)', () => {
 	});
 });
 
-describe('ids held open across a merge (round 2)', () => {
+describe('ids held open across a merge', () => {
 	it('keeps absorbed series and Work ids from being reissued, then puts them back', () => {
 		const before = db.prepare(`SELECT id FROM works WHERE id = 5`).get();
 		expect(before).toEqual({ id: 5 });
@@ -1050,7 +1050,7 @@ describe('ids held open across a merge (round 2)', () => {
 	});
 });
 
-describe('highlights and the walk (round 2)', () => {
+describe('highlights and the walk', () => {
 	it('restores a highlight the merge orphaned, and moves one made since', () => {
 		const e = episodeIds();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
@@ -1099,7 +1099,7 @@ describe('highlights and the walk (round 2)', () => {
 	});
 });
 
-describe('the log across a take-out (round 2)', () => {
+describe('the log across a take-out', () => {
 	const totals = () => ({
 		log: (db.prepare(`SELECT COUNT(*) AS n FROM reading_events`).get() as { n: number }).n,
 		queue: (db.prepare(`SELECT COUNT(*) AS n FROM download_queue`).get() as { n: number }).n,
@@ -1170,7 +1170,7 @@ const workMembers = () =>
 		.prepare(`SELECT series_id, position FROM work_series WHERE work_id = 5 ORDER BY position`)
 		.all();
 
-describe('a Work with a member outside the merge (round 2)', () => {
+describe('a Work with a member outside the merge', () => {
 	it('keeps the outside member when the first season is in the Work', () => {
 		outsider(9, 'A Movie', 'aniyomi:7:/movie');
 		db.prepare(`DELETE FROM work_series WHERE work_id = 5`).run();
@@ -1266,7 +1266,7 @@ function filePlan(
 	};
 }
 
-describe('a file gained while merged (round 2)', () => {
+describe('a file gained while merged', () => {
 	const give = () => {
 		const root = mkdtempSync(join('temp', 'seasons-gained-'));
 		const dirs = ['One', 'Two', 'Three'].map((name) => {
@@ -1366,7 +1366,7 @@ describe('a file gained while merged (round 2)', () => {
 		}
 	});
 
-	it('gives a season with no folder one of its own, so its file survives the undo (round 3)', () => {
+	it('gives a season with no folder one of its own, so its file survives the undo', () => {
 		// Every season streams, so the merge leaves the show with no folder.
 		db.prepare(`UPDATE series SET path = '' WHERE id IN (101, 102, 103)`).run();
 		const e = entryOf(102);
@@ -1395,7 +1395,7 @@ describe('a file gained while merged (round 2)', () => {
 		}
 	});
 
-	it('gives a season with no folder one on a take-out, so its file survives (round 3)', () => {
+	it('gives a season with no folder one on a take-out, so its file survives', () => {
 		db.prepare(`UPDATE series SET path = '' WHERE id IN (101, 102, 103)`).run();
 		const e = entryOf(102);
 		const root = mkdtempSync(join('temp', 'seasons-first-'));
@@ -1415,7 +1415,7 @@ describe('a file gained while merged (round 2)', () => {
 		}
 	});
 
-	it('keeps a streaming season’s file beside a season with a folder (round 3)', () => {
+	it('keeps a streaming season’s file beside a season with a folder', () => {
 		const files = give();
 		const e = entryOf(102);
 		try {
@@ -1439,7 +1439,7 @@ describe('a file gained while merged (round 2)', () => {
 		}
 	});
 
-	it('keeps a streaming season’s file beside a folder through a take-out (round 3)', () => {
+	it('keeps a streaming season’s file beside a folder through a take-out', () => {
 		const files = give();
 		const e = entryOf(102);
 		try {
@@ -1459,7 +1459,7 @@ describe('a file gained while merged (round 2)', () => {
 		}
 	});
 
-	it('names an added episode, and its available, on a season with no folder (round 3)', async () => {
+	it('names an added episode, and its available, on a season with no folder', async () => {
 		const files = give();
 		try {
 			db.prepare(`UPDATE series SET path = '' WHERE id = 102`).run();
@@ -1489,7 +1489,7 @@ describe('a file gained while merged (round 2)', () => {
 		}
 	});
 
-	it('names an added episode, and its available, on a taken-out season with no folder (round 3)', async () => {
+	it('names an added episode, and its available, on a taken-out season with no folder', async () => {
 		const files = give();
 		try {
 			db.prepare(`UPDATE series SET path = '' WHERE id = 103`).run();
@@ -1519,7 +1519,7 @@ describe('a file gained while merged (round 2)', () => {
 	});
 });
 
-describe('a finished download is not queued again (round 2)', () => {
+describe('a finished download is not queued again', () => {
 	it('does not put back a queue row a finished download removed', () => {
 		const e = episodeIds();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
@@ -1545,7 +1545,7 @@ describe('a finished download is not queued again (round 2)', () => {
 	});
 });
 
-describe('a Work id held across a take-out (round 2)', () => {
+describe('a Work id held across a take-out', () => {
 	it('does not hand the ended Work’s id to a new Work', () => {
 		outsider(9, 'A Movie', 'aniyomi:7:/movie');
 		outsider(10, 'A Second Movie', 'aniyomi:7:/movie-2');
@@ -1576,7 +1576,7 @@ describe('a Work id held across a take-out (round 2)', () => {
 	});
 });
 
-describe('a Work id reissued while merged (round 3)', () => {
+describe('a Work id reissued while merged', () => {
 	const setup = () => {
 		const folk: [number, string, string][] = [
 			[9, 'A Movie', 'aniyomi:7:/movie'],
@@ -1630,7 +1630,7 @@ describe('a Work id reissued while merged (round 3)', () => {
 	});
 });
 
-describe('a hide made while merged (round 3)', () => {
+describe('a hide made while merged', () => {
 	const state = (id: number) =>
 		db.prepare(`SELECT hidden, public FROM series WHERE id = ?`).get(id);
 
@@ -1668,7 +1668,7 @@ describe('a hide made while merged (round 3)', () => {
 	});
 });
 
-describe('a journal row whose entry is gone (round 3)', () => {
+describe('a journal row whose entry is gone', () => {
 	it('restores a log row without its entry instead of failing the undo', () => {
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
 		const partly = (
@@ -1691,7 +1691,7 @@ describe('a journal row whose entry is gone (round 3)', () => {
 	});
 });
 
-describe('a flat list and an episode added while merged (round 2)', () => {
+describe('a flat list and an episode added while merged', () => {
 	const listOf = (url: string) => {
 		const ask = sourceMangaId('7', url);
 		source.lists.set(ask, [{ url: `${url}/ep-9`, name: 'Episode 9', episode_number: 9 }]);
@@ -1795,7 +1795,7 @@ function twoWorks() {
 	return { older: older.work.id, run: run.work.id, made: run.work.createdAt };
 }
 
-describe('a Work renamed while merged (round 3)', () => {
+describe('a Work renamed while merged', () => {
 	it('puts the absorbed season back into the Work the owner renamed', () => {
 		const { run, made } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
@@ -1820,7 +1820,7 @@ describe('a Work renamed while merged (round 3)', () => {
 	});
 });
 
-describe('a season taken out after its Work was reissued (round 3)', () => {
+describe('a season taken out after its Work was reissued', () => {
 	it('does not put the taken season into the stranger that took the Work id', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
@@ -1849,7 +1849,7 @@ describe('a season taken out after its Work was reissued (round 3)', () => {
 	});
 });
 
-describe('the owner-action table (round 3)', () => {
+describe('the owner-action table', () => {
 	it('puts a Work’s order back when the owner reordered it while merged', () => {
 		const { run } = twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102], now: NOW });
@@ -1874,7 +1874,7 @@ describe('the owner-action table (round 3)', () => {
 		expect(db.prepare(`SELECT 1 FROM works WHERE id = ?`).get(run)).toBeUndefined();
 		books.ungroupSeasons(101, NOW);
 		// The owner's add is theirs; the journal's Work comes back with the
-		// members the owner left it (round 4).
+		// members the owner left it.
 		expect(membersOfWork(run)).toEqual([
 			{ series_id: 102, position: 2 },
 			{ series_id: 11, position: 3 }
@@ -2072,9 +2072,9 @@ describe('the owner-action table (round 3)', () => {
  * A Work the owner makes while the show is merged is not the merge's: the undo
  * puts the journal's membership back only where the series is in no Work or
  * still in the Work the journal names. Taking a series out of a Work the owner
- * made since would delete or break it (round 4).
+ * made since would delete or break it.
  */
-describe('a Work made while merged (round 4)', () => {
+describe('a Work made while merged', () => {
 	const olderRows = [
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 9, position: 1 },
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 10, position: 2 }
@@ -2133,7 +2133,7 @@ describe('a Work made while merged (round 4)', () => {
  * made while merged must not stop it (round 4's red: an ended Work took the
  * reinserted membership with it and the whole undo rolled back).
  */
-describe('the first-season take-out after a Work action (round 4)', () => {
+describe('the first-season take-out after a Work action', () => {
 	const olderRows = [
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 9, position: 1 },
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 10, position: 2 }
@@ -2242,9 +2242,9 @@ describe('the first-season take-out after a Work action (round 4)', () => {
 
 /**
  * A season taken out of the journal is no longer the merge's; the show's later
- * UNGROUP must not reach it, nor a Work the owner made of it (round 4).
+ * UNGROUP must not reach it, nor a Work the owner made of it.
  */
-describe('a taken-out season and the journal (round 4)', () => {
+describe('a taken-out season and the journal', () => {
 	it('does not pull it back out of the Work the owner made of it', () => {
 		twoWorks();
 		books.mergeSeasons({ seriesIds: [101, 102, 103], now: NOW });
@@ -2305,9 +2305,9 @@ describe('a taken-out season and the journal (round 4)', () => {
  * was true at the merge, and a `deleteSeries` while merged takes the outsider's
  * row (and its `work_series` row, cascading). The undo cannot bring it back, so
  * counting it would put the Work back with one member, which the schema's own
- * trigger forbids (round 5).
+ * trigger forbids.
  */
-describe('a Work’s member deleted while merged (round 5)', () => {
+describe('a Work’s member deleted while merged', () => {
 	const olderRows = [
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 9, position: 1 },
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 10, position: 2 }
@@ -2481,9 +2481,9 @@ describe('a Work’s member deleted while merged (round 5)', () => {
  * absorbed the outsider into its own show, and its row is held for that
  * merge's undo (`reserve_at` set, hidden, out of the library). It is no
  * series the undo may put back -- its own journal restores it -- so counting
- * it would rebuild a Work of one around a hidden placeholder (round 6).
+ * it would rebuild a Work of one around a hidden placeholder.
  */
-describe('a placeholder in a journal’s Work (round 6)', () => {
+describe('a placeholder in a journal’s Work', () => {
 	const olderRows = [
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 9, position: 1 },
 		{ work_id: 1, name: 'Older', made: at(5), series_id: 10, position: 2 }
@@ -2646,7 +2646,7 @@ describe('a placeholder in a journal’s Work (round 6)', () => {
  * every tile they draw, so `showRowFacts` narrows to the kinds whose seasons
  * can merge before its per-tile queries. A manga is never a season.
  */
-describe('the show line’s read (round 2)', () => {
+describe('the show line’s read', () => {
 	it('answers only for a kind whose seasons can merge', () => {
 		const manga = insert(
 			`INSERT INTO series (id, root_id, title, kind, rating, favourite, hidden, hue, added_at,

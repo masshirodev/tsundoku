@@ -9,7 +9,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * OTHER FORMS on the series screen (c700; doc/SERIES.md, "OTHER FORMS"): FIND
+ * OTHER FORMS on the series screen (doc/SERIES.md, "OTHER FORMS"): FIND
  * lands on SEARCH THE SOURCES with the other kind's band picked, and GROUP AS A
  * WORK on an IN LIBRARY row opens the GROUP flow with both series picked, after
  * which the row reads IN THIS WORK. A `-flow`, because it groups: it runs once

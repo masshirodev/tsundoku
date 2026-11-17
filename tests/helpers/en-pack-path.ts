@@ -2,7 +2,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 /**
- * Where the e2e run's English pack lives (c198): the same file the preview
+ * Where the e2e run's English pack lives: the same file the preview
  * server is told about (`playwright.config.ts`) and the one globalSetup writes
  * (`en-pack-setup.ts`).
  *

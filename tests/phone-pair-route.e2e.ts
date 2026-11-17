@@ -15,7 +15,7 @@ import { expect, hydrated, test } from './helpers/hydrated';
  * this server whenever they pair.
  */
 const PORT = process.env.PLAYWRIGHT_PORT ?? '4183';
-/** The paired cookie on this origin (c530): `vite preview` builds the URL from the Host. */
+/** The paired cookie on this origin: `vite preview` builds the URL from the Host. */
 const PAIRED = `tsundoku_paired_${PORT}`;
 
 const PHONE_UA =

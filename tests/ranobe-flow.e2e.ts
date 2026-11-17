@@ -89,9 +89,9 @@ test.use({ baseURL: BASE });
 test.beforeAll(async () => {
 	// This hook seeds a database and spawns a preview, then polls up to 60 s
 	// for it: all inside the default 30 s hook budget, where `work-end-frame`'s
-	// same shape ran past 30 s in wave 20's gate (c477). Measured at 2 s here,
+	// same shape ran past 30 s in wave 20's gate. Measured at 2 s here,
 	// at a load average of 20 with the other slots at work; the house budget is
-	// 120 s so a loaded gate fails a case, never the hook (c599). In a hook,
+	// 120 s so a loaded gate fails a case, never the hook. In a hook,
 	// `test.setTimeout` sets the hook's own budget (Playwright's test.d.ts).
 	test.setTimeout(120_000);
 	seed();
@@ -188,7 +188,7 @@ test('nothing found: NOT ON RANOBE, and UNDO (1d)', async ({ page }) => {
 	await page.goto('/links?series=' + ids.lotm + '&service=ranobe');
 	await expect(page.getByText('Ranobe doesn’t have this novel.')).toBeVisible();
 	await expect(page.locator('.suggest .sy')).toHaveText('NOT YET');
-	// Suggesting needs the app account's token (c72); this preview has none, and says so.
+	// Suggesting needs the app account's token; this preview has none, and says so.
 	await expect(page.locator('.suggest .sd')).toHaveText(
 		'NEEDS RANOBE_SUGGEST_TOKEN, THE APP ACCOUNT’S · DOC/RANOBE.MD'
 	);
@@ -221,7 +221,7 @@ test('a pasted link reads the id only, and says when Ranobe doesn’t answer (1e
 	);
 });
 
-test('the series screen draws Ranobe’s line on LISTS, first on a novel (2a, 2h; c424)', async ({
+test('the series screen draws Ranobe’s line on LISTS, first on a novel (2a, 2h)', async ({
 	page
 }) => {
 	await page.goto(`/series/${ids.v2}`);

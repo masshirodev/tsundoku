@@ -90,7 +90,7 @@ describe('a book', () => {
 		expect(s).toMatchObject({
 			originKey: 'hentoid:NHENTAI:/g/111/',
 			kind: 'doujin',
-			// Hentoid's 4 stars of 5, out of 10 (c67).
+			// Hentoid's 4 stars of 5, out of 10.
 			rating: 8,
 			favourite: true,
 			path: ROOT

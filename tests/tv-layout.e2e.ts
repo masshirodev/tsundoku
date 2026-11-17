@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures';
 
 /**
- * The TV's frame (c238; doc/TV.md, "The design"). Playwright has no context
+ * The TV's frame (doc/TV.md, "The design"). Playwright has no context
  * option for the pointer type, so the `tv` project sets Blink's own media
  * features at launch (playwright.config.ts). These prove the query is really
  * `(pointer: none)` and not a narrow desktop dressed as one, and that the TV

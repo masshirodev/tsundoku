@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * Release versions, as the app reads them (c614; doc/UPDATES.md): the date
+ * Release versions, as the app reads them (doc/UPDATES.md): the date
  * versions every release has, `YYYY.MM.DD[.N]`, the same rule as
  * `newer` in src/lib/server/update-manifest.ts.
  *

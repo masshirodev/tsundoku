@@ -4,7 +4,7 @@ import { expect, test } from './fixtures';
 import { FRIEND_HOME, FRIEND_PORT } from './friend-world';
 
 /**
- * A friend's sign-in (doc/SIGN-IN.md; card c189), on the friend project's own
+ * A friend's sign-in (doc/SIGN-IN.md), on the friend project's own
  * server (tests/friend-setup.ts): SET UP on first open, a password or none,
  * changing and removing it in SETTINGS, and the reset the launcher does.
  * One login.json for the server, so these run in order.

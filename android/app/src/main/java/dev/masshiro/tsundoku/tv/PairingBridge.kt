@@ -8,7 +8,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
- * What the app's own pages cannot do themselves (c236; doc/TV.md, "Pairing"):
+ * What the app's own pages cannot do themselves (doc/TV.md, "Pairing"):
  * the TV's own address (for the prefix, and 9D's third reason), a probe of a
  * candidate address, and the servers this TV has paired with (c261;
  * doc/ANDROID.md, "Servers").
@@ -18,7 +18,7 @@ import java.util.concurrent.Executors
  * and switches. So every call that writes, probes, or opens one of the app's
  * screens that writes first asks [BridgeGuard] whether the page in the
  * WebView is the app's own or a known server's, and does nothing otherwise
- * (c529). Since c549 (the owner's (a), 2026-11-05) the reads that say
+ *. Since c549 (the owner's (a), 2026-11-05) the reads that say
  * anything of the owner's ask it too: the list of servers is the owner's,
  * and so are the TV's address and its network. A refused read answers what
  * a TV that knows nothing would ("[]", ""), never an exception, so a page of
@@ -43,15 +43,15 @@ import java.util.concurrent.Executors
  * | `renameServer`   | opens S5, which writes                 | yes     |
  * | `open`           | opens a known server's library         | no      |
  * | `welcome`        | opens 9A                               | no      |
- * | `form`           | reads which app this is (c521)         | no      |
- * | `network`        | reads home / data / none (c521)        | yes: "" |
- * | `surface`        | paints the camera band (c521)          | no      |
- * | `keyboard`       | raises the phone's keyboard (c521)     | no      |
- * | `edge`           | draws the page under the camera (c521) | no      |
- * | `appUpdate`      | reads the app's update state (c614)    | no      |
- * | `appCheck`       | asks the release host (c614)           | no      |
- * | `appDownload`    | downloads and installs a release (c614)| yes     |
- * | `appInstall`     | installs the downloaded release (c614) | yes     |
+ * | `form`           | reads which app this is         | no      |
+ * | `network`        | reads home / data / none        | yes: "" |
+ * | `surface`        | paints the camera band          | no      |
+ * | `keyboard`       | raises the phone's keyboard     | no      |
+ * | `edge`           | draws the page under the camera | no      |
+ * | `appUpdate`      | reads the app's update state    | no      |
+ * | `appCheck`       | asks the release host           | no      |
+ * | `appDownload`    | downloads and installs a release| yes     |
+ * | `appInstall`     | installs the downloaded release | yes     |
  *
  * `open` and `welcome` stay open on purpose: FORGET of the server in use calls
  * one of them from the page of the server it has just forgotten (MoreSheet's
@@ -63,7 +63,7 @@ import java.util.concurrent.Executors
  * app this is (`TsundokuTV/` or `TsundokuApp/`), and the port is a constant
  * in the source.
  *
- * The bridge is `TsundokuTV` on the phone and tablet app as well (c521): the
+ * The bridge is `TsundokuTV` on the phone and tablet app as well: the
  * name is the contract the web app reads, not a claim about the screen.
  *
  * @JavascriptInterface methods are called from the page's JavaScript thread,
@@ -96,16 +96,16 @@ class PairingBridge(
 
 		fun postProbe(origin: String, ok: Boolean)
 
-		/** The camera band takes the page's colour (c521); a TV has none to paint. */
+		/** The camera band takes the page's colour; a TV has none to paint. */
 		fun paintSurface(color: Int) {}
 
-		/** The phone's keyboard, for the field the page has focused (c521); a TV never. */
+		/** The phone's keyboard, for the field the page has focused; a TV never. */
 		fun showKeyboard() {}
 
-		/** The page drawn edge to edge, under the camera, or padded again (c521). */
+		/** The page drawn edge to edge, under the camera, or padded again. */
 		fun setEdge(on: Boolean) {}
 
-		/** The app's own updater (c614); none in a test, or before the activity made one. */
+		/** The app's own updater; none in a test, or before the activity made one. */
 		fun updater(): Updater? = null
 	}
 
@@ -126,28 +126,28 @@ class PairingBridge(
 		 */
 		private const val PROBES = 4
 
-		/** A refused read (c549): what a TV that knows nothing would say. */
+		/** A refused read: what a TV that knows nothing would say. */
 		const val NOTHING = ""
 
-		/** A refused list (c549): Servers.toJson of no servers. */
+		/** A refused list: Servers.toJson of no servers. */
 		const val NO_SERVERS = "[]"
 	}
 
-	/** Whether the page asking is the app's own or a known server's (c529). */
+	/** Whether the page asking is the app's own or a known server's. */
 	private fun trusted(): Boolean = BridgeGuard.allows(host.topUrl()) { servers.find(it) != null }
 
 	/**
-	 * "tv" or "mobile" (c521): the pairing page lays itself out by it, since a
+	 * "tv" or "mobile": the pairing page lays itself out by it, since a
 	 * width alone can't tell a TV pinned at 960 from a tablet.
 	 */
 	@JavascriptInterface
 	fun form(): String = form.id
 
-	/** "home", "data" (a phone on mobile data) or "none": 9D's third reason (c521). */
+	/** "home", "data" (a phone on mobile data) or "none": 9D's third reason. */
 	@JavascriptInterface
 	fun network(): String = if (trusted()) Network.state(found()).id else NOTHING
 
-	/** The page's own background, as rgb() or a hex (c521): the camera band's colour. */
+	/** The page's own background, as rgb() or a hex: the camera band's colour. */
 	@JavascriptInterface
 	fun surface(css: String) {
 		val color = Insets.parseColor(css) ?: return
@@ -155,7 +155,7 @@ class PairingBridge(
 	}
 
 	/**
-	 * Raise the keyboard for the field the page has just focused (c521):
+	 * Raise the keyboard for the field the page has just focused:
 	 * the WebView does not, for focus given by a script on arrival (9B, 9C).
 	 * Nothing on a TV (Form.raisesKeyboard). Unguarded: it shows a keyboard and
 	 * writes nothing.
@@ -167,7 +167,7 @@ class PairingBridge(
 	}
 
 	/**
-	 * The page drawn edge to edge, under the camera, or padded again (c521):
+	 * The page drawn edge to edge, under the camera, or padded again:
 	 * the reader's manga and manhwa pages ask for it while they are open. The
 	 * page keeps its own bars out of the band from `--app-inset-*`. Nothing on
 	 * a TV. Unguarded: it moves padding and writes nothing.
@@ -179,7 +179,7 @@ class PairingBridge(
 	}
 
 	/**
-	 * The app's update, as the page draws it (c614; Updater.State.toJson):
+	 * The app's update, as the page draws it (Updater.State.toJson):
 	 * the version running, the phase, and the release on offer. "" with no
 	 * updater. Changes after this arrive as `window.tsundokuAppUpdate(state)`.
 	 */
@@ -227,7 +227,7 @@ class PairingBridge(
 
 	/**
 	 * A candidate answered: keep it. Adds to the list rather than replacing the
-	 * one in use (c261): the library the TV was in still opens on launch until
+	 * one in use: the library the TV was in still opens on launch until
 	 * the new one's library has been opened.
 	 */
 	@JavascriptInterface
@@ -285,7 +285,7 @@ class PairingBridge(
 	 */
 	@JavascriptInterface
 	fun forgetServer(origin: String): String {
-		// Refused, it answers no list at all (c549): not "[]", which the page
+		// Refused, it answers no list at all: not "[]", which the page
 		// would read as "that was the last one" and send the TV to 9A while
 		// every server is still stored. "" leaks nothing and is not a list.
 		if (!trusted()) return NOTHING

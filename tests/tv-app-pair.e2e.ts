@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
  *
  * This is **not** the app's loader. On a TV the page is served by
  * `WebViewAssetLoader` at `https://appassets.androidplatform.net/pair/index.html`
- * (c549); here it is opened from the asset file itself, because a browser has
+ *; here it is opened from the asset file itself, because a browser has
  * no loader and the page's scripts do not read `location.protocol`. What the
  * loader changes — `BridgeGuard`, `Back.kt` and the WebView client — is pinned
  * by the JVM tests and the owner's check on a TV (`doc/ANDROID.md`).
@@ -102,7 +102,7 @@ async function stubBridge(page: Page, options: { hold?: boolean; answer?: boolea
  * `ui-monospace, 'Roboto Mono', monospace`, and a TV's WebView ends on Roboto
  * Mono or Android's own monospace, Droid Sans Mono: both advance every glyph
  * they have by 1229/2048 em (0.6001), read from the fonts' `hmtx` tables
- * (c307). A glyph neither has (○, ✓, →) falls back to another font, so it is
+ *. A glyph neither has (○, ✓, →) falls back to another font, so it is
  * counted at a whole em, the wide case.
  */
 async function tvMonoWidth(page: Page, selector: string): Promise<number> {
@@ -153,7 +153,7 @@ async function overTheButtons(page: Page, selector: string) {
 	}, selector);
 }
 
-test('START opens 9B on NEXT, so no number pad covers the buttons (c247)', async ({ page }) => {
+test('START opens 9B on NEXT, so no number pad covers the buttons', async ({ page }) => {
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START →
 
@@ -171,7 +171,7 @@ test('START opens 9B on NEXT, so no number pad covers the buttons (c247)', async
 	await expect(page.locator('#last')).toBeFocused();
 });
 
-test("a remote's number keys type into the field without the pad (c247)", async ({ page }) => {
+test("a remote's number keys type into the field without the pad", async ({ page }) => {
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START →, the mark on NEXT
 
@@ -214,7 +214,7 @@ test('TYPE THE WHOLE ADDRESS keeps a field to type it in, reachable from the but
 	await expect(field).toBeFocused();
 });
 
-test("9A and 9D keep a friend's WI-FI remedy beside a tailnet install's truth (c245)", async ({
+test("9A and 9D keep a friend's WI-FI remedy beside a tailnet install's truth", async ({
 	page
 }) => {
 	await page.goto(page9);
@@ -237,7 +237,7 @@ test("9A and 9D keep a friend's WI-FI remedy beside a tailnet install's truth (c
 	await expect(reason).toContainText('address changed');
 });
 
-test("9A's steps end above START, whatever step 01 says (c263)", async ({ page }) => {
+test("9A's steps end above START, whatever step 01 says", async ({ page }) => {
 	await page.goto(page9);
 	await page.evaluate(() => document.fonts.ready);
 
@@ -257,7 +257,7 @@ test("9A's steps end above START, whatever step 01 says (c263)", async ({ page }
 	expect(actions!.y + actions!.height).toBeLessThanOrEqual(540);
 });
 
-test('a given address in the list is checked without 9A or 9B (c260)', async ({ page }) => {
+test('a given address in the list is checked without 9A or 9B', async ({ page }) => {
 	await stubServers(page, three, { [ZEN]: { ok: false, hold: true } });
 	await page.goto(`${page9}#connect=${encodeURIComponent(ZEN)}`);
 
@@ -274,7 +274,7 @@ test('a given address in the list is checked without 9A or 9B (c260)', async ({ 
 	await expect(page.locator('#start')).toBeHidden();
 });
 
-test('a refused address shows the band on 9B and leaves it usable (c260)', async ({ page }) => {
+test('a refused address shows the band on 9B and leaves it usable', async ({ page }) => {
 	await page.goto(`${page9}#bad=${encodeURIComponent('ftp://zen.local')}`);
 
 	// The activity refused it, so 9B is where the TV lands: the field empty,
@@ -289,7 +289,7 @@ test('a refused address shows the band on 9B and leaves it usable (c260)', async
 	await expect(page.locator('#next')).toBeFocused();
 
 	// The band ends above the label, and every box ends inside the 540 frame:
-	// this is 9C's with-band rhythm, not sizes invented here (c246).
+	// this is 9C's with-band rhythm, not sizes invented here.
 	const bandBox = await band.boundingBox();
 	const labelBox = await page.locator('#address .address-label').boundingBox();
 	const fieldBox = await page.locator('#address-form').boundingBox();
@@ -335,10 +335,10 @@ test('a refused address shows the band on 9B and leaves it usable (c260)', async
 	await expect(page.locator('#checking')).toContainText('THE APP BRIDGE IS MISSING');
 });
 
-test('a refused address stops the 9D retry, so the refusal stays (c260)', async ({ page }) => {
-	// A friend whose LAN probe failed is the case doc/ANDROID.md sends here: the
+test('a refused address stops the 9D retry, so the refusal stays', async ({ page }) => {
+	// A friend whose LAN probe failed is the case doc/TV-APP.md sends here: the
 	// TV is already retrying something nobody answers. It is a server in the
-	// list, because that is who the app's own #lost= is for (c683).
+	// list, because that is who the app's own #lost= is for.
 	const lan = 'http://192.168.1.99:42143';
 	await stubServers(page, [{ origin: lan, name: '', tvName: '', opened: 1 }]);
 	await page.goto(`${page9}#lost=${encodeURIComponent(lan)}`);
@@ -372,7 +372,7 @@ test('a refused address stops the 9D retry, so the refusal stays (c260)', async 
 	await expect(page.locator('#checking')).toHaveText('');
 });
 
-test('a probe a link superseded neither stores nor navigates (c260, c683)', async ({ page }) => {
+test('a probe a link superseded neither stores nor navigates', async ({ page }) => {
 	const bridge = await stubBridge(page, { hold: true });
 	await page.goto(page9);
 	// Nothing real lives at the typed address; if the superseded answer still
@@ -417,7 +417,7 @@ test('a probe a link superseded neither stores nor navigates (c260, c683)', asyn
 	await expect(page.locator('#checking')).toHaveText('');
 });
 
-test('a typed whole address with a path pairs at its origin (c260)', async ({ page }) => {
+test('a typed whole address with a path pairs at its origin', async ({ page }) => {
 	const bridge = await stubBridge(page, { answer: true });
 	// The typed address answers, so the page leaves for its /pair/tv. Abort
 	// that request and keep its URL: this test must see where it went, not dial.
@@ -435,7 +435,7 @@ test('a typed whole address with a path pairs at its origin (c260)', async ({ pa
 
 	// The field keeps the path; the bridge answers the origin. The page used to
 	// compare the two raw strings and drop the answer, leaving 9B on CHECKING
-	// with NEXT disabled (c260). It now compares origins, so the success lands.
+	// with NEXT disabled. It now compares origins, so the success lands.
 	await expect.poll(() => bridge.remembered.length).toBeGreaterThan(0);
 	expect(bridge.remembered).toContain('https://zen.tailnet.ts.net:8443');
 	expect(bridge.remembered).not.toContain('https://zen.tailnet.ts.net:8443/library');
@@ -443,7 +443,7 @@ test('a typed whole address with a path pairs at its origin (c260)', async ({ pa
 	expect(navigations[0]).toBe('https://zen.tailnet.ts.net:8443/pair/tv');
 });
 
-test('a whole address typed with its scheme in capitals is probed with one scheme (c548)', async ({
+test('a whole address typed with its scheme in capitals is probed with one scheme', async ({
 	page
 }) => {
 	// A TV keyboard that capitalises the first letter types Http://. 9B used to
@@ -465,14 +465,14 @@ test('a whole address typed with its scheme in capitals is probed with one schem
 	}
 });
 
-test('CHECKING and the lost line strip a scheme typed in capitals, as a lower-case one (c621)', async ({
+test('CHECKING and the lost line strip a scheme typed in capitals, as a lower-case one', async ({
 	page
 }) => {
 	// 9B's origin() keeps what was typed, capitals included (it tests the scheme
 	// without case since c548). The status line used to strip `http://` with a
 	// case-sensitive replace, so a keyboard that capitalised the first letter
 	// read `CHECKING HTTP://Zen.local:42143…` where a lower-case address read
-	// its host; 9D had the same strip on its title (c621).
+	// its host; 9D had the same strip on its title.
 	const typed = 'HTTP://Zen.local:42143';
 	await stubBridge(page, { hold: true });
 	await page.goto(page9);
@@ -495,7 +495,7 @@ test('CHECKING and the lost line strip a scheme typed in capitals, as a lower-ca
 	await expect(page.locator('#lost-title')).not.toContainText('HTTP://');
 });
 
-test('a typed whole address with a query fails at its origin (c260)', async ({ page }) => {
+test('a typed whole address with a query fails at its origin', async ({ page }) => {
 	await stubBridge(page);
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START → 9B
@@ -506,14 +506,14 @@ test('a typed whole address with a query fails at its origin (c260)', async ({ p
 
 	// A failure is the same identity question as a success: the query is not
 	// part of the origin, so 9D must name the address that was probed, and the
-	// answer must not be dropped with NEXT left disabled (c260).
+	// answer must not be dropped with NEXT left disabled.
 	await expect(page.locator('#retry')).toBeVisible();
 	await expect(page.locator('#lost-title')).toContainText('192.168.1.23:42143');
 	await expect(page.locator('#lost-title')).not.toContainText('q=1');
 	await expect(page.locator('#next')).toBeEnabled();
 });
 
-test('a refused address is not replaced by a probe already in flight (c260)', async ({ page }) => {
+test('a refused address is not replaced by a probe already in flight', async ({ page }) => {
 	const bridge = await stubBridge(page, { hold: true });
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START → 9B, the mark on NEXT
@@ -532,7 +532,7 @@ test('a refused address is not replaced by a probe already in flight (c260)', as
 
 	// The probe sent before the refusal now fails. It is an answer for the
 	// attempt the refusal replaced, so its failure must not erase the band and
-	// take the screen to 9D for an address nobody handed in (c260).
+	// take the screen to 9D for an address nobody handed in.
 	await page.evaluate((at) => window.tsundokuProbe?.(at, false), typed);
 	await page.waitForTimeout(300);
 	await expect(page.locator('#refused')).toBeVisible();
@@ -542,16 +542,14 @@ test('a refused address is not replaced by a probe already in flight (c260)', as
 	expect(bridge.remembered).toEqual([]);
 });
 
-test('a new attempt after a refusal clears the band and can fail to 9D (c260)', async ({
-	page
-}) => {
+test('a new attempt after a refusal clears the band and can fail to 9D', async ({ page }) => {
 	await stubBridge(page);
 	await page.goto(`${page9}#bad=${encodeURIComponent('zen.local:42143')}`);
 	await expect(page.locator('#refused')).toBeVisible();
 
 	// The band describes the refused launch, not the attempt the owner makes
 	// next. If it outlived a new probe, the guard above would drop that probe's
-	// failure and leave 9B with NEXT disabled and no way forward (c260).
+	// failure and leave 9B with NEXT disabled and no way forward.
 	await page.locator('#whole-toggle').click();
 	await page.locator('#last').fill('https://zen.tailnet.ts.net:8443/library');
 	await page.locator('#next').click();
@@ -561,7 +559,7 @@ test('a new attempt after a refusal clears the band and can fail to 9D (c260)', 
 	await expect(page.locator('#lost-title')).not.toContainText('library');
 });
 
-test('a given address after a refusal that does not answer reaches 9D (c260)', async ({ page }) => {
+test('a given address after a refusal that does not answer reaches 9D', async ({ page }) => {
 	await stubServers(page, three, { [ZEN]: { ok: false } });
 	await page.goto(`${page9}#bad=${encodeURIComponent('ftp://zen.local')}`);
 	await expect(page.locator('#refused')).toBeVisible();
@@ -570,7 +568,7 @@ test('a given address after a refusal that does not answer reaches 9D (c260)', a
 	// the screen never hid the band's flag: the guard read the leftover flag as
 	// "a refusal is the current state" and dropped this failure, leaving a bare
 	// CHECKING line over a hidden screen with nothing a remote could press
-	// (c260). A given address owns the band the same way a typed one does.
+	//. A given address owns the band the same way a typed one does.
 	await page.evaluate(() => {
 		location.hash = '#connect=' + encodeURIComponent('https://zen.tailnet.ts.net:8443');
 	});
@@ -580,7 +578,7 @@ test('a given address after a refusal that does not answer reaches 9D (c260)', a
 	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
 });
 
-test('a link after a refusal still pairs at its origin once CONNECT is pressed (c260, c683)', async ({
+test('a link after a refusal still pairs at its origin once CONNECT is pressed', async ({
 	page
 }) => {
 	const bridge = await stubBridge(page, { answer: true });
@@ -597,7 +595,7 @@ test('a link after a refusal still pairs at its origin once CONNECT is pressed (
 	// Only a *failure* for a superseded attempt is dropped: an address that
 	// answers is the current one and still pairs (Decision 9). Pinned here so
 	// a later tightening of the guard cannot quietly stop a link from pairing
-	// (c260); what c683 adds is the press in the middle.
+	//; what c683 adds is the press in the middle.
 	await page.evaluate(() => {
 		location.hash = '#ask=' + encodeURIComponent('https://zen.tailnet.ts.net:8443');
 	});
@@ -779,9 +777,7 @@ test('S9: 9D for the one in use offers the others, each probed, OK opening one',
 	expect((await box('#retry')).y + 56 - main.y).toBeLessThanOrEqual(540);
 });
 
-test("S9: 9D's 5 s retries keep the mark on another server and its answer (c261, round 2)", async ({
-	page
-}) => {
+test("S9: 9D's 5 s retries keep the mark on another server and its answer", async ({ page }) => {
 	// HOME never answers, so the 5 s retry fails again and again. A failure
 	// for the attempt already on 9D is a count, not a new 9D: rebuilding it
 	// took the mark back to TRY AGAIN, put every row back to CHECKING and
@@ -791,7 +787,7 @@ test("S9: 9D's 5 s retries keep the mark on another server and its answer (c261,
 	// navigating and let `Date.now` progress while the page loads, then pause).
 	// Under load it has moved past t0 before pauseAt runs, and pauseAt "cannot
 	// fast-forward to the past", so a pause at t0 + 1 ms lands in the past on a
-	// loaded box (c619). Read the page's own clock and pause a margin of
+	// loaded box. Read the page's own clock and pause a margin of
 	// seconds ahead of it, as settings-devices does at install + 30 s.
 	const t0 = new Date('2026-11-04T10:00:00Z');
 	await page.clock.install({ time: t0 });
@@ -882,7 +878,7 @@ test('S7: an address already in the list opens it instead of pairing', async ({ 
 	await page.keyboard.press('1');
 	await page.keyboard.press('Enter'); // NEXT →
 	await expect(page.locator('#already')).toHaveText('ALREADY IN SERVERS AS STUDIO · OPENING');
-	// The band moves the column down, as every band on 9B does (c246).
+	// The band moves the column down, as every band on 9B does.
 	await expect(page.locator('#address')).toHaveClass(/with-band/);
 	await expect.poll(() => page.evaluate(() => window.__servers!.opened)).toEqual([STUDIO]);
 	expect(await page.evaluate(() => window.__servers!.probes)).toEqual([]);
@@ -1001,7 +997,7 @@ test('S5: RENAME from the library goes back to the library, saved or not', async
 
 test('a page with no list behaves as before c261: no others, no ADD mode', async ({ page }) => {
 	// An older bridge has no servers(): stubBridge is that bridge. With no list
-	// a #lost= asks (c683), so 9D is reached by the door such a page still has:
+	// a #lost= asks, so 9D is reached by the door such a page still has:
 	// an address typed here that does not answer.
 	await stubBridge(page);
 	await page.goto(page9);
@@ -1112,14 +1108,14 @@ const forgetAcross = (page: Page, origin: string) =>
 /**
  * A page's own history.back(), scheduled so `evaluate` has returned first: the
  * step tears this document down, and one taken inside the evaluate can destroy
- * its context before the answer comes back (seen red under load, wave 35).
+ * its context before the answer comes back (seen red under load).
  */
 const stepBack = (page: Page) =>
 	page.evaluate(() => {
 		setTimeout(() => history.back(), 0);
 	});
 
-test('a given address leaves its entry without the fragment once it is checked, the token kept (c685)', async ({
+test('a given address leaves its entry without the fragment once it is checked, the token kept', async ({
 	page
 }) => {
 	await stubAcross(page, three);
@@ -1145,7 +1141,7 @@ test('a given address leaves its entry without the fragment once it is checked, 
 	).toBe(0);
 });
 
-test('a history step into an old #connect= entry checks nothing again (c685)', async ({ page }) => {
+test('a history step into an old #connect= entry checks nothing again', async ({ page }) => {
 	const across = await stubAcross(page, three);
 	across.answers.set(HOME, true);
 	await page.goto(`${page9}?t=${TOKEN}#connect=${encodeURIComponent(HOME)}`);
@@ -1168,7 +1164,7 @@ test('a history step into an old #connect= entry checks nothing again (c685)', a
 	expect(page.url()).toBe(`${page9}?t=${TOKEN}`);
 });
 
-test('a history step into an old #lost= entry does not bring a forgotten server back (c685)', async ({
+test('a history step into an old #lost= entry does not bring a forgotten server back', async ({
 	page
 }) => {
 	const across = await stubAcross(page, [
@@ -1198,7 +1194,7 @@ test('a history step into an old #lost= entry does not bring a forgotten server 
 	expect(across.probes.filter((at) => at === GONE)).toEqual([]);
 });
 
-test('a second launch with the same address is taken again once the first has cleared its fragment (c685)', async ({
+test('a second launch with the same address is taken again once the first has cleared its fragment', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1206,7 +1202,7 @@ test('a second launch with the same address is taken again once the first has cl
 	await expect(page.locator('#connect')).toBeVisible();
 	await expect.poll(() => across.probes).toEqual([HOME]);
 	// A singleTask app started again with the same address: MainActivity's
-	// loadAsset sets the same fragment on this same document (c260). The entry
+	// loadAsset sets the same fragment on this same document. The entry
 	// has none now, so it is a change, and the address is checked again.
 	await page.evaluate((at) => {
 		location.hash = '#connect=' + encodeURIComponent(at);
@@ -1237,9 +1233,7 @@ async function holdPairing(page: Page) {
 	return navigations;
 }
 
-test('a link shows its address and stores nothing until CONNECT, then once (c683)', async ({
-	page
-}) => {
+test('a link shows its address and stores nothing until CONNECT, then once', async ({ page }) => {
 	const bridge = await stubBridge(page, { answer: true });
 	const navigations = await holdPairing(page);
 	await page.goto(`${page9}?t=${TOKEN}#ask=${encodeURIComponent(LINKED)}`);
@@ -1269,9 +1263,7 @@ test('a link shows its address and stores nothing until CONNECT, then once (c683
 	expect(bridge.remembered).toEqual([LINKED]);
 });
 
-test('the stray OK a link was opened with does not answer the question (c683)', async ({
-	page
-}) => {
+test('the stray OK a link was opened with does not answer the question', async ({ page }) => {
 	const bridge = await stubBridge(page, { answer: true });
 	await holdPairing(page);
 	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
@@ -1289,9 +1281,7 @@ test('the stray OK a link was opened with does not answer the question (c683)', 
 	expect(bridge.remembered).toEqual([]);
 });
 
-test('a #connect= for an address not in the list asks, whoever wrote it (c683)', async ({
-	page
-}) => {
+test('a #connect= for an address not in the list asks, whoever wrote it', async ({ page }) => {
 	const bridge = await stubBridge(page, { answer: true });
 	await holdPairing(page);
 	await page.goto(`${page9}#connect=${encodeURIComponent(LINKED)}`);
@@ -1302,7 +1292,7 @@ test('a #connect= for an address not in the list asks, whoever wrote it (c683)',
 	expect(bridge.remembered).toEqual([]);
 });
 
-test('an #ask= that is not http(s) is refused, and nothing is asked (c683)', async ({ page }) => {
+test('an #ask= that is not http(s) is refused, and nothing is asked', async ({ page }) => {
 	await stubBridge(page, { answer: true });
 	await page.goto(`${page9}#ask=${encodeURIComponent('javascript:alert(1)')}`);
 	await expect(page.locator('#refused')).toBeVisible();
@@ -1311,7 +1301,7 @@ test('an #ask= that is not http(s) is refused, and nothing is asked (c683)', asy
 	expect(await asked(page)).toEqual({ probes: [], remembered: [] });
 });
 
-test('a link leaves its entry without the fragment, and a history step shows 9A (c683)', async ({
+test('a link leaves its entry without the fragment, and a history step shows 9A', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1331,7 +1321,7 @@ test('a link leaves its entry without the fragment, and a history step shows 9A 
 	expect(across.remembered).toEqual([]);
 });
 
-test('a second link with the same address asks again; one with another replaces it (c683)', async ({
+test('a second link with the same address asks again; one with another replaces it', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1355,7 +1345,7 @@ test('a second link with the same address asks again; one with another replaces 
 	expect(across.remembered).toEqual([]);
 });
 
-test('a second link while CONNECT is checking drops the first answer (c683)', async ({ page }) => {
+test('a second link while CONNECT is checking drops the first answer', async ({ page }) => {
 	const bridge = await stubBridge(page, { hold: true });
 	await holdPairing(page);
 	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
@@ -1376,7 +1366,7 @@ test('a second link while CONNECT is checking drops the first answer (c683)', as
 	expect(page.url().startsWith(page9)).toBe(true);
 });
 
-test('leaving the question while CONNECT is checking drops its answer (c683)', async ({ page }) => {
+test('leaving the question while CONNECT is checking drops its answer', async ({ page }) => {
 	const bridge = await stubBridge(page, { hold: true });
 	await holdPairing(page);
 	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
@@ -1392,7 +1382,7 @@ test('leaving the question while CONNECT is checking drops its answer (c683)', a
 	expect(page.url().startsWith(page9)).toBe(true);
 });
 
-test('CONNECT is not swallowed by a late answer for the same address (c683)', async ({ page }) => {
+test('CONNECT is not swallowed by a late answer for the same address', async ({ page }) => {
 	const bridge = await stubBridge(page, { hold: true });
 	await holdPairing(page);
 	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
@@ -1416,7 +1406,7 @@ test('CONNECT is not swallowed by a late answer for the same address (c683)', as
 	await expect.poll(() => bridge.remembered).toEqual([LINKED]);
 });
 
-test('CONNECT pressed twice asks once and stores once (c683)', async ({ page }) => {
+test('CONNECT pressed twice asks once and stores once', async ({ page }) => {
 	const bridge = await stubBridge(page, { hold: true });
 	await holdPairing(page);
 	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
@@ -1441,7 +1431,7 @@ test('CONNECT pressed twice asks once and stores once (c683)', async ({ page }) 
 	await expect.poll(() => bridge.remembered).toEqual([LINKED]);
 });
 
-test('CONNECT to an address that does not answer reaches 9D and stores nothing yet (c683)', async ({
+test('CONNECT to an address that does not answer reaches 9D and stores nothing yet', async ({
 	page
 }) => {
 	const bridge = await stubBridge(page, { hold: true });
@@ -1463,9 +1453,7 @@ test('CONNECT to an address that does not answer reaches 9D and stores nothing y
 	await expect.poll(() => bridge.remembered).toEqual([LINKED]);
 });
 
-test('a refusal over the question leaves 9B as it was, not half a question (c683)', async ({
-	page
-}) => {
+test('a refusal over the question leaves 9B as it was, not half a question', async ({ page }) => {
 	await stubBridge(page, { answer: true });
 	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
 	await expect(page.locator('#already')).toBeVisible();
@@ -1480,7 +1468,7 @@ test('a refusal over the question leaves 9B as it was, not half a question (c683
 	await expect(page.locator('#address-label')).toContainText('ON ITS SCREEN');
 });
 
-test('a link to a server the list gained meanwhile opens it and stores nothing (c683)', async ({
+test('a link to a server the list gained meanwhile opens it and stores nothing', async ({
 	page
 }) => {
 	await stubServers(page, three, { [ZEN]: { ok: true } });
@@ -1491,7 +1479,7 @@ test('a link to a server the list gained meanwhile opens it and stores nothing (
 	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
 });
 
-test('BACK from the question returns to the library and saves nothing (c683)', async ({ page }) => {
+test('BACK from the question returns to the library and saves nothing', async ({ page }) => {
 	await stubServers(page, three);
 	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
 	await expect(page.locator('#already')).toBeVisible();
@@ -1504,7 +1492,7 @@ test('BACK from the question returns to the library and saves nothing (c683)', a
 	expect(await page.evaluate(() => window.__servers!.probes)).toEqual([]);
 });
 
-test("BACK from the question with no server left is the app's to take (c683)", async ({ page }) => {
+test("BACK from the question with no server left is the app's to take", async ({ page }) => {
 	await stubServers(page, []);
 	await page.goto(`${page9}#ask=${encodeURIComponent(LINKED)}`);
 	await expect(page.locator('#already')).toBeVisible();
@@ -1532,7 +1520,7 @@ for (const { where, list, backed, opened } of [
 	{ where: 'with no server left', list: [], backed: false, opened: [] }
 ])
 	for (const ok of [true, false])
-		test(`BACK while CONNECT is checking, ${where}: a late ${ok ? 'answer' : 'failure'} saves and moves nothing (c683)`, async ({
+		test(`BACK while CONNECT is checking, ${where}: a late ${ok ? 'answer' : 'failure'} saves and moves nothing`, async ({
 			page
 		}) => {
 			const across = await stubAcross(page, list);
@@ -1615,7 +1603,7 @@ async function connectByRemote(page: Page) {
 }
 
 for (const ok of [true, false])
-	test(`BACK while CONNECT is checking, no server: the question comes back, a late ${ok ? 'answer' : 'failure'} changes nothing, and CONNECT works again (c859)`, async ({
+	test(`BACK while CONNECT is checking, no server: the question comes back, a late ${ok ? 'answer' : 'failure'} changes nothing, and CONNECT works again`, async ({
 		page
 	}) => {
 		const { across, navigations } = await checkingWithNoServer(page);
@@ -1643,7 +1631,7 @@ for (const ok of [true, false])
 		expect(across.remembered).toEqual([LINKED]);
 	});
 
-test('BACK while CONNECT is checking, no server: a late answer landing after the second CONNECT pairs once (c859)', async ({
+test('BACK while CONNECT is checking, no server: a late answer landing after the second CONNECT pairs once', async ({
 	page
 }) => {
 	const { across, navigations } = await checkingWithNoServer(page);
@@ -1665,7 +1653,7 @@ test('BACK while CONNECT is checking, no server: a late answer landing after the
 	expect(navigations).toEqual([`${LINKED}/pair/tv`]);
 });
 
-test('BACK while CONNECT is checking, no server: a late failure landing after the second CONNECT reaches 9D, whose retry still pairs (c859)', async ({
+test('BACK while CONNECT is checking, no server: a late failure landing after the second CONNECT reaches 9D, whose retry still pairs', async ({
 	page
 }) => {
 	const { across, navigations } = await checkingWithNoServer(page);
@@ -1691,7 +1679,7 @@ test('BACK while CONNECT is checking, no server: a late failure landing after th
 	await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
 });
 
-test('BACK again on the question it put back answers false and changes nothing (c859)', async ({
+test('BACK again on the question it put back answers false and changes nothing', async ({
 	page
 }) => {
 	const { across, navigations } = await checkingWithNoServer(page);
@@ -1711,7 +1699,7 @@ test('BACK again on the question it put back answers false and changes nothing (
 });
 
 for (const typed of [`${LINKED}/shelf`, 'HTTPS://Library.Example.com:8443'])
-	test(`a late answer does not swallow the next CONNECT when the owner corrected the field to ${typed} (c859)`, async ({
+	test(`a late answer does not swallow the next CONNECT when the owner corrected the field to ${typed}`, async ({
 		page
 	}) => {
 		const { across, navigations } = await checkingWithNoServer(page, typed);
@@ -1727,7 +1715,7 @@ for (const typed of [`${LINKED}/shelf`, 'HTTPS://Library.Example.com:8443'])
 		await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
 	});
 
-test('with the remote throughout, the mark goes back to CONNECT and OK presses it again (c859)', async ({
+test('with the remote throughout, the mark goes back to CONNECT and OK presses it again', async ({
 	page
 }) => {
 	const across = await stubAcross(page, []);
@@ -1745,9 +1733,7 @@ test('with the remote throughout, the mark goes back to CONNECT and OK presses i
 	expect(navigations).toEqual([]);
 });
 
-test('BACK while checking leaves a mark the owner already moved off CONNECT (c859)', async ({
-	page
-}) => {
+test('BACK while checking leaves a mark the owner already moved off CONNECT', async ({ page }) => {
 	const { across, navigations } = await checkingWithNoServer(page);
 	await page.keyboard.press('ArrowDown');
 	await expect(page.locator('#last')).toBeFocused();
@@ -1756,7 +1742,7 @@ test('BACK while checking leaves a mark the owner already moved off CONNECT (c85
 	await expect(page.locator('#last')).toBeFocused();
 });
 
-test('BACK on a question nobody pressed CONNECT on leaves the mark where it was (c859)', async ({
+test('BACK on a question nobody pressed CONNECT on leaves the mark where it was', async ({
 	page
 }) => {
 	const across = await stubAcross(page, []);
@@ -1772,7 +1758,7 @@ test('BACK on a question nobody pressed CONNECT on leaves the mark where it was 
 
 // ---- c683, round 2: #lost= is a fragment too -------------------------------
 
-test('a #lost= for an origin not in the list asks: no probe and no remember until CONNECT, then one of each (c683)', async ({
+test('a #lost= for an origin not in the list asks: no probe and no remember until CONNECT, then one of each', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1798,7 +1784,7 @@ test('a #lost= for an origin not in the list asks: no probe and no remember unti
 	await expect.poll(() => navigations).toEqual([`${LINKED}/pair/tv`]);
 });
 
-test('a #lost= for a server in the list still reaches 9D, retries, and opens it (c683)', async ({
+test('a #lost= for a server in the list still reaches 9D, retries, and opens it', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1815,7 +1801,7 @@ test('a #lost= for a server in the list still reaches 9D, retries, and opens it 
 	expect(across.remembered).toEqual([]);
 });
 
-test('a #lost= spelled in capitals is still the server in the list (c683)', async ({ page }) => {
+test('a #lost= spelled in capitals is still the server in the list', async ({ page }) => {
 	const across = await stubAcross(page, three);
 	await page.goto(`${page9}#lost=${encodeURIComponent('HTTP://192.168.1.23:42143')}`);
 	await expect(page.locator('#retry')).toBeVisible();
@@ -1823,7 +1809,7 @@ test('a #lost= spelled in capitals is still the server in the list (c683)', asyn
 	expect(across.remembered).toEqual([]);
 });
 
-test('a #lost= that is not http(s) is refused, and nothing is asked (c683)', async ({ page }) => {
+test('a #lost= that is not http(s) is refused, and nothing is asked', async ({ page }) => {
 	const across = await stubAcross(page, three);
 	await page.goto(`${page9}#lost=${encodeURIComponent('ftp://zen.local')}`);
 	await expect(page.locator('#refused')).toBeVisible();
@@ -1832,7 +1818,7 @@ test('a #lost= that is not http(s) is refused, and nothing is asked (c683)', asy
 	expect(across.probes).toEqual([]);
 });
 
-test('a server remembered just before its /pair/tv failed is in the list: 9D, stored once (c683)', async ({
+test('a server remembered just before its /pair/tv failed is in the list: 9D, stored once', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1855,7 +1841,7 @@ test('a server remembered just before its /pair/tv failed is in the list: 9D, st
 	expect(across.remembered).toEqual([LINKED]);
 });
 
-test('a #lost= that asks stops the retry of the 9D it replaces (c683)', async ({ page }) => {
+test('a #lost= that asks stops the retry of the 9D it replaces', async ({ page }) => {
 	const across = await stubAcross(page, three);
 	across.answers.set(HOME, false);
 	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
@@ -1883,7 +1869,7 @@ const originOfLength = (length: number) => {
 const LONGEST = originOfLength(80);
 const TOO_LONG = originOfLength(81);
 
-test('a #lost= over 80 characters for an origin not in the list is refused, a retry tick later too (c683)', async ({
+test('a #lost= over 80 characters for an origin not in the list is refused, a retry tick later too', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1905,9 +1891,7 @@ test('a #lost= over 80 characters for an origin not in the list is refused, a re
 	await refusedAndNothingAsked();
 });
 
-test('a #lost= of exactly 80 characters for an origin not in the list asks (c683)', async ({
-	page
-}) => {
+test('a #lost= of exactly 80 characters for an origin not in the list asks', async ({ page }) => {
 	const across = await stubAcross(page, three);
 	await page.goto(`${page9}#lost=${encodeURIComponent(LONGEST)}`);
 	await expect(page.locator('#already')).toBeVisible();
@@ -1918,7 +1902,7 @@ test('a #lost= of exactly 80 characters for an origin not in the list asks (c683
 	expect(across.remembered).toEqual([]);
 });
 
-test('a #lost= over 80 characters for a server in the list still reaches 9D and retries (c683)', async ({
+test('a #lost= over 80 characters for a server in the list still reaches 9D and retries', async ({
 	page
 }) => {
 	const across = await stubAcross(page, [
@@ -1937,7 +1921,7 @@ test('a #lost= over 80 characters for a server in the list still reaches 9D and 
 	expect(across.remembered).toEqual([]);
 });
 
-test('a #connect= over 80 characters for an origin not in the list is refused (c683)', async ({
+test('a #connect= over 80 characters for an origin not in the list is refused', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -1964,7 +1948,7 @@ const setHash = (page: Page, door: string, at: string) =>
 // Every door to the question, and #long=, the activity's own for Given.door's
 // refusal: each says the real reason, stores nothing, and BACK stays the app's.
 for (const door of ['ask', 'connect', 'lost', 'long'])
-	test(`a #${door}= over 80 characters says why it was refused, and asks nothing (c683)`, async ({
+	test(`a #${door}= over 80 characters says why it was refused, and asks nothing`, async ({
 		page
 	}) => {
 		const across = await stubAcross(page, three);
@@ -1982,7 +1966,7 @@ for (const door of ['ask', 'connect', 'lost', 'long'])
 	});
 
 for (const door of ['bad', 'ask', 'connect', 'lost'])
-	test(`a #${door}= refused for its form still names the rules, not the length (c683)`, async ({
+	test(`a #${door}= refused for its form still names the rules, not the length`, async ({
 		page
 	}) => {
 		await stubAcross(page, three);
@@ -1990,7 +1974,7 @@ for (const door of ['bad', 'ask', 'connect', 'lost'])
 		await expect(page.locator('#refused-why')).toHaveText(BROKE_A_RULE);
 	});
 
-test('each refusal draws its own reason, whichever came before it (c683)', async ({ page }) => {
+test('each refusal draws its own reason, whichever came before it', async ({ page }) => {
 	await stubAcross(page, three);
 	await page.goto(`${page9}#long=${encodeURIComponent(TOO_LONG)}`);
 	await expect(page.locator('#refused-why')).toHaveText(SAYS_TOO_LONG);
@@ -2002,7 +1986,7 @@ test('each refusal draws its own reason, whichever came before it (c683)', async
 	await expect(page.locator('#refused-why')).toHaveText(BROKE_A_RULE);
 });
 
-test('the reason fits beside NOTHING WAS SAVED at a TV’s width, uncut (c683)', async ({ page }) => {
+test('the reason fits beside NOTHING WAS SAVED at a TV’s width, uncut', async ({ page }) => {
 	await stubAcross(page, three);
 	await page.goto(`${page9}#lost=${encodeURIComponent(TOO_LONG)}`);
 	const band = page.locator('#refused');
@@ -2024,9 +2008,7 @@ test('the reason fits beside NOTHING WAS SAVED at a TV’s width, uncut (c683)',
 // The same address twice: the door is settled, so the second is a hashchange and
 // is refused again, once the owner's own attempt has taken the first band away.
 for (const door of ['ask', 'connect', 'lost', 'long'])
-	test(`a #${door}= over 80 characters handed in twice is refused twice (c683)`, async ({
-		page
-	}) => {
+	test(`a #${door}= over 80 characters handed in twice is refused twice`, async ({ page }) => {
 		const across = await stubAcross(page, three);
 		await page.goto(`${page9}#${door}=${encodeURIComponent(TOO_LONG)}`);
 		await expect(page.locator('#refused')).toBeVisible();
@@ -2045,9 +2027,7 @@ for (const door of ['ask', 'connect', 'lost', 'long'])
 	});
 
 for (const door of ['lost', 'long'])
-	test(`a #${door}= over 80 characters stops the retry of the 9D it replaces (c683)`, async ({
-		page
-	}) => {
+	test(`a #${door}= over 80 characters stops the retry of the 9D it replaces`, async ({ page }) => {
 		const across = await stubAcross(page, three);
 		across.answers.set(HOME, false);
 		await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
@@ -2064,7 +2044,7 @@ for (const door of ['lost', 'long'])
 // A refusal does not take back a CONNECT the owner already pressed: only a late
 // failure is dropped, and a success still pairs (doc/ANDROID.md).
 for (const ok of [true, false])
-	test(`a link over 80 characters while CONNECT is checking: a late ${ok ? 'answer pairs what was pressed' : 'failure leaves the refusal'} (c683)`, async ({
+	test(`a link over 80 characters while CONNECT is checking: a late ${ok ? 'answer pairs what was pressed' : 'failure leaves the refusal'}`, async ({
 		page
 	}) => {
 		const across = await stubAcross(page, three);
@@ -2089,7 +2069,7 @@ for (const ok of [true, false])
 		expect(across.probes).toEqual([LINKED]);
 	});
 
-test('NEXT on the refusal, pressed twice, has nothing to ask about (c683)', async ({ page }) => {
+test('NEXT on the refusal, pressed twice, has nothing to ask about', async ({ page }) => {
 	const across = await stubAcross(page, three);
 	await page.goto(`${page9}#lost=${encodeURIComponent(TOO_LONG)}`);
 	await expect(page.locator('#next')).toBeFocused();
@@ -2100,7 +2080,7 @@ test('NEXT on the refusal, pressed twice, has nothing to ask about (c683)', asyn
 	expect(across.remembered).toEqual([]);
 });
 
-test('a #connect= over 80 characters for a server in the list opens it, with no question (c683)', async ({
+test('a #connect= over 80 characters for a server in the list opens it, with no question', async ({
 	page
 }) => {
 	const across = await stubAcross(page, [
@@ -2115,7 +2095,7 @@ test('a #connect= over 80 characters for a server in the list opens it, with no 
 	await expect(page.locator('#already')).toBeHidden();
 });
 
-test('a typed whole address stops at the field’s 80 and is not a door to the question (c683)', async ({
+test('a typed whole address stops at the field’s 80 and is not a door to the question', async ({
 	page
 }) => {
 	const across = await stubAcross(page, three);
@@ -2129,7 +2109,7 @@ test('a typed whole address stops at the field’s 80 and is not a door to the q
 	await expect(page.locator('#already')).toBeHidden();
 });
 
-test('the question fits a TV: the band whole, an 80-character address over the buttons (c683)', async ({
+test('the question fits a TV: the band whole, an 80-character address over the buttons', async ({
 	page
 }) => {
 	await stubBridge(page, { answer: true });
@@ -2189,7 +2169,7 @@ for (const [what, at, length] of [
 	['of 80 ending in a port', LAST_PORT, 80],
 	['of 24', 'https://name.ts.net:8443', 24]
 ] as const) {
-	test(`the question's hint ends above the buttons by the usual gap, for an address ${what} (c863)`, async ({
+	test(`the question's hint ends above the buttons by the usual gap, for an address ${what}`, async ({
 		page
 	}) => {
 		expect(at.length).toBe(length);
@@ -2224,7 +2204,7 @@ for (const [what, at, length] of [
 test.describe('on a phone, 360 x 780', () => {
 	test.use({ viewport: { width: 360, height: 780 } });
 
-	test('the length refusal is read whole on the phone column (c683)', async ({ page }) => {
+	test('the length refusal is read whole on the phone column', async ({ page }) => {
 		await stubAcross(page, three);
 		await page.addInitScript(() => {
 			Object.assign(window.TsundokuTV!, { form: () => 'mobile', network: () => 'home' });
@@ -2236,9 +2216,7 @@ test.describe('on a phone, 360 x 780', () => {
 			expect(await half.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
 	});
 
-	test('the question stands on the phone column, whole, with no keyboard up (c683)', async ({
-		page
-	}) => {
+	test('the question stands on the phone column, whole, with no keyboard up', async ({ page }) => {
 		await page.addInitScript(() => {
 			const w = window as unknown as { __keyboard: number };
 			w.__keyboard = 0;

@@ -211,8 +211,8 @@ describe('covers', () => {
 	});
 });
 
-describe('a first page is only a pages kind’s cover (c421)', () => {
-	// covers.ts's pageSource asks the kind's medium (card c303). The same
+describe('a first page is only a pages kind’s cover', () => {
+	// covers.ts's pageSource asks the kind's medium. The same
 	// downloaded CBZ that gives a manga its first-page cover gives a novel or
 	// an anime none: a text's cover is its EPUB's, a video has no pages.
 	it('gives a novel whose first entry is not an EPUB no page cover', async () => {
@@ -308,7 +308,7 @@ describe('page thumbnails', () => {
 	});
 });
 
-describe('covers the owner chose (c26), and a series of books’ first book (c57)', () => {
+describe('covers the owner chose, and a series of books’ first book', () => {
 	const key = (id: number) => row(id).cover_key;
 	const entryOf = (seriesId: number) =>
 		(db.prepare(`SELECT id FROM entries WHERE series_id = ?`).get(seriesId) as { id: number }).id;

@@ -15,7 +15,7 @@ import { expect, test } from './helpers/hydrated';
  * pair: Rakugaki Collection Vol. 3 and its [Digital] twin. Serial,
  * tablet-portrait only. This file owns both books; it ends on KEEP BOTH, so
  * nothing of the seed is deleted. Its last block runs its own preview and a
- * database of its own, because a decision the state refuses (c648) needs a
+ * database of its own, because a decision the state refuses needs a
  * pair the seed does not hold: an edition the book already has.
  */
 test.describe.configure({ mode: 'serial' });
@@ -121,7 +121,7 @@ test('KEEP BOTH settles it for good: the band goes', async ({ page }) => {
 	await expect(band(page)).toHaveCount(0);
 });
 
-// ---- a decision the state refuses (c648) ---------------------------------------------------
+// ---- a decision the state refuses ---------------------------------------------------
 //
 // A fold the library can't carry out -- the third language a book already has
 // -- is decided here and carried out on the next pair's decision. The review
@@ -248,11 +248,11 @@ function seedWorld(): World {
 
 let world: World | null = null;
 
-test.describe('a fold the state refuses (c648)', () => {
+test.describe('a fold the state refuses', () => {
 	test.beforeAll(async () => {
 		// It seeds a database and spawns a preview, then polls up to 60 s for
 		// it: measured at 2-3 s with the other slots at work, and the house
-		// budget is 120 s, so a loaded gate fails a case, never the hook (c599).
+		// budget is 120 s, so a loaded gate fails a case, never the hook.
 		test.setTimeout(120_000);
 		world = seedWorld();
 		const port = await freePort();
@@ -326,7 +326,7 @@ test.describe('a fold the state refuses (c648)', () => {
 		page
 	}) => {
 		// The band's OPEN → carries the fold out now and opens the book. When the
-		// state refuses it there is no folded book to open (c648).
+		// state refuses it there is no folded book to open.
 		await page.goto(`${BASE}/duplicates`);
 		await expect(page.locator('.counter')).toHaveText('01 OF 01');
 		await page.getByRole('button', { name: 'ADD AS A THIRD LANGUAGE' }).click();
@@ -344,7 +344,7 @@ test.describe('a fold the state refuses (c648)', () => {
 	});
 });
 
-// ---- OPEN → past another pair's stuck decision (c670) ---------------------------------------
+// ---- OPEN → past another pair's stuck decision ---------------------------------------
 //
 // A KEEP that cannot move its loser to the trash (EACCES, here a folder with
 // no write bit) stays waiting and is retried by every apply, while its band
@@ -451,7 +451,7 @@ function seedOpenWorld(): OpenWorld {
 
 let openWorld: OpenWorld | null = null;
 
-test.describe('OPEN → past a stuck decision (c670)', () => {
+test.describe('OPEN → past a stuck decision', () => {
 	test.beforeAll(async () => {
 		test.setTimeout(120_000);
 		openWorld = seedOpenWorld();
@@ -512,7 +512,7 @@ test.describe('OPEN → past a stuck decision (c670)', () => {
 			await expect(page.locator('.band.failed')).toContainText('IT STAYS WAITING');
 
 			// The fold itself was carried out. OPEN → opens it, though the stuck
-			// KEEP's band is still up: that band names another pair (c670).
+			// KEEP's band is still up: that band names another pair.
 			await page.getByRole('button', { name: 'OPEN →' }).click();
 			await expect(page).toHaveURL(new RegExp(`/series/${openWorld!.base}$`));
 		} finally {
@@ -520,7 +520,7 @@ test.describe('OPEN → past a stuck decision (c670)', () => {
 		}
 	});
 
-	test('UNDO of a carried-out decision says so and puts nothing back (c670)', async ({ page }) => {
+	test('UNDO of a carried-out decision says so and puts nothing back', async ({ page }) => {
 		// The case above left its stuck KEEP waiting, and every apply retries it.
 		// Take it out: this case is about UNDO's own answer, not that failure.
 		const db = new Database(dbPath2);

@@ -105,7 +105,7 @@ const bandOnly = (page: Page) =>
 /**
  * Where a drag starts: no strip, no illustration, and off the words where the
  * pointer is fine, because a mouse's drag on the words selects them and never
- * turns a page (c702; Novel D1): in the page's own margin, the one it drags
+ * turns a page (Novel D1): in the page's own margin, the one it drags
  * away from, so a long drag stays on the window.
  */
 async function middleOf(page: Page, drags: 'left' | 'right' = 'left') {
@@ -118,7 +118,7 @@ async function middleOf(page: Page, drags: 'left' | 'right' = 'left') {
 	return { x, y: v.height / 2 };
 }
 
-test('a drag short of the threshold follows the finger and goes back; past it, the page turns (c441)', async ({
+test('a drag short of the threshold follows the finger and goes back; past it, the page turns', async ({
 	page
 }) => {
 	const id = await firstChapter(page);
@@ -165,9 +165,7 @@ test('a drag short of the threshold follows the finger and goes back; past it, t
 	await expect.poll(async () => (await flow(page)).at).toBe(0);
 });
 
-test('keys slide, and a turn asked for mid-slide is taken when it lands (c441)', async ({
-	page
-}) => {
+test('keys slide, and a turn asked for mid-slide is taken when it lands', async ({ page }) => {
 	const id = await firstChapter(page);
 	await openAt(page, id);
 	const { step, pages } = await flow(page);
@@ -189,7 +187,7 @@ test('keys slide, and a turn asked for mid-slide is taken when it lands (c441)',
 	expect(await slides()).toBe(3);
 });
 
-test("across a chapter's end the next chapter's first page slides in, and back its last (c441)", async ({
+test("across a chapter's end the next chapter's first page slides in, and back its last", async ({
 	page
 }) => {
 	const id = await firstChapter(page);
@@ -203,7 +201,7 @@ test("across a chapter's end the next chapter's first page slides in, and back i
 		await expect.poll(async () => (await flow(page)).at).toBe(-i * first.step);
 		await landed(page);
 	}
-	// Turned onto it, a relayout keeps it there too, band alone or not (c516):
+	// Turned onto it, a relayout keeps it there too, band alone or not:
 	// tablet-portrait's seed chapter ends on a page that is the band alone.
 	await page.evaluate(() => window.dispatchEvent(new Event('load')));
 	await page.waitForTimeout(500);
@@ -225,7 +223,7 @@ test("across a chapter's end the next chapter's first page slides in, and back i
 	// And it stays on the chapter's last page when the chapter is laid out
 	// again, as an illustration arriving late lays it out (the reader listens
 	// for `load`), even where that page is the band alone and has no character
-	// to keep (c516): until c516 the reader went back to the page before it.
+	// to keep: until c516 the reader went back to the page before it.
 	test
 		.info()
 		.annotations.push({ type: 'band-only last page', description: String(await bandOnly(page)) });
@@ -234,7 +232,7 @@ test("across a chapter's end the next chapter's first page slides in, and back i
 	expect((await flow(page)).at).toBe(lastAt);
 });
 
-test('a scrub during a slide wins: the turn gives way instead of landing one past it (c515)', async ({
+test('a scrub during a slide wins: the turn gives way instead of landing one past it', async ({
 	page
 }) => {
 	const id = await firstChapter(page);
@@ -275,7 +273,7 @@ test('a scrub during a slide wins: the turn gives way instead of landing one pas
 	await expect(track).toHaveAttribute('aria-valuenow', '1');
 });
 
-test('a scrub onto a band-only last page during a slide wins (c515)', async ({ page }) => {
+test('a scrub onto a band-only last page during a slide wins', async ({ page }) => {
 	const id = await firstChapter(page);
 	await openAt(page, id);
 	const { step, pages } = await flow(page);
@@ -323,7 +321,7 @@ test('a scrub onto a band-only last page during a slide wins (c515)', async ({ p
 	await expect(track).toHaveAttribute('aria-valuenow', String(pages));
 });
 
-test('a second finger cancels a drag: the page goes back rather than jerking to it (c515)', async ({
+test('a second finger cancels a drag: the page goes back rather than jerking to it', async ({
 	page
 }) => {
 	test.skip(!test.info().project.use.hasTouch, 'two fingers need a touchscreen');
@@ -370,7 +368,7 @@ test('a second finger cancels a drag: the page goes back rather than jerking to 
 });
 
 /**
- * R→L for this session, from READING (c440): DIRECTION is session state until
+ * R→L for this session, from READING: DIRECTION is session state until
  * REMEMBER, which this read-only file never presses (text-reader-flow does).
  */
 async function readRtl(page: Page) {
@@ -387,7 +385,7 @@ async function readRtl(page: Page) {
 	await expect(page.locator('.flow')).toHaveClass(/\brtl\b/);
 }
 
-test('R→L: the next page lies to the left, and arrows, swipes and the edges all read on that way (c440)', async ({
+test('R→L: the next page lies to the left, and arrows, swipes and the edges all read on that way', async ({
 	page
 }) => {
 	const id = await firstChapter(page);
@@ -444,7 +442,7 @@ test('R→L: the next page lies to the left, and arrows, swipes and the edges al
 	await expect(page.locator('footer .cell.grow .sum')).toHaveText(/^PAGED R→L · /);
 });
 
-test('R→L in landscape: the right column is read first (c440)', async ({ page }) => {
+test('R→L in landscape: the right column is read first', async ({ page }) => {
 	const v = page.viewportSize()!;
 	test.skip(v.width <= v.height, 'two columns are a landscape screen’s');
 	await page.addInitScript(() => {
@@ -470,7 +468,7 @@ test('R→L in landscape: the right column is read first (c440)', async ({ page 
 	expect((await flow(page)).at).toBe(0);
 });
 
-test('with reduced motion a turn is instant and a drag does not move the page (c441)', async ({
+test('with reduced motion a turn is instant and a drag does not move the page', async ({
 	page
 }) => {
 	await page.emulateMedia({ reducedMotion: 'reduce' });

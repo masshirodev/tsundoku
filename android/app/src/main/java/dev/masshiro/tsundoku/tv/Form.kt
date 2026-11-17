@@ -14,7 +14,7 @@ package dev.masshiro.tsundoku.tv
  * | User agent      | `TsundokuTV/<version>`               | `TsundokuApp/<version>`                  |
  * | Remote keys     | MENU and the media keys (Keys.kt)    | none: a finger and the keyboard          |
  * | The cutout      | none to pad                          | padded natively (Insets.kt)              |
- * | The keyboard    | never raised by a page (c247)        | raised when a page focuses a field       |
+ * | The keyboard    | never raised by a page        | raised when a page focuses a field       |
  * | A picture full  | never: the TV is landscape           | turned to landscape by the app           |
  * | screen          | already                              | (screen.orientation.lock is refused)     |
  *
@@ -38,7 +38,7 @@ enum class Form(val id: String) {
 	 * A page that focuses a field on arrival asks the app to raise the
 	 * keyboard (the bridge's `keyboard()`): Android's WebView does not raise it
 	 * for focus a script gives without a tap. Never on a TV, whose pad covers
-	 * the buttons (c247).
+	 * the buttons.
 	 */
 	val raisesKeyboard: Boolean
 		get() = this == MOBILE

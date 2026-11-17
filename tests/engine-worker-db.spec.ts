@@ -240,7 +240,7 @@ describe('downloading a chapter', () => {
 	});
 
 	// The whole point: the file lands on the entry it is, in the series it is,
-	// attached as it's written (c170). No twin, and no IMPORTING between.
+	// attached as it's written. No twin, and no IMPORTING between.
 	it('attaches onto its own entry, in its own series, the moment it is written', async () => {
 		const before = (db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number }).n;
 		const file = join(
@@ -354,7 +354,7 @@ describe('a chapter that fails', () => {
 	});
 });
 
-describe('a chapter read online (c166)', () => {
+describe('a chapter read online', () => {
 	// Whichever chapter the tests above left without a file.
 	const missing = () =>
 		(

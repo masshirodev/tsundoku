@@ -64,13 +64,13 @@ const state = {
 	/**
 	 * A candidate's details wait until this settles, by URL: a call held open
 	 * for as long as a case needs, where a fixed `slow` is a race a loaded box
-	 * loses (c439).
+	 * loses.
 	 */
 	held: new Map<string, Promise<void>>(),
 	/** A candidate whose details fail, by URL. */
 	failing: new Set<string>(),
 	/**
-	 * A candidate whose chapter list comes back as no list at all (c539): a
+	 * A candidate whose chapter list comes back as no list at all: a
 	 * wrong answer the move code doesn't expect, so the comparison throws
 	 * rather than settling as a source that wouldn't say.
 	 */
@@ -302,7 +302,7 @@ const searches = () => state.calls.filter((c) => c.method === 'getSearchManga');
 const heads = (page: Page) => page.locator('.scroll > .ghead').allTextContents();
 const settledList = (page: Page) => expect(page.locator('.scroll .asking')).toHaveCount(0);
 
-test('the matches come first, each source with its language, and the empty and the failed fold at the end (c490)', async ({
+test('the matches come first, each source with its language, and the empty and the failed fold at the end', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -353,7 +353,7 @@ test('the matches come first, each source with its language, and the empty and t
 	await expect(failed.getByRole('link', { name: 'TRY ALL AGAIN' })).toHaveCount(1);
 });
 
-test('TRY ALL AGAIN asks only the sources that did not answer, and TRY AGAIN only its own (c490)', async ({
+test('TRY ALL AGAIN asks only the sources that did not answer, and TRY AGAIN only its own', async ({
 	page
 }) => {
 	await open(page);
@@ -380,7 +380,7 @@ test('TRY ALL AGAIN asks only the sources that did not answer, and TRY AGAIN onl
 	await expect.poll(() => searches().map((c) => c.sourceId)).toEqual(['107']);
 });
 
-test('a source that answers late joins below, and the hit under the pointer stays put (c490)', async ({
+test('a source that answers late joins below, and the hit under the pointer stays put', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -409,7 +409,7 @@ test('a source that answers late joins below, and the hit under the pointer stay
 	expect(lastHead).toContain('LATE SCANS');
 });
 
-test('beside the comparison only the list scrolls: the comparison stays and the page never moves (c490)', async ({
+test('beside the comparison only the list scrolls: the comparison stays and the page never moves', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -431,7 +431,7 @@ test('beside the comparison only the list scrolls: the comparison stays and the 
 	await expect(page.locator('.lab')).toBeInViewport();
 });
 
-test('picking a candidate asks no source again, marks it at once and shows its comparison (c491)', async ({
+test('picking a candidate asks no source again, marks it at once and shows its comparison', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -464,7 +464,7 @@ test('picking a candidate asks no source again, marks it at once and shows its c
 	await expect(page.locator('.scroll .asking')).toHaveCount(0);
 });
 
-test('a second quick pick wins over the first one’s late answer, and BACK and a reload land on the URL’s (c491)', async ({
+test('a second quick pick wins over the first one’s late answer, and BACK and a reload land on the URL’s', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -502,7 +502,7 @@ test('a second quick pick wins over the first one’s late answer, and BACK and 
 	await expect(page.locator('a.cand.on')).toContainText(CAND.a.title);
 });
 
-test('a comparison that fails says so with TRY AGAIN, and MOVE is off until it answers (c491)', async ({
+test('a comparison that fails says so with TRY AGAIN, and MOVE is off until it answers', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -531,7 +531,7 @@ test('a comparison that fails says so with TRY AGAIN, and MOVE is off until it a
 const detailsFor = (url: string) =>
 	state.calls.filter((c) => c.method === 'getDetailsManga' && c.url === url).length;
 
-test('three quick picks on one slow source: one details call each at most, and a dropped one that was waiting never asks (c539)', async ({
+test('three quick picks on one slow source: one details call each at most, and a dropped one that was waiting never asks', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -543,7 +543,7 @@ test('three quick picks on one slow source: one details call each at most, and a
 	// so a C asked behind both would land last. A was a fixed 2.5 s until wave
 	// 23: under load the two clicks below took longer than that, A's call had
 	// ended, B was no longer waiting but running, and the engine heard of it
-	// (red in wave 22's gate, passing alone; c439).
+	// (red in wave 22's gate, passing alone).
 	let releaseA!: () => void;
 	state.held.set(CAND.a.url, new Promise<void>((r) => (releaseA = r)));
 	state.slow.set(CAND.b.url, 2500);
@@ -581,7 +581,7 @@ test('three quick picks on one slow source: one details call each at most, and a
 	// picks reach the page's endpoint, and the page has dropped B's ask (C's
 	// pick aborts it), before A's call ends. The endpoint drops B on either
 	// sign: its abort (`request.signal`), or C, a newer pick of the series
-	// from the same source, queued behind it (c567). A is let go once the
+	// from the same source, queued behind it. A is let go once the
 	// page has given B's request up; the case below lets it go sooner.
 	await page.locator('a.cand', { hasText: CAND.b.title }).click();
 	await page.locator('a.cand', { hasText: CAND.c.title }).click();
@@ -591,7 +591,7 @@ test('three quick picks on one slow source: one details call each at most, and a
 	// The page's `request` event is the page asking, not the request on the
 	// wire: measured in wave 25, C reached the server up to 11 ms after A was
 	// let go on a loaded box, and a turn could reach B before either sign
-	// (c567). Chromium's network stack says when it sent a request's own
+	//. Chromium's network stack says when it sent a request's own
 	// headers (`requestWillBeSentExtraInfo`), the nearest outward mark of C
 	// leaving for the server.
 	await expect.poll(() => onWire.has(compares.find(to(CAND.c)) ?? '')).toBe(true);
@@ -619,7 +619,7 @@ test('three quick picks on one slow source: one details call each at most, and a
 
 /**
  * The same three picks at wave 23's timing, the state the 1-in-10 red lived
- * in (c567): A is let go as soon as C's ask is sent, before anything says
+ * in: A is let go as soon as C's ask is sent, before anything says
  * B's was dropped. The server hears of B's abort only once its socket closes
  * (wave 24 measured it 4-279 ms after the page gave B up), so a turn can
  * come to B before then; B must still never ask, because C was queued
@@ -634,7 +634,7 @@ test('three quick picks on one slow source: one details call each at most, and a
  * read the server's order of C's queueing against B's turn before calling
  * it a regression.
  */
-test('three quick picks at the old timing: A let go once C is sent, and the dropped B still never asks (c567)', async ({
+test('three quick picks at the old timing: A let go once C is sent, and the dropped B still never asks', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -669,13 +669,13 @@ test('three quick picks at the old timing: A let go once C is sent, and the drop
 });
 
 /**
- * The rule at its limit (c567): a waiting pick whose abort never reaches the
+ * The rule at its limit: a waiting pick whose abort never reaches the
  * server at all. B is asked from the test's own request context, which never
  * gives it up, the way a socket the server has not yet heard close looks to
  * the server; then the page picks C. Only the newer pick can drop B here, so
  * this case is red on an `inTurn` without the rule (every copy, not 1 in 10).
  */
-test('a waiting pick whose abort never arrives is dropped by the newer pick behind it, without asking (c567)', async ({
+test('a waiting pick whose abort never arrives is dropped by the newer pick behind it, without asking', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -725,7 +725,7 @@ test('a waiting pick whose abort never arrives is dropped by the newer pick behi
 	expect(detailsFor(CAND.c.url)).toBe(1);
 });
 
-test('a tap made while the URL has an offset asks once, without it (c539)', async ({ page }) => {
+test('a tap made while the URL has an offset asks once, without it', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 	const toA = candidateId('101', CAND.a.url);
 	await open(page, `?to=${encodeURIComponent(toA)}&offset=3`);
@@ -745,7 +745,7 @@ test('a tap made while the URL has an offset asks once, without it (c539)', asyn
 	expect(detailsFor(CAND.b.url)).toBe(1);
 });
 
-test('a second tap on the picked candidate leaves the URL’s offset in charge: a later offset is asked once (c539, round 2)', async ({
+test('a second tap on the picked candidate leaves the URL’s offset in charge: a later offset is asked once', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -792,7 +792,7 @@ test('a second tap on the picked candidate leaves the URL’s offset in charge: 
 	expect(compares).toHaveLength(1);
 });
 
-test('a streamed comparison that throws becomes TRY AGAIN, not ASKING for good (c539)', async ({
+test('a streamed comparison that throws becomes TRY AGAIN, not ASKING for good', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -812,9 +812,7 @@ test('a streamed comparison that throws becomes TRY AGAIN, not ASKING for good (
 	await expect(page.getByRole('heading', { name: CAND.b.title })).toBeVisible();
 });
 
-test('without script a pick is a page of its own, with its comparison (c491)', async ({
-	browser
-}) => {
+test('without script a pick is a page of its own, with its comparison', async ({ browser }) => {
 	const ctx = await browser.newContext({
 		javaScriptEnabled: false,
 		storageState: test.info().project.use.storageState

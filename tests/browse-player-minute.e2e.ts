@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from './fixtures';
 
 /**
- * The player's minute step (c865, doc/ANIME.md "The player"): a press of +1m or
+ * The player's minute step (doc/ANIME.md "The player"): a press of +1m or
  * −1m moves 60 s, from a desktop's bar cell, a touch tablet's middle cluster and
  * a phone's portrait row, while ← → keep moving 10 s. On the browse server's
  * "Tsukiakari no Ryokōsha", whose fixture clip is 8 s: the standing clip is
@@ -96,7 +96,7 @@ async function minuteLands(page: Page, label: string, from: number, to: number):
 	await pauseAt(page, from);
 	await page.getByRole('button', { name: label, exact: true }).click();
 	await expect.poll(() => at(page)).toBeCloseTo(to, 1);
-	// ← → are the fine step and were not swept up by the minute (c865).
+	// ← → are the fine step and were not swept up by the minute.
 	await page.keyboard.press('ArrowLeft');
 	await expect.poll(() => at(page)).toBeCloseTo(to - 10, 1);
 }

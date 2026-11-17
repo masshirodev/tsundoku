@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { lnSchema, lnValues, type LnFilters } from '$lib/library/lnreader-filters';
 import { readFilters, writeFilters } from '$lib/library/browse-filters';
 
-// LNReader's filters as BROWSE draws them, and back (doc/NOVELS.md; card c149).
+// LNReader's filters as BROWSE draws them, and back (doc/NOVELS.md).
 // Shaped as lnreader-plugins' filter types are (src/types/filters.ts, MIT).
 const raw: LnFilters = {
 	sort: {

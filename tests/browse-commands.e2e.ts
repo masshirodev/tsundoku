@@ -11,12 +11,12 @@ import { startPreview } from './highlights-preview';
 import { HOST_ARGS } from './helpers/host-args';
 
 /**
- * Commands in every top search bar (card c697), in BROWSE's world so the
+ * Commands in every top search bar, in BROWSE's world so the
  * source and EXTENSIONS bars can be driven with their fake engine. A leading
  * `/` runs the library's own command (`/api/command`, the same `runCommand`
  * its `?/command` action calls) and the screen stays where it was; anything
  * else is still the bar's own filter. The cases that enrol Chromium's virtual
- * authenticator run in a world of their own (c712, at the end of this file):
+ * authenticator run in a world of their own (at the end of this file):
  * while a gate stands on a database, `/reveal` takes the gated path for every
  * browser on it, so it must not stand on the one every `browse-*` file shares.
  */
@@ -90,7 +90,7 @@ test('/settings opens the page from a bar', async ({ page }) => {
 
 test('a go=1 link runs no command, and is taken off the URL', async ({ page }) => {
 	// The intent to run on arrival travels in history state; a typed or shared
-	// `?go=1` link is not one (c697, round 2; c710). The prompt half of the
+	// `?go=1` link is not one. The prompt half of the
 	// rule, with a device that would answer it, is in the gated world below.
 	await page.goto('/search?q=%2Freveal&go=1');
 	await expect(page.getByRole('searchbox')).toHaveValue('/reveal');
@@ -154,7 +154,7 @@ test('a command that got no answer lets the next press run', async ({ page }) =>
  * emulation (playwright.config.ts's `tv` project says why), and the browse
  * project's Galaxy Tab has a coarse one, so a TV case launches its own
  * Chromium with the `tv` project's own arguments and carries this context's
- * sign-in cookie to it. One runner backs every bar (c697), so EXTENSIONS
+ * sign-in cookie to it. One runner backs every bar, so EXTENSIONS
  * stands for the three -- and only BROWSE has a server with an engine, which
  * EXTENSIONS needs, so the `tv` project's shared preview cannot show it.
  */
@@ -223,7 +223,7 @@ test('on a TV, the refusal still shows while another command runs', async ({ pag
 	});
 });
 
-// ---- a gated box, on a database of its own (c712) -----------------------------------------
+// ---- a gated box, on a database of its own -----------------------------------------
 
 /** The port the OS has free now; `startPreview` says so if another takes it first. */
 const freePort = () =>
@@ -249,11 +249,11 @@ function stop(child: ChildProcess): Promise<void> {
 	});
 }
 
-test.describe('a gated box (c712)', () => {
+test.describe('a gated box', () => {
 	let work = '';
 	let base = '';
 	let preview: ChildProcess | null = null;
-	/** So a teardown that fails cannot be read in place of a case that failed (c649). */
+	/** So a teardown that fails cannot be read in place of a case that failed. */
 	let bodyFailed = false;
 	/** This test's virtual authenticator, kept so the teardown answers for the credential it enrolled. */
 	let session: { cdp: CDPSession; id: string } | null = null;
@@ -375,7 +375,7 @@ test.describe('a gated box (c712)', () => {
 		await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
 	}
 
-	test('a gated /reveal from EXTENSIONS raises the device prompt, and reveal turns on (c711)', async ({
+	test('a gated /reveal from EXTENSIONS raises the device prompt, and reveal turns on', async ({
 		page,
 		browser
 	}) => {
@@ -429,7 +429,7 @@ test.describe('a gated box (c712)', () => {
 		await expect(page.getByText('UNLOCKED · /reveal ASKS NOTHING')).toBeVisible();
 	});
 
-	test('a refused fingerprint from a bar shows nothing, and only a new press asks again (c711)', async ({
+	test('a refused fingerprint from a bar shows nothing, and only a new press asks again', async ({
 		page
 	}) => {
 		await gateTheBox(page);
@@ -468,7 +468,7 @@ test.describe('a gated box (c712)', () => {
 		expect(asked).toEqual(['reveal', 'reveal']);
 	});
 
-	test('a double press on a bar is one run: one POST, one prompt, nothing on the back (round 2)', async ({
+	test('a double press on a bar is one run: one POST, one prompt, nothing on the back', async ({
 		page
 	}) => {
 		await gateTheBox(page);
@@ -509,7 +509,7 @@ test.describe('a gated box (c712)', () => {
 		expect(posts).toBe(1);
 	});
 
-	test('a press during a running ceremony starts no other (round 2)', async ({ page }) => {
+	test('a press during a running ceremony starts no other', async ({ page }) => {
 		await gateTheBox(page);
 		const asked = promptsAsked(page);
 		await page.route('**/api/unlock/options', async (route) => {
@@ -529,7 +529,7 @@ test.describe('a gated box (c712)', () => {
 		expect(asked).toEqual(['reveal']);
 	});
 
-	test('an options request that never answers ends the wait, and a new press asks again (round 2)', async ({
+	test('an options request that never answers ends the wait, and a new press asks again', async ({
 		page
 	}) => {
 		await gateTheBox(page);
@@ -545,7 +545,7 @@ test.describe('a gated box (c712)', () => {
 		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
 	});
 
-	test('a go=1 link for /reveal behind a gate raises no prompt (c710, c711)', async ({ page }) => {
+	test('a go=1 link for /reveal behind a gate raises no prompt', async ({ page }) => {
 		await gateTheBox(page);
 		const asked = promptsAsked(page);
 		await follow(page, '/search?q=%2Freveal&go=1');
@@ -562,7 +562,7 @@ test.describe('a gated box (c712)', () => {
 		expect(asked).toEqual(['reveal']);
 	});
 
-	test('on a TV, a gated box still refuses /reveal in its own words, before asking (c711)', async ({
+	test('on a TV, a gated box still refuses /reveal in its own words, before asking', async ({
 		page
 	}) => {
 		await gateTheBox(page);
@@ -618,7 +618,7 @@ test.describe('a gated box (c712)', () => {
 	const follow = (page: Page, href: string) =>
 		page.evaluate((to) => location.assign(to), `${base}${href}`);
 
-	test('a go=1 link raises no prompt, for /lock or /unlock, until a key is pressed (c710)', async ({
+	test('a go=1 link raises no prompt, for /lock or /unlock, until a key is pressed', async ({
 		page
 	}) => {
 		await authenticator(page);
@@ -661,7 +661,7 @@ test.describe('a gated box (c712)', () => {
 		expect(asked).toEqual(['enrol']);
 	});
 
-	test('a command carried from a bar is spent once it has run: the reload, the back, the second press (c710)', async ({
+	test('a command carried from a bar is spent once it has run: the reload, the back, the second press', async ({
 		page
 	}) => {
 		await authenticator(page);

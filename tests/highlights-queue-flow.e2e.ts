@@ -10,7 +10,7 @@ import { startPreview } from './highlights-preview';
 
 /**
  * A page kept offline waits on the device and is sent at the next connection
- * (c842; doc/HIGHLIGHTS.md and doc/OFFLINE.md): the band says so and DON'T SEND
+ * (doc/HIGHLIGHTS.md and doc/OFFLINE.md): the band says so and DON'T SEND
  * undoes it, two presses are one, closing the app loses nothing, and the
  * layout sends it from any screen with no further press; a page the
  * workstation refuses on arrival is told at the next reader. Writes highlights,
@@ -165,7 +165,7 @@ async function keepOffline(page: Page, context: BrowserContext) {
 	await expect(cell(page)).toHaveText('KEEPING…');
 }
 
-test('a page kept offline waits, and two presses are one; it is sent at the next connection with no press (c842)', async ({
+test('a page kept offline waits, and two presses are one; it is sent at the next connection with no press', async ({
 	page,
 	context
 }) => {
@@ -187,7 +187,7 @@ test('a page kept offline waits, and two presses are one; it is sent at the next
 	await expect.poll(() => queued(page)).toEqual([]);
 });
 
-test("DON'T SEND before it is sent: nothing is asked and nothing is kept (c842)", async ({
+test("DON'T SEND before it is sent: nothing is asked and nothing is kept", async ({
 	page,
 	context
 }) => {
@@ -205,7 +205,7 @@ test("DON'T SEND before it is sent: nothing is asked and nothing is kept (c842)"
 	expect(keptPages(entry)).not.toContain(7);
 });
 
-test('the app closed while it waits: the next open of any screen sends it (c842)', async ({
+test('the app closed while it waits: the next open of any screen sends it', async ({
 	page,
 	context
 }) => {
@@ -222,7 +222,7 @@ test('the app closed while it waits: the next open of any screen sends it (c842)
 	await expect(again.locator('body')).toContainText('Chainsaw Man');
 });
 
-test('refused on arrival: the next reader says so, and DISMISS forgets it (c842)', async ({
+test('refused on arrival: the next reader says so, and DISMISS forgets it', async ({
 	page,
 	context
 }) => {
@@ -255,7 +255,7 @@ test('refused on arrival: the next reader says so, and DISMISS forgets it (c842)
 	await expect(band(page)).toHaveCount(0);
 });
 
-test('incognito keeps nothing, online or off (c842)', async ({ page, context }) => {
+test('incognito keeps nothing, online or off', async ({ page, context }) => {
 	await context.addCookies([{ name: 'tsundoku_incognito', value: '1', url: base }]);
 	const entry = firstEntry('Yofukashi no Uta');
 	await readAt(page, entry, 5);
@@ -268,7 +268,7 @@ test('incognito keeps nothing, online or off (c842)', async ({ page, context }) 
 	expect(keptPages(entry)).toEqual([]);
 });
 
-test('a hidden series or reveal keeps nothing on the device, where a public page does (c842)', async ({
+test('a hidden series or reveal keeps nothing on the device, where a public page does', async ({
 	page,
 	context
 }) => {
@@ -312,7 +312,7 @@ test('a hidden series or reveal keeps nothing on the device, where a public page
 	}
 });
 
-test('several refused: the band counts them and names no series (c842)', async ({ page }) => {
+test('several refused: the band counts them and names no series', async ({ page }) => {
 	const entry = firstEntry('Yofukashi no Uta');
 	let answer = 0;
 	await page.route(PAGES, (r) =>
@@ -334,7 +334,7 @@ test('several refused: the band counts them and names no series (c842)', async (
 	await expect(band(page)).not.toContainText(/yofukashi/i);
 });
 
-test('the workstation does not answer and the device says online: it waits, and goes by itself (c842)', async ({
+test('the workstation does not answer and the device says online: it waits, and goes by itself', async ({
 	page
 }) => {
 	const entry = firstEntry('Chainsaw Man');
@@ -360,7 +360,7 @@ test('the workstation does not answer and the device says online: it waits, and 
 	await expect.poll(() => queued(page)).toEqual([]);
 });
 
-test('a connection back that still cannot reach it: the item goes when it can (c842)', async ({
+test('a connection back that still cannot reach it: the item goes when it can', async ({
 	page,
 	context
 }) => {
@@ -381,7 +381,7 @@ test('a connection back that still cannot reach it: the item goes when it can (c
 	await expect.poll(() => queued(page)).toEqual([]);
 });
 
-test('a reload while the workstation is away: the row stays and the trying starts again (c842)', async ({
+test('a reload while the workstation is away: the row stays and the trying starts again', async ({
 	page
 }) => {
 	const entry = firstEntry('Chainsaw Man');
@@ -397,7 +397,7 @@ test('a reload while the workstation is away: the row stays and the trying start
 	await expect.poll(() => queued(page)).toEqual([]);
 });
 
-test('two tabs trying at once leave one highlight (c842)', async ({ page, context }) => {
+test('two tabs trying at once leave one highlight', async ({ page, context }) => {
 	const entry = firstEntry('Hikaru ga Shinda Natsu');
 	let asked = 0;
 	await context.route(PAGES, (r) => {
@@ -418,7 +418,7 @@ test('two tabs trying at once leave one highlight (c842)', async ({ page, contex
 	await other.close();
 });
 
-test("DON'T SEND with the retry running: it stops asking, and nothing is kept (c842)", async ({
+test("DON'T SEND with the retry running: it stops asking, and nothing is kept", async ({
 	page
 }) => {
 	const entry = firstEntry('Hikaru ga Shinda Natsu');
@@ -441,7 +441,7 @@ test("DON'T SEND with the retry running: it stops asking, and nothing is kept (c
 	expect(keptPages(entry)).not.toContain(15);
 });
 
-test('incognito on at the retry: nothing is kept, it stays, and it goes when incognito ends (c842)', async ({
+test('incognito on at the retry: nothing is kept, it stays, and it goes when incognito ends', async ({
 	page,
 	context
 }) => {
@@ -463,7 +463,7 @@ test('incognito on at the retry: nothing is kept, it stays, and it goes when inc
 	await expect.poll(() => keptPages(entry), { timeout: 40_000 }).toContain(7);
 });
 
-test('a page now kept online is not told as refused any more (c842)', async ({ page, context }) => {
+test('a page now kept online is not told as refused any more', async ({ page, context }) => {
 	const entry = firstEntry('Hikaru ga Shinda Natsu');
 	await readAt(page, entry, 12);
 	await page.route(PAGES, (r) => r.fulfill({ status: 404, json: { error: 'not found' } }));

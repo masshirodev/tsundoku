@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * The address the TV fills in for itself (c236; TV-Pair.dc.html, 9B): its own
+ * The address the TV fills in for itself (TV-Pair.dc.html, 9B): its own
  * network's first three numbers, so only the last one is typed. Pure, so the
  * parsing is tested without a socket.
  */
@@ -28,7 +28,7 @@ object Address {
 	 * `http://`, and a trailing slash or path is dropped. The whole-address
 	 * field is for Tailscale and another port, so https and a name are kept.
 	 *
-	 * The scheme and the host come back lower case (c548), as [intentOrigin]
+	 * The scheme and the host come back lower case, as [intentOrigin]
 	 * has them, and as WebView's URL and the page's own `location.origin`
 	 * do: `http://Zen.local:42143` typed in 9B is the server whose pages load
 	 * at `http://zen.local:42143`, so BridgeGuard, FailedLoad and
@@ -63,7 +63,7 @@ object Address {
 	}
 
 	/**
-	 * An address handed to the app from outside (c260): a launch extra or a
+	 * An address handed to the app from outside: a launch extra or a
 	 * `tsundoku://connect?url=` link. Nothing was typed on the TV, so unlike
 	 * [originOf] a bare `host:port` is not enough: the scheme must be one a
 	 * WebView opens, and a host must be there.

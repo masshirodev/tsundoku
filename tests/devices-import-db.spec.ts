@@ -1298,7 +1298,7 @@ describe('a renamed folder series a backup adopts', () => {
  * tsundoku downloads chapter 5, the folder's plan meets the backup's series by
  * it (`adoptNamed`), and the folder's series is folded into it.
  */
-describe('a fold keeps a Work hidden or shown whole (c389)', () => {
+describe('a fold keeps a Work hidden or shown whole', () => {
 	const at = 1_800_003_000_000;
 	const works = () => import('$lib/server/works');
 	const one = <T>(sql: string, ...args: unknown[]) =>
@@ -1443,7 +1443,7 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		expect(await visibility(made.shownWork)).toEqual(['hidden', 'hidden']);
 	});
 
-	it('names the Work the third shape dropped in the import’s summary, and only that one (c472)', async () => {
+	it('names the Work the third shape dropped in the import’s summary, and only that one', async () => {
 		const { droppedLine } = await import('$lib/server/import/fold');
 		// Reached through the importer's own door: the scan that folded the
 		// pairs. Shapes 1 and 2 kept every membership (one Work between them);
@@ -1467,7 +1467,7 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		]);
 	});
 
-	it('shows the dropped Work in IMPORT LOG, through the page’s own load, from that scan (c570)', async () => {
+	it('shows the dropped Work in IMPORT LOG, through the page’s own load, from that scan', async () => {
 		const { load } = await import('../src/routes/import/log/+page.server');
 		const { REVEAL_COOKIE, revealValue } = await import('$lib/server/prefs');
 		const logOf = async (reveal: boolean) =>
@@ -1495,7 +1495,7 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		expect(plain?.dropped).toEqual([]);
 	});
 
-	it('links a dropped Work only while that Work, by id and created_at, still exists (c570)', async () => {
+	it('links a dropped Work only while that Work, by id and created_at, still exists', async () => {
 		const w = await works();
 		const { droppedOf } = await import('$lib/server/import/log');
 		// Two visible series in no Work, from the library's first scans.
@@ -1564,7 +1564,7 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 			expect(droppedOf(bad, true)).toEqual([]);
 	});
 
-	it('draws no dropped line, reveal off, once the Work it names is hidden after the fold (c570 r2)', async () => {
+	it('draws no dropped line, reveal off, once the Work it names is hidden after the fold', async () => {
 		const w = await works();
 		const { droppedOf } = await import('$lib/server/import/log');
 		const free = db()
@@ -1617,7 +1617,7 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		]);
 	});
 
-	it('keeps on the job’s row whether the survivor was hidden at its fold (c633)', () => {
+	it('keeps on the job’s row whether the survivor was hidden at its fold', () => {
 		const kept = JSON.parse(
 			one<{ dropped: string }>(`SELECT dropped FROM scan_jobs WHERE id = ?`, folding!.jobId).dropped
 		) as { work: string; hiddenAtFold?: boolean }[];
@@ -1625,7 +1625,7 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		expect(kept).toEqual([expect.objectContaining({ work: 'Hidden Work', hiddenAtFold: true })]);
 	});
 
-	describe('with reveal off, what belongs to hidden series is counted and never named (c633)', () => {
+	describe('with reveal off, what belongs to hidden series is counted and never named', () => {
 		type Entry = {
 			kind: string;
 			id: number;
@@ -1908,7 +1908,7 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
  * backup's chapter path) under the exact title, or the engine's own name for
  * the key's source; a title and chapter numbers alone stay apart.
  */
-describe('a backup that names no source (c258)', () => {
+describe('a backup that names no source', () => {
 	const at = 1_800_004_000_000;
 	const ADDRESSED = 9_300_000_000_000_000_001n;
 	const ENGINE = 9_300_000_000_000_000_002n;
@@ -2048,7 +2048,7 @@ describe('a backup that names no source (c258)', () => {
  * arrives and stays visible. (import-db.spec.ts holds the other orders, the
  * shared name and the language.)
  */
-describe('ADDED HIDDEN reaches a download folder before the library’s backup names it (c571)', () => {
+describe('ADDED HIDDEN reaches a download folder before the library’s backup names it', () => {
 	const at = 1_800_005_000_000;
 	const SWITCHED = 9_300_000_000_000_000_011n;
 	const UNSWITCHED = 9_300_000_000_000_000_012n;

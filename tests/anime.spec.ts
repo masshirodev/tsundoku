@@ -19,7 +19,7 @@ import {
 } from '$lib/library/anime';
 import type { SeriesEntry } from '$lib/library/series';
 
-// Anime's words (doc/ANIME.md; card c153), as Anime States and Anime Calls draw them.
+// Anime's words (doc/ANIME.md), as Anime States and Anime Calls draw them.
 const ep = (
 	n: number,
 	o: Omit<Partial<SeriesEntry>, 'episode'> & { episode?: Partial<Episode> | null } = {}

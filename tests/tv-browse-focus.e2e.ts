@@ -17,7 +17,7 @@ import { freePort } from './helpers/tag-world';
  * neighbour or bar drawn over it. It also walks the ways back a tag opens:
  * the catalog's ← and the preview's ← each land on the screen they name, never
  * on the tag search they share a path with, and the tile the reader left comes
- * back with a plain navigation (c864). On a world of its own, because the catalog
+ * back with a plain navigation. On a world of its own, because the catalog
  * needs a grid with neighbours on all sides and a LATEST tab, which the tag
  * world (one result, no LATEST) cannot give, and the browse world's engine is
  * steered by the `browse` project running beside this one.
@@ -51,7 +51,7 @@ function seed(dbPath: string): void {
 /** A page of a list, as a source answers: enough tiles for a row below a row. */
 /**
  * The page-list calls the fake source is asked for, so a way back can say it
- * asked for none of what was drawn (c930). Reset before the return.
+ * asked for none of what was drawn. Reset before the return.
  */
 let asks: string[] = [];
 
@@ -87,7 +87,7 @@ function startEngine(port: number): Promise<Server> {
 				case 'supportLatestManga':
 					return json(true);
 				case 'getPopularManga':
-					// Two pages, so a place deep in the list is a real one (c930).
+					// Two pages, so a place deep in the list is a real one.
 					return json((b.page ?? 1) === 1 ? page14('Popular', true) : page14('Popular two'));
 				case 'getLatestManga':
 					return json(page14('Latest'));
@@ -99,7 +99,7 @@ function startEngine(port: number): Promise<Server> {
 						title: 'A Preview',
 						description: 'One to come back from.',
 						status: 1,
-						// A tag to leave the preview by (c456); the search for it is a plain `q=`.
+						// A tag to leave the preview by; the search for it is a plain `q=`.
 						author: 'Ren Kisaragi'
 					});
 				case 'getChapterList':
@@ -374,7 +374,7 @@ test('ADD from a preview: BACK is one press, onto the catalog at its place', asy
 	await page.keyboard.press('Enter');
 	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/series\/\d+$/);
 	await expect(page.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })).toBeVisible();
-	// One press of BACK (c932: the add replaced the preview's entry) lands on the
+	// One press of BACK (the add replaced the preview's entry) lands on the
 	// catalog, not on the preview again.
 	await page.evaluate(() =>
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'GoBack', bubbles: true }))
@@ -536,7 +536,7 @@ test('a tag from a preview: each ← lands on the screen it names, and the list�
 	await press(page, previewBack(page, `/browse/${SOURCE.id}?tab=latest`));
 	await expectWhere(page, `/browse/${SOURCE.id}?tab=latest`);
 	// The list's own mark still comes back with it: a plain way back has no
-	// popstate to restore it, so the catalog restores it on arrival (c864).
+	// popstate to restore it, so the catalog restores it on arrival.
 	await expect(page.locator('.grid a.tile:focus .t')).toHaveText(left as string);
 	await expectMark(page);
 });

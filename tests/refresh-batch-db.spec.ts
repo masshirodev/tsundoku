@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 process.env.DATABASE_PATH = ':memory:';
 
 /**
- * REFRESH over a selection (card c221): what `refreshMany` orchestrates. The
+ * REFRESH over a selection: what `refreshMany` orchestrates. The
  * three kinds' own asks are `refreshSeries`' and are tested against real test
  * sources (engine-backend-db, anime-source-db, novel-download-db); the source
  * here is a stub for each, so a throwing, silent or hanging one can be asked

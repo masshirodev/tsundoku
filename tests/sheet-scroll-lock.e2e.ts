@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test';
  * The page holds still under an open sheet (src/lib/scroll-lock.ts): the
  * owner could scroll the library behind MORE on a phone (2026-11-13). Every
  * sheet is the one Sheet component, so MORE stands for all of them. The
- * overlays that draw their own scrim take the same lock (c1033): FILTER stands
+ * overlays that draw their own scrim take the same lock: FILTER stands
  * for the panels, READING over the strip for the readers' sheets. Read-only:
  * each cover is only opened and closed, the reader in incognito.
  */

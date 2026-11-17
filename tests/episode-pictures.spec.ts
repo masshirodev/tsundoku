@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { frameAt, isBlankFrame } from '$lib/library/episode-pictures';
 
 // Where a frame of an episode is taken, and which frames don't count
-// (doc/ANIME.md, "Episode pictures"; card c225).
+// (doc/ANIME.md, "Episode pictures").
 describe('a frame of an episode', () => {
 	it('is taken a quarter in, then further on when that one is blank', () => {
 		expect(frameAt(1440, 0)).toBe(360);

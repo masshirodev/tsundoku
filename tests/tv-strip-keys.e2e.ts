@@ -4,7 +4,7 @@ import { expect, readerReady, test } from './fixtures';
  * The vertical strip's ← and → on a TV (c527; doc/READER.md, "On a TV and on
  * a remote"): with the controls hidden a remote's → and ← nudge the strip as
  * a keyboard's do, since a remote has no Ctrl for Ctrl + ↓ / ↑; with them up
- * the arrows stay the focus layer's (c253, `tv-reader.e2e.ts`). Runs in the
+ * the arrows stay the focus layer's (`tv-reader.e2e.ts`). Runs in the
  * `tv` project, where the pad is the only input. Read-only: incognito, on the
  * series reader-layout and tv-reader read (Sousou no Frieren), switched to the
  * strip from READING, whose mode is session state that only REMEMBER stores.

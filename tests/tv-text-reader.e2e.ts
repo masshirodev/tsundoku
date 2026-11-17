@@ -8,7 +8,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * The text reader on a TV: its chrome (c241) -- OK brings it up as a focus row,
+ * The text reader on a TV: its chrome -- OK brings it up as a focus row,
  * the pad reaches READING, and LAYOUT changes by keys alone -- and its end page,
  * which takes the pad as the image reader's does (c280: a novel's last volume
  * is EndPage, so its cells are the Work's block, the rating and the foot).
@@ -111,7 +111,7 @@ test('OK brings the chrome as a focus row, and READING changes LAYOUT by keys', 
 	await expect(reading).toContainText(started === paged ? 'PAGED' : 'SCROLL');
 });
 
-test('DIRECTION is reachable by the pad, and R→L turns the remote’s ← forward (c440)', async ({
+test('DIRECTION is reachable by the pad, and R→L turns the remote’s ← forward', async ({
 	page
 }) => {
 	await open(page);
@@ -156,7 +156,7 @@ test('DIRECTION is reachable by the pad, and R→L turns the remote’s ← forw
 	await expect.poll(at).toBe(before);
 });
 
-test('WIDTH is reachable by the pad: ↓ to its row, → along it, OK takes it, BACK closes (c437)', async ({
+test('WIDTH is reachable by the pad: ↓ to its row, → along it, OK takes it, BACK closes', async ({
 	page
 }) => {
 	await open(page);
@@ -194,7 +194,7 @@ test('WIDTH is reachable by the pad: ↓ to its row, → along it, OK takes it, 
 	// WIDTH lives in this context's own storage: nothing to put back.
 });
 
-test('a sheet on its way out keeps no keys: ↓ at once after BACK reaches the cells (c445)', async ({
+test('a sheet on its way out keeps no keys: ↓ at once after BACK reaches the cells', async ({
 	page
 }) => {
 	await open(page);
@@ -227,7 +227,7 @@ test('a sheet on its way out keeps no keys: ↓ at once after BACK reaches the c
 	await expect(reading).toBeFocused();
 });
 
-test('CONTENTS is a focus scope: OK lands on a row, and BACK gives the pad back to the cell (c250)', async ({
+test('CONTENTS is a focus scope: OK lands on a row, and BACK gives the pad back to the cell', async ({
 	page
 }) => {
 	await open(page);
@@ -287,7 +287,7 @@ test('the end of the book takes the pad: its cells are reachable, as the image r
 		.toBe(true);
 });
 
-// ---- a novel downloaded so far (c251) ---------------------------------------------------
+// ---- a novel downloaded so far ---------------------------------------------------
 //
 // A volume that isn't the last ends on TextScreen's END · LAST AVAILABLE, naming the chapter
 // that isn't downloaded. The shared seed has every novel chapter downloaded, so this block
@@ -295,7 +295,7 @@ test('the end of the book takes the pad: its cells are reachable, as the image r
 // available, on a port the OS gives. Mushoku Tensei is rated (no ask), Tensei Shitara Ken
 // Deshita is not (the rating and FAV are asked).
 
-test.describe('the end of what is downloaded (c251)', () => {
+test.describe('the end of what is downloaded', () => {
 	// Made in beforeAll, not at load: `playwright test --list` loads this file too.
 	let work = '';
 	let dbPath = '';
@@ -316,7 +316,7 @@ test.describe('the end of what is downloaded (c251)', () => {
 
 	test.beforeAll(async () => {
 		// The hook seeds and waits up to 60 s for its own preview: 2.3 s alone
-		// at this commit, past the default 30 s once the box is loaded (c599).
+		// at this commit, past the default 30 s once the box is loaded.
 		// In a hook, test.setTimeout sets the hook's own budget (Playwright's
 		// test.d.ts, "Changing timeout for a beforeAll").
 		test.setTimeout(120_000);
@@ -378,7 +378,7 @@ test.describe('the end of what is downloaded (c251)', () => {
 		await page.goto(`${base}/read/${first[title]}`);
 		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15_000 });
 		const end = page.getByText('END · LAST AVAILABLE');
-		// A turn slides (c441), and a key pressed mid-slide waits for it to
+		// A turn slides, and a key pressed mid-slide waits for it to
 		// land: each press waits for the page to land first, so no turn is
 		// still queued when the end arrives (one landing after the loop's
 		// check sent the next → to the end screen, whose → moves the pad).

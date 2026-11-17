@@ -73,7 +73,7 @@ describe('grouping across sources', () => {
 	});
 
 	it('refuses a hidden book and a visible one, saying why', () => {
-		// Nothing visible is imported from this fixture any more (c191), so a
+		// Nothing visible is imported from this fixture any more, so a
 		// visible root stands in for the library's own.
 		db.prepare(`INSERT OR IGNORE INTO roots (name, path, hidden) VALUES ('Library', ?, 0)`).run(
 			join(library, 'Library')

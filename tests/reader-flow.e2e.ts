@@ -6,7 +6,7 @@ import { doubleTap } from './helpers/touch';
  * The preview's own origin, which a form action's POST must carry or
  * SvelteKit refuses it as cross-site: the project's `baseURL`, which follows
  * PLAYWRIGHT_PORT. It was a fixed 'http://localhost:4183', so on any other
- * port the POST was refused and the case failed (c311).
+ * port the POST was refused and the case failed.
  */
 const sameOrigin = () => new URL(test.info().project.use.baseURL!).origin;
 
@@ -20,7 +20,7 @@ test.describe.configure({ mode: 'serial' });
 // "a page that did not load" aborts a page image with page.route, and the
 // service worker answers page images itself once it controls the page, from
 // its cache or its own fetch, past the route (src/service-worker.ts;
-// doc/TESTING.md, "Load"). Nothing here reads offline; offline-flow owns that (c477).
+// doc/TESTING.md, "Load"). Nothing here reads offline; offline-flow owns that.
 test.use({ serviceWorkers: 'block' });
 
 async function seriesId(page: Page, title: string) {
@@ -182,7 +182,7 @@ test('progress is saved: a reload resumes on the same page', async ({ page }) =>
 	await expect(meta(page)).toContainText('P. 5 OF');
 });
 
-test('left at once, the reader never writes its URL onto the series it went back to (c565)', async ({
+test('left at once, the reader never writes its URL onto the series it went back to', async ({
 	page
 }) => {
 	// Incognito: nothing this case reads is stored, so CONTINUE's cases keep their page.
@@ -199,7 +199,7 @@ test('left at once, the reader never writes its URL onto the series it went back
 	// than the 800 ms the reader waits before it keeps its page in the URL. The
 	// reader stays mounted while it loads, and its timer used to fire then and
 	// write /read/<id>?p=1 onto the series' entry, the one BACK had already
-	// moved the window to (2 in 5 at a load of 45, library-flow, wave 23).
+	// moved the window to (2 in 5 at a load of 45, library-flow).
 	await page.route(`**/series/${id}/__data.json*`, async (route) => {
 		await new Promise((r) => setTimeout(r, 1500));
 		await route.continue();
@@ -217,7 +217,7 @@ test('left at once, the reader never writes its URL onto the series it went back
 	await expect(page).toHaveURL(/\/\?sort=title/);
 });
 
-test('history into an image reader entry opens the page it settled on, in incognito too (c623)', async ({
+test('history into an image reader entry opens the page it settled on, in incognito too', async ({
 	page
 }) => {
 	// Incognito: nothing this case reads is stored, so only the entry's own URL
@@ -267,7 +267,7 @@ test('the READING sheet switches mode for the session and offers REMEMBER', asyn
 	await page.getByRole('button', { name: /R→L · FIT SCREEN/ }).click();
 	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
 	await expect(sheet.getByText('SERIES DEFAULT R→L')).toBeVisible();
-	// The page, at this sheet's section (card c171).
+	// The page, at this sheet's section.
 	await expect(sheet.getByRole('link', { name: /ALL SETTINGS →/ })).toHaveAttribute(
 		'href',
 		'/settings?section=images'
@@ -402,7 +402,7 @@ test('the end of the series asks for a rating while unrated, and it saves', asyn
 	).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('rating at the end of a series keeps the screen, and the library row asks before DELETE (c655)', async ({
+test('rating at the end of a series keeps the screen, and the library row asks before DELETE', async ({
 	page
 }) => {
 	const id = await seriesId(page, 'Chainsaw Man');
@@ -447,7 +447,7 @@ test('rating at the end of a series keeps the screen, and the library row asks b
 	await expect(end.getByRole('button', { name: '+ ADD TO LIBRARY' })).toHaveCount(0);
 	await expect(end.getByRole('button', { name: 'HIDE', exact: true })).toHaveCount(0);
 	// The restore runs even when an assertion below fails, and its own failure
-	// is soft so it cannot hide the body's (c649).
+	// is soft so it cannot hide the body's.
 	let failed: unknown;
 	try {
 		await end.getByRole('button', { name: 'DELETE', exact: true }).click();
@@ -622,9 +622,7 @@ test('vertical: a page that did not load says so at its top, not halfway down a 
 	expect(later.y + later.height).toBeLessThanOrEqual(screen);
 });
 
-test('vertical, STOP AT THE END: one chapter, and a button to the next (c206)', async ({
-	page
-}) => {
+test('vertical, STOP AT THE END: one chapter, and a button to the next', async ({ page }) => {
 	await page.addInitScript(() => localStorage.setItem('tsundoku.reader.chapters', '"stop"'));
 	await seriesId(page, 'The Greatest Estate Developer');
 	await page
@@ -646,7 +644,7 @@ test('vertical, STOP AT THE END: one chapter, and a button to the next (c206)', 
 	await expect(page.getByRole('button', { name: /^← PREVIOUS CHAPTER/ })).toBeAttached();
 });
 
-test('vertical, TO THE TOP: a ↑ past the first page glides back to it (c207)', async ({ page }) => {
+test('vertical, TO THE TOP: a ↑ past the first page glides back to it', async ({ page }) => {
 	await page.addInitScript(() => localStorage.setItem('tsundoku.reader.top', 'true'));
 	await seriesId(page, 'The Greatest Estate Developer');
 	await page
@@ -668,7 +666,7 @@ test('vertical, TO THE TOP: a ↑ past the first page glides back to it (c207)',
 		.toBeLessThanOrEqual(2);
 });
 
-test('vertical, on a PC: a wheel notch eases, ↓ and ↑ move a screen (c192)', async ({ page }) => {
+test('vertical, on a PC: a wheel notch eases, ↓ and ↑ move a screen', async ({ page }) => {
 	await seriesId(page, 'The Greatest Estate Developer');
 	await page
 		.getByRole('link', { name: /▶ CONTINUE/ })
@@ -830,7 +828,7 @@ test('vertical: SIDES brings the strip in from both edges, and is kept on the de
 	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.sides'));
 });
 
-test('zoom: a paged page grows and scrolls, KEEP makes it every paged series’ start, RESET goes back (c169)', async ({
+test('zoom: a paged page grows and scrolls, KEEP makes it every paged series’ start, RESET goes back', async ({
 	page
 }) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
@@ -884,7 +882,7 @@ test('zoom: a paged page grows and scrolls, KEEP makes it every paged series’ 
 	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.zoom.paged.wide'));
 });
 
-test('zoom: the vertical strip widens past the screen and scrolls sideways, kept apart from paged (c169)', async ({
+test('zoom: the vertical strip widens past the screen and scrolls sideways, kept apart from paged', async ({
 	page
 }) => {
 	await seriesId(page, 'The Greatest Estate Developer');
@@ -919,7 +917,7 @@ const pointOn = (page: Page, sel: string, x: number, y: number) =>
 			[x, y]
 		);
 
-test('double tap: 200% around the tapped point and back, with no controls on the way (c185)', async ({
+test('double tap: 200% around the tapped point and back, with no controls on the way', async ({
 	page
 }) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
@@ -952,7 +950,7 @@ test('double tap: 200% around the tapped point and back, with no controls on the
 	await expect.poll(async () => (await pointOn(page, sel, x, y)).h).toBeCloseTo(before.h, 0);
 });
 
-test('a single tap in the middle still shows the controls, a moment later, fading in (c185)', async ({
+test('a single tap in the middle still shows the controls, a moment later, fading in', async ({
 	page
 }) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
@@ -983,7 +981,7 @@ test('a single tap in the middle still shows the controls, a moment later, fadin
 	expect(page.url()).toBe(at);
 });
 
-test('double tap on the strip: 200% around the point, the strip scrolling sideways to keep it (c185)', async ({
+test('double tap on the strip: 200% around the point, the strip scrolling sideways to keep it', async ({
 	page
 }) => {
 	await seriesId(page, 'The Greatest Estate Developer');
@@ -1022,7 +1020,7 @@ test('double tap on the strip: 200% around the point, the strip scrolling sidewa
 	await expect.poll(width).toBeCloseTo(fitted, 0);
 });
 
-test('a pinch zooms around the fingers, not the page’s top left (c185)', async ({ page }) => {
+test('a pinch zooms around the fingers, not the page’s top left', async ({ page }) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
 	await page
 		.getByRole('link', { name: /▶ CONTINUE/ })

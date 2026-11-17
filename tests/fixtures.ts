@@ -15,7 +15,7 @@ import { hydrated } from './helpers/hydration';
  * nothing, a form that posts without JavaScript, an arrow key the focus
  * layer never sees.
  *
- * Network quiet alone was this fixture's wait until wave 21 (c477): 500 ms
+ * Network quiet alone was this fixture's wait until wave 21: 500 ms
  * without a request is a guess at hydration, and on a loaded box the last
  * module arrives and then waits longer than that for the CPU. SvelteKit's
  * route announcer is the page's own mark (doc/TESTING.md, "E2E specs":

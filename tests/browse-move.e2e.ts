@@ -6,7 +6,7 @@ import { expect, test } from './fixtures';
 import { engineCalls, engineDown, resetEngine } from './browse-world';
 
 /**
- * MOVE end to end (doc/MOVE.md; card c139): a series moves to another entry on
+ * MOVE end to end (doc/MOVE.md): a series moves to another entry on
  * its source, keeps what the new entry lacks, adds what only it has, and comes
  * back with MOVE BACK. The fake engine (tests/browse-setup.ts) gives any search
  * one result, whose chapter list is 1, 2 and 3; the seeded series has 1, 2 and
@@ -19,7 +19,7 @@ import { engineCalls, engineDown, resetEngine } from './browse-world';
 const TITLE = 'Movenberg Heir';
 
 /**
- * The series as the browse world seeds it, its queue held (c748): ch. 2 not
+ * The series as the browse world seeds it, its queue held: ch. 2 not
  * downloaded, and ch. 2 and 2.5 queued. Two things change it, neither of them
  * this case's subject:
  *
@@ -217,7 +217,7 @@ test('its frame is two panes at 1280 and one below 1024, at the handoff’s meas
  * A hover needs a fine pointer; the browse project is a touch tablet, so this
  * describe is a desktop. series-layout.e2e.ts checks the chapter fold.
  */
-test.describe('the episode fold under a fine pointer (c488)', () => {
+test.describe('the episode fold under a fine pointer', () => {
 	const { defaultBrowserType: _b, ...desktop } = devices['Desktop Chrome'];
 	void _b;
 	test.use({ ...desktop, viewport: { width: 1440, height: 900 } });
@@ -244,7 +244,7 @@ test.describe('the episode fold under a fine pointer (c488)', () => {
  * after the page drew its DID NOT ANSWER fold, so a hover's preload would be
  * recorded rather than dropped.
  */
-test.describe('TRY AGAIN under a hovering pointer (c604)', () => {
+test.describe('TRY AGAIN under a hovering pointer', () => {
 	const { defaultBrowserType: _b, ...desktop } = devices['Desktop Chrome'];
 	void _b;
 	test.use({ ...desktop, viewport: { width: 1440, height: 900 } });

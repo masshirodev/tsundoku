@@ -10,7 +10,7 @@ const s = {
 	] as [string, string][]
 };
 
-describe('a report’s scrubbing (c193): hidden means hidden, in a file that leaves the house', () => {
+describe('a report’s scrubbing: hidden means hidden, in a file that leaves the house', () => {
 	it('takes out tokens, cookies and pairing links, whatever their values', () => {
 		const out = scrub(
 			[

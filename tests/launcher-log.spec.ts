@@ -8,7 +8,7 @@ const dir = mkdtempSync(join(tmpdir(), 'tsundoku-log-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 const at = new Date('2026-10-30T18:03:23.487Z');
 
-describe('the bundle’s logs (c193)', () => {
+describe('the bundle’s logs', () => {
 	it('stamps every line with when and how loud', () => {
 		expect(stamp(at, 'INFO', 'Listening')).toBe('2026-10-30T18:03:23.487Z INFO  Listening\n');
 		expect(stamp(at, 'ERROR', 'no')).toBe('2026-10-30T18:03:23.487Z ERROR no\n');

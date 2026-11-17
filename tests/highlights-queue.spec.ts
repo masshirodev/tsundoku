@@ -26,7 +26,7 @@ import {
 } from '$lib/cache/pending-highlights';
 
 /**
- * The offline queue's rules (c842; doc/OFFLINE.md): one item per highlight, what
+ * The offline queue's rules (doc/OFFLINE.md): one item per highlight, what
  * each answer means, and sending once. IndexedDB itself and the reconnection
  * are tests/highlights-queue-flow.e2e.ts's; this is a Map behind the same four
  * calls.
@@ -488,7 +488,7 @@ describe('keeping on trying while anything waits', () => {
 	});
 });
 
-describe('a quote waits like a page (c702)', () => {
+describe('a quote waits like a page', () => {
 	const key = 'quote:9:0.0-0.5';
 	const quote = (body: Record<string, unknown>): NewHighlight => ({
 		key,
@@ -526,7 +526,7 @@ describe('a quote waits like a page (c702)', () => {
 		expect(told.body).toEqual({});
 	});
 
-	describe('what happens to a quote while its POST is out (c702)', () => {
+	describe('what happens to a quote while its POST is out', () => {
 		/** Runs `during` while the POST is held, then answers it. */
 		const holding = (during: () => Promise<unknown>, status = 201, body?: unknown) =>
 			fetchMock.mockImplementationOnce(async () => {
@@ -657,7 +657,7 @@ describe('a quote waits like a page (c702)', () => {
 		});
 
 		it('superseded during a POST that made it: the join keeps the row, so no DELETE', async () => {
-			// A selection joins a waiting quote (c702): its take-back is 'the press
+			// A selection joins a waiting quote: its take-back is 'the press
 			// covers this', not 'not wanted'. The workstation makes the row this
 			// POST asks for, then folds it into the covering press's row and keeps
 			// its id, so a DELETE here would take the join and its note away.
@@ -835,7 +835,7 @@ describe('a quote waits like a page (c702)', () => {
 		});
 	});
 
-	describe('what a queued join covers (c702, round 3)', () => {
+	describe('what a queued join covers', () => {
 		/** The waiting quote a join takes in: its own key, with the note a refusal must keep. */
 		const covered: NewHighlight = {
 			key: 'quote:9:0.0-0.2',
@@ -1048,7 +1048,7 @@ describe('a quote waits like a page (c702)', () => {
 			expect(fresh.revised).toBeUndefined();
 		});
 
-		it('a press the device will not keep leaves what it covers waiting (round 4)', async () => {
+		it('a press the device will not keep leaves what it covers waiting', async () => {
 			await queueHighlight(covered, 1);
 			// Storage that still deletes but aborts a write, as a full quota does.
 			const put = store.put;

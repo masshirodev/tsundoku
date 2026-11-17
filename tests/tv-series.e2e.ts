@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures';
 
 /**
- * The series screen on a TV (c238; TV-Series). It opens Boku no Kokoro no
+ * The series screen on a TV (TV-Series). It opens Boku no Kokoro no
  * Yabai Yatsu, which no flow file writes: the flow files run beside the `tv`
  * project on the shared preview's one database (doc/TESTING.md, "The readers
  * beside the flows"). It used to open Tower of God, whose reader series-flow
@@ -20,7 +20,7 @@ async function open(page: import('@playwright/test').Page) {
 }
 
 /**
- * DETAILS (c425; series-phone 1D): on a TV the settings-like rows fold behind
+ * DETAILS (series-phone 1D): on a TV the settings-like rows fold behind
  * one stop, and OK opens them in place. A remote reaches it, so does this.
  */
 async function openDetails(page: import('@playwright/test').Page) {
@@ -73,7 +73,7 @@ test('every row of the panel fits its 352px column, and nothing sits over ▶ CO
 	await open(page);
 	// On the first real TV (2026-11-02) the rows took the tablet's full-width
 	// layout: cells ran past the column and over CONTINUE, labels were cut.
-	// Folded, and then with DETAILS open (c425), every row it holds.
+	// Folded, and then with DETAILS open, every row it holds.
 	const report = () =>
 		page.evaluate(() => {
 			const panel = document.querySelector('section.panel')!.getBoundingClientRect();
@@ -102,7 +102,7 @@ test('every row of the panel fits its 352px column, and nothing sits over ▶ CO
 	expect(await report()).toEqual([]);
 });
 
-test('LISTS on the TV: a strip, 56px lines with no meta, and ← → between a line’s cells (c424)', async ({
+test('LISTS on the TV: a strip, 56px lines with no meta, and ← → between a line’s cells', async ({
 	page
 }) => {
 	await open(page);

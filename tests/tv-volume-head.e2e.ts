@@ -51,7 +51,7 @@ function query<T>(sql: string, ...args: unknown[]): T[] {
 	}
 }
 
-/** The world's own rows, written the way a real import's shapes are (c835, 1D). */
+/** The world's own rows, written the way a real import's shapes are (1D). */
 function run(sql: string, ...args: unknown[]): void {
 	const db = new Database(dbPath);
 	try {

@@ -33,7 +33,7 @@ import {
 	TAP_SLOP_PX
 } from '$lib/library/player';
 
-// The player's decisions (doc/ANIME.md, "The player"; card c156).
+// The player's decisions (doc/ANIME.md, "The player").
 describe('subtitles', () => {
 	const vtt = [
 		'WEBVTT',
@@ -88,7 +88,7 @@ describe('an episode', () => {
 		expect([seekFor(2), seekFor(3), seekFor(5)]).toEqual([10, 20, 40]);
 	});
 
-	it('brings the controls back on a move, not on a jitter, and a click is not a drag (c217, c218)', () => {
+	it('brings the controls back on a move, not on a jitter, and a click is not a drag', () => {
 		const at = { x: 100, y: 100 };
 		// The mouse resting on a desk: a pixel or two is not a move.
 		expect(movedEnough(at, { x: 101, y: 102 })).toBe(false);
@@ -178,7 +178,7 @@ describe('the buffer on the bar', () => {
 	});
 });
 
-describe('the tracks an anime starts on (card c171)', () => {
+describe('the tracks an anime starts on', () => {
 	const offered = { audio: ['JA', 'EN'], subs: ['EN', 'JA'] };
 	const none = { series: {}, defaults: {}, last: {} };
 
@@ -223,7 +223,7 @@ describe('the tracks an anime starts on (card c171)', () => {
 	});
 });
 
-describe('the volume (c385)', () => {
+describe('the volume', () => {
 	it('keeps 0 to 1 in whole percent, and the full volume for anything not a number', () => {
 		const seen: [unknown, number][] = [
 			[0.5, 0.5],
@@ -265,7 +265,7 @@ describe('the volume (c385)', () => {
 	});
 });
 
-describe('the sprite sheet (c385)', () => {
+describe('the sprite sheet', () => {
 	const sprite = { src: '', everyS: 10, w: 160, h: 90, cols: 10, count: 144 };
 	it('finds the frame nearest a time, row by row', () => {
 		expect(spriteTile(sprite, 0)).toEqual({ x: 0, y: 0 });
@@ -313,7 +313,7 @@ describe('nearFrame', () => {
 	});
 });
 
-describe('the stall clock (c867)', () => {
+describe('the stall clock', () => {
 	const at = (now: number, over: Partial<{ paused: boolean; canPlay: boolean }> = {}) => ({
 		now,
 		paused: false,

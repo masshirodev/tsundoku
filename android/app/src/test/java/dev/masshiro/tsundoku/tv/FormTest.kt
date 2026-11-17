@@ -41,7 +41,7 @@ class FormTest {
 	}
 
 	@Test
-	fun `only the phone raises the keyboard for a page, never the TV (c247)`() {
+	fun `only the phone raises the keyboard for a page, never the TV`() {
 		assertTrue(Form.MOBILE.raisesKeyboard)
 		assertFalse(Form.TV.raisesKeyboard)
 	}

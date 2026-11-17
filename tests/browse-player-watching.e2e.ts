@@ -10,7 +10,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { ANIME_SOURCE, ENGINE_PORT } from './browse-world';
 
 /**
- * The watching clock's wiring (c481; c443, doc/READING-LOG.md): what the
+ * The watching clock's wiring (doc/READING-LOG.md): what the
  * player posts as `durationMs` is the time the picture actually played on a
  * page someone could see. The unit cases of `isWatching` and `WatchClock`
  * (tests/reader-domain.spec.ts) cannot tell whether VideoPlayer.svelte asks
@@ -183,7 +183,7 @@ const finished = (page: Page) =>
 		{ timeout: 45_000 }
 	);
 
-test('counts the time it played, and nothing while paused (c481)', async ({ page }) => {
+test('counts the time it played, and nothing while paused', async ({ page }) => {
 	const posts = recordPosts(page);
 	await openEpisode(page, episodes[0]);
 	await play(page);
@@ -208,9 +208,7 @@ test('counts the time it played, and nothing while paused (c481)', async ({ page
 	expect(counted).toBeLessThanOrEqual(8000 + 1000);
 });
 
-test('counts nothing while the page is hidden, though the picture plays (c481)', async ({
-	page
-}) => {
+test('counts nothing while the page is hidden, though the picture plays', async ({ page }) => {
 	// The tab is in view, so the picture plays as ever; the page is told it is
 	// hidden, as a backgrounded tab is, and no floating window is open.
 	await page.addInitScript(() => {

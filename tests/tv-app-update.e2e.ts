@@ -1,7 +1,7 @@
 import { expect, test } from './fixtures';
 
 /**
- * The app's update offer on a TV (c614; doc/UPDATES.md, "The Android apps"):
+ * The app's update offer on a TV (doc/UPDATES.md, "The Android apps"):
  * the computer's modal never reaches a TV, so this is the one place a remote
  * has to work it. A stand-in for the app's bridge, as in app-update.e2e.ts.
  */

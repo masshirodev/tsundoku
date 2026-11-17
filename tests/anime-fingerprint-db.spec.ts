@@ -15,7 +15,7 @@ const work = mkdtempSync(join(tmpdir(), 'tsundoku-fingerprint-'));
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
 const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
-// A box with no chromaprint at all skips the cases that fingerprint (c915).
+// A box with no chromaprint at all skips the cases that fingerprint.
 const noPrint = chromaprintSkip('anime-fingerprint-db', FFMPEG) !== null;
 const noise = (name: string, seconds: number, seed: number) => {
 	const file = join(work, name);
@@ -151,7 +151,7 @@ describe('fingerprinting downloaded episodes', () => {
 	);
 
 	it.skipIf(noPrint)(
-		'finds the whole opening behind cold opens of different lengths, through two encodes (c384)',
+		'finds the whole opening behind cold opens of different lengths, through two encodes',
 		async () => {
 			// Ranma ½ (2024), 2026-11-03: its opening at 30.75 s in one episode and
 			// 83.1 s in another, and found as a 31-48 s piece of a 90 s song. Here a
@@ -181,7 +181,7 @@ describe('fingerprinting downloaded episodes', () => {
 	);
 
 	it.skipIf(noPrint)(
-		'keeps the opening most of an episode’s pairs agree on, not one pair’s longer run (c384)',
+		'keeps the opening most of an episode’s pairs agree on, not one pair’s longer run',
 		async () => {
 			// Round 2 (review finding 2): the pairing in fingerprintSeason, not
 			// agreedSpan alone. A, B and D share a 20 s opening; C shares a longer

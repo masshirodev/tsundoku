@@ -71,7 +71,7 @@ test('an anime series: its count, CONTINUE, and episodes by season', async ({ pa
 	await expect(row('A Letter from Hollin')).toHaveClass(/flash/);
 });
 
-test('an anime source is browsed, previewed with its EPISODES, and added by season (c154)', async ({
+test('an anime source is browsed, previewed with its EPISODES, and added by season', async ({
 	page
 }) => {
 	await page.goto('/browse');
@@ -138,7 +138,7 @@ test('the KIND band narrows BROWSE to one kind of source, and ALL brings every o
 	await expect(section('MANGA')).toBeVisible();
 });
 
-test('an episode plays from the preview without ADD, and the series stays off the shelves (c161)', async ({
+test('an episode plays from the preview without ADD, and the series stays off the shelves', async ({
 	page
 }) => {
 	test.setTimeout(60_000);
@@ -149,7 +149,7 @@ test('an episode plays from the preview without ADD, and the series stays off th
 	await page.getByRole('button', { name: 'Play S1 · Ep. 1 · The First Snow' }).click();
 	await expect(page).toHaveURL(/\/read\/\d+/);
 	await expect(page.locator('.player')).toBeVisible();
-	// The player's top bar offers + ADD where a library series has nothing (c165).
+	// The player's top bar offers + ADD where a library series has nothing.
 	await expect(
 		page.getByRole('region', { name: 'Controls' }).getByRole('button', { name: '+ ADD' })
 	).toBeVisible();
@@ -164,7 +164,7 @@ test('an episode plays from the preview without ADD, and the series stays off th
 	// ← SERIES is its preview, with + ADD still offered: it was never added.
 	await page.goto(preview);
 	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
-	// The record says what it is, and ▶ continues where it stopped (c165, Online Calls 1D).
+	// The record says what it is, and ▶ continues where it stopped (Online Calls 1D).
 	const record = page.locator('.row.record');
 	await expect(record).toContainText('Not in library · 0 of 4 watched');
 	await expect(record).toContainText('KEPT UNTIL');
@@ -185,7 +185,7 @@ test('an episode plays from the preview without ADD, and the series stays off th
 	await expect(page.locator('.row.pruned').getByRole('link', { name: 'FIND →' })).toBeVisible();
 });
 
-test.describe('the player, tablet landscape (c156)', () => {
+test.describe('the player, tablet landscape', () => {
 	test.use({ viewport: { width: 1280, height: 800 } });
 
 	test('a server that fails is passed over, subtitles, SKIP INTRO, the sheet, the NEXT page', async ({
@@ -203,14 +203,14 @@ test.describe('the player, tablet landscape (c156)', () => {
 		await expect(page).toHaveURL(/\/read\/\d+/);
 		const player = page.locator('.player');
 		const shown = async () => {
-			// A move, not a jitter: the controls come back after a real one (c217).
+			// A move, not a jitter: the controls come back after a real one.
 			await page.mouse.move(120, 120);
 			await page.mouse.move(640, 300 + Math.random() * 10);
 		};
 		// A browser that won't start a video by itself is started by a tap, as a person would.
 		// It may also start by itself between a look at ▶ and the tap (server 2 taking
 		// over), and then the bar hides from under the tap, which waited on it until the
-		// clip had played through every episode (wave 18, red on its base too): so ▶ is
+		// clip had played through every episode (red on its base too): so ▶ is
 		// tapped only while the picture is still paused, and again until it plays.
 		const pp = player.locator('.cluster .pp');
 		await expect(pp).toBeVisible({ timeout: 20_000 });
@@ -274,9 +274,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 		).toHaveText('WATCHED');
 	});
 
-	test('an episode is watched the moment playback reaches its ending’s start (c239)', async ({
-		page
-	}) => {
+	test('an episode is watched the moment playback reaches its ending’s start', async ({ page }) => {
 		test.setTimeout(90_000);
 		await page.goto('/');
 		await page.getByRole('link', { name: /^ANIME/ }).click();
@@ -287,7 +285,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 		const pp = player.locator('.cluster .pp');
 		await expect(pp).toBeVisible({ timeout: 20_000 });
 		// Server 1's failover notice can hold the middle as the tap lands, and the
-		// click then waits out the test (wave 17, 1 run in 4 under load): the
+		// click then waits out the test (1 run in 4 under load): the
 		// player's own key starts it without a tap, as the SKIP ENDING case does.
 		if ((await pp.getAttribute('aria-label')) === 'Play') await page.keyboard.press('Space');
 		await page.waitForFunction(() => {
@@ -296,7 +294,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 		});
 		// The clip's ending starts at 6 s: reaching it is enough, no skip. The
 		// player says so to the server, and the series is read once it has: a
-		// fixed 1.5 s for that was too short under a loaded suite (c336, c439).
+		// fixed 1.5 s for that was too short under a loaded suite.
 		const finished = page.waitForResponse(
 			(r) => r.url().endsWith('/api/reading') && r.request().postDataJSON()?.kind === 'finish'
 		);
@@ -312,7 +310,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 		).toHaveText('WATCHED');
 	});
 
-	test('SKIP ENDING marks the episode watched as it is pressed (c239)', async ({ page }) => {
+	test('SKIP ENDING marks the episode watched as it is pressed', async ({ page }) => {
 		test.setTimeout(90_000);
 		await page.goto('/');
 		await page.getByRole('link', { name: /^ANIME/ }).click();
@@ -334,7 +332,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 			).toBe(true);
 		}).toPass({ timeout: 20_000 });
 		// 6.2 s is inside the ending, so the seek itself may already report the
-		// episode finished (c239) before SKIP is pressed: whichever sends it,
+		// episode finished before SKIP is pressed: whichever sends it,
 		// the series is read once the server has it, not after a fixed second.
 		const finished = page.waitForResponse(
 			(r) => r.url().endsWith('/api/reading') && r.request().postDataJSON()?.kind === 'finish'
@@ -352,13 +350,13 @@ test.describe('the player, tablet landscape (c156)', () => {
 		await expect(list.locator('.entry').last().locator('.status')).toHaveText('WATCHED');
 	});
 
-	test('a click plays or pauses, a double-click seeks, and the controls come back on a move (c217, c218)', async ({
+	test('a click plays or pauses, a double-click seeks, and the controls come back on a move', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
 		// The fixture clip is 8 s, and this test waits out the controls' fade
 		// (up to 6 s) while it plays: on a loaded box the clip used to end under
-		// it and the end screen took the cluster away (c439). Every play starts
+		// it and the end screen took the cluster away. Every play starts
 		// it 10x slower, as tv-player's do.
 		await page.addInitScript(() => {
 			const play = HTMLMediaElement.prototype.play;
@@ -396,7 +394,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 		const mid = { x: box.x + box.width / 2, y: box.y + box.height * 0.25 };
 
 		// The controls go after the mouse stops, and a resting mouse's jitter
-		// doesn't bring them back; a move does (c217). First, while the episode
+		// doesn't bring them back; a move does. First, while the episode
 		// still has its eight seconds left.
 		await page.mouse.move(mid.x, mid.y);
 		await expect(player).toHaveClass(/chrome/);
@@ -415,7 +413,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 
 		// The cluster is solid, never drawn half-faded over the picture: the bars
 		// fade, it does not. Read before any seek: +10 s on the 8 s clip reaches
-		// its end, and the end screen replaces the cluster (c439).
+		// its end, and the end screen replaces the cluster.
 		await expect(player.locator('.cluster')).toHaveCSS('transition-duration', '0s');
 		await expect(player.locator('.top')).not.toHaveCSS('transition-duration', '0s');
 
@@ -449,7 +447,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 	});
 });
 
-test('the player in portrait: the picture on top, the controls beneath, what’s next below (c156)', async ({
+test('the player in portrait: the picture on top, the controls beneath, what’s next below', async ({
 	page
 }) => {
 	await page.goto('/');
@@ -468,7 +466,7 @@ test('the player in portrait: the picture on top, the controls beneath, what’s
 	await expect(page.locator('.player .cluster')).toBeHidden();
 });
 
-test('episodes download into their folder through the episode lane, and play from the file (c157)', async ({
+test('episodes download into their folder through the episode lane, and play from the file', async ({
 	page
 }) => {
 	test.setTimeout(120_000);
@@ -489,7 +487,7 @@ test('episodes download into their folder through the episode lane, and play fro
 	await expect(page.locator('body')).toContainText(/EPISODES|NOTHING QUEUED/);
 
 	// ffmpeg muxes each through the episode lane, and each attaches as it's
-	// written (c170): no scan is asked for.
+	// written: no scan is asked for.
 	await expect(async () => {
 		await page.goto(seriesUrl);
 		await expect(first.locator('.status')).toHaveText(/KB|MB/, { timeout: 1000 });
@@ -503,7 +501,7 @@ test('episodes download into their folder through the episode lane, and play fro
 		timeout: 20_000
 	});
 	// This case runs in the browse project's portrait tablet, whose settings
-	// are the Controls section's `EN` beside ▶ (c1000): the picture's own bar
+	// are the Controls section's `EN` beside ▶: the picture's own bar
 	// cell, `EN SUBS · 180P · 1×`, lies under that section, and the `EN · …`
 	// this case asked for no longer exists. It waited out the test while the
 	// 8 s clip played to its end. Paused first with the player's own key, so

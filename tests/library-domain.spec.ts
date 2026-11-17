@@ -237,20 +237,20 @@ describe('shelf links', () => {
 		expect(shelfHref(new URL('https://x/'), 'rated4')).toBe('/?shelf=rated4');
 	});
 
-	it('carry the filters to another shelf, since they narrow any shelf (c68)', async () => {
+	it('carry the filters to another shelf, since they narrow any shelf', async () => {
 		const { shelfHref } = await import('$lib/library/links');
 		const on = new URL('https://x/?shelf=c:3&min=7&fav=0&sort=title&new=shelf');
 		expect(shelfHref(on, 'all')).toBe('/?shelf=all&sort=title&min=7&fav=0');
 	});
 
-	it('carry the KIND band’s kind and FORM to another shelf: the kind is remembered (c436)', async () => {
+	it('carry the KIND band’s kind and FORM to another shelf: the kind is remembered', async () => {
 		const { shelfHref } = await import('$lib/library/links');
 		const on = new URL('https://x/?shelf=c:3&kind=anime&form=series&sort=title');
 		expect(shelfHref(on, 'c:4')).toBe('/?shelf=c%3A4&sort=title&kind=anime&form=series');
 	});
 });
 
-describe('paging (c68)', () => {
+describe('paging', () => {
 	it('asks the next page for the same filters', async () => {
 		const { pageQuery } = await import('$lib/library/paging');
 		const { NO_FILTERS } = await import('$lib/library/filters');
@@ -269,7 +269,7 @@ describe('paging (c68)', () => {
 	});
 });
 
-describe('/settings in search (card c171)', () => {
+describe('/settings in search', () => {
 	it('is a page, offered rather than run, and a word lands on a section', () => {
 		expect(parseSearch('/settings')).toEqual({
 			type: 'page',

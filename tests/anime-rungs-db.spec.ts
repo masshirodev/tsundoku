@@ -65,7 +65,7 @@ function agreesWithTheRule(conn: Database.Database): void {
 		).toBe(chosenMarks(id, conn).ending?.start ?? null);
 }
 
-describe('rung 63: fingerprints found before c384 are forgotten (c384)', () => {
+describe('rung 63: fingerprints found before c384 are forgotten', () => {
 	const old = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 62);
@@ -149,7 +149,7 @@ describe('rung 63: fingerprints found before c384 are forgotten (c384)', () => {
 	});
 });
 
-describe('rung 64: AniSkip answers asked under a link that is not an anime’s are forgotten (c395)', () => {
+describe('rung 64: AniSkip answers asked under a link that is not an anime’s are forgotten', () => {
 	const old = () => {
 		const conn = new Database(':memory:');
 		climb(conn, 63);

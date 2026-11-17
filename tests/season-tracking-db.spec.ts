@@ -61,7 +61,7 @@ const fake: typeof fetch = async (input, init) => {
 		if (url.includes('/my_list_status')) {
 			// MAL keeps two lists with two sets of status words: a manga's is
 			// reading/plan_to_read, an anime's is watching/plan_to_watch, and the
-			// other list's word is a 400 that takes the progress with it (c240).
+			// other list's word is a 400 that takes the progress with it.
 			const status = (body as Record<string, string>).status;
 			const wrong = url.includes('/anime/')
 				? status === 'reading' || status === 'plan_to_read'
@@ -209,7 +209,7 @@ async function searchEvery(id: number) {
 
 // ---- rung 62 -----------------------------------------------------------------------------
 
-describe('rung 62: a link per season (c240)', () => {
+describe('rung 62: a link per season', () => {
 	it('adds the season tables over a v61 database and moves no row', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 61);
@@ -385,7 +385,7 @@ describe('sending a season', () => {
 		expect(tr.queueProgress(id, NOW)).toBe(2);
 		await tr.sendPending({ now: NOW });
 		const save = sent.find((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))!;
-		// AniList's own word for watching; the entry starts there (c240).
+		// AniList's own word for watching; the entry starts there.
 		expect((save.body as { variables: Record<string, unknown> }).variables).toEqual({
 			mediaId: 102,
 			progress: 5,
@@ -630,7 +630,7 @@ describe('sending a season', () => {
 		});
 	});
 
-	it('never sends COMPLETED over the owner’s ON HOLD or DROPPED, only the episode (wave 15)', async () => {
+	it('never sends COMPLETED over the owner’s ON HOLD or DROPPED, only the episode', async () => {
 		const id = show({ seasons: [[1, 2, 3]] });
 		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501, episodes: 3 }), 'review', NOW);
 		await signIn('anilist');
@@ -658,7 +658,7 @@ describe('sending a season', () => {
 		// Season 1 has 15 episodes and is watched through, so season 2 opens. Its
 		// two entries are 12 + 11: the season's EP. 13 is part 2's EP. 1. Season 1's
 		// last episode is 15, which read across the whole series would land in
-		// part 2 (c240). It must be part 1: season 2 has nothing watched.
+		// part 2. It must be part 1: season 2 has nothing watched.
 		const id = show({
 			seasons: [
 				Array.from({ length: 15 }, (_, i) => i + 1),
@@ -694,7 +694,7 @@ describe('sending a season', () => {
 		await tr.sendPending({ now: NOW });
 		const t = tr.trackingOf(id)!;
 		expect(t.seasons?.map((s) => s.season)).toEqual([1, 2]);
-		// Every episode of season 1 watched: the entry is complete (c240).
+		// Every episode of season 1 watched: the entry is complete.
 		expect(t.seasons?.[0].facts.find((f) => f.service === 'anilist')).toMatchObject({
 			state: { status: 'completed', progress: 4 }
 		});
@@ -844,7 +844,7 @@ describe('every door writes the season’s row', () => {
 		expect(cat.undoNone(id, 2)).toBe(true);
 	});
 
-	it('stays in the queue and the pass while a season is unlinked, though the first is linked (wave 15)', async () => {
+	it('stays in the queue and the pass while a season is unlinked, though the first is linked', async () => {
 		// Settling by LINK is the ordinary way: season 1's link must not end the
 		// look while season 2 has neither a link nor a decision.
 		const pass = show({
@@ -1061,9 +1061,9 @@ describe('every door writes the season’s row', () => {
 	});
 });
 
-// ---- what was the mirror's (c467) --------------------------------------------------------
+// ---- what was the mirror's --------------------------------------------------------
 
-describe('an anime’s links without a mirror of its first season (c467)', () => {
+describe('an anime’s links without a mirror of its first season', () => {
 	const covered = (id: number, url = `https://img/${id}.jpg`) => ({
 		...animeEntry(id),
 		coverUrl: url
@@ -1113,7 +1113,7 @@ describe('an anime’s links without a mirror of its first season (c467)', () =>
 		expect(cat.linkCover(id)).toBeNull();
 	});
 
-	it('the review’s cover line answers as the cover pass does (link_cover, c467)', async () => {
+	it('the review’s cover line answers as the cover pass does (link_cover)', async () => {
 		const id = openOnTwo('Cover Line');
 		seasons.linkSeason(id, 1, 1, covered(614), 'review', NOW);
 		db.prepare(`UPDATE series SET cover_key = 'url:x' WHERE id = ?`).run(id);
@@ -1185,7 +1185,7 @@ describe('an anime’s links without a mirror of its first season (c467)', () =>
 	});
 });
 
-// ---- the season that wants a look (wave 15, round 2) -----------------------------------
+// ---- the season that wants a look -----------------------------------
 
 describe('a door that names no season acts on the season that wants a look', () => {
 	/** Season 1 linked by the owner, scored and watched into; season 2 open. */
@@ -1361,14 +1361,14 @@ describe('a door that names no season acts on the season that wants a look', () 
 		await cat.searchNow(id, 'Show Season 2', NOW, { season: 2 });
 		expect(line()).toBe('NOT LINKED · ITS OWN REVIEW');
 		// Season 2 linked (no mirror: it is not the first season): the row names
-		// its entry, the lowest season linked (wave 17), not NOT LINKED.
+		// its entry, the lowest season linked, not NOT LINKED.
 		seasons.linkSeason(id, 2, 1, animeEntry(9600), 'review', NOW);
 		expect(db.prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(id)).toBeUndefined();
 		expect(line()).toBe('ANILIST 9600');
 		expect(queued()).toBe(false);
 	});
 
-	it('the queue’s LINK accepts only the season’s own candidates, never the series’ (wave 17)', async () => {
+	it('the queue’s LINK accepts only the season’s own candidates, never the series’', async () => {
 		const id = probe();
 		// What a search before rung 62 left behind (the owner's database has such
 		// rows): the series' pair, which belongs to no season.
@@ -1396,15 +1396,15 @@ describe('a door that names no season acts on the season that wants a look', () 
 	});
 });
 
-// ---- a season's own search, from a fresh show (wave 17) -----------------------------------
+// ---- a season's own search, from a fresh show -----------------------------------
 
-describe('the pass and the queue ask each season’s own search, never the series’ (wave 17)', () => {
+describe('the pass and the queue ask each season’s own search, never the series’', () => {
 	type Hit = [number, string];
 	/**
 	 * AniList answering each query with a list, in its order. One hit is
 	 * written as a pair; AniList's real answer for "Show Season 2" usually
 	 * lists "Show" (season 1's entry) after the season's own, and the round-2
-	 * cases give it exactly that (wave 17, round 2).
+	 * cases give it exactly that.
 	 */
 	function byQuery(answers: Record<string, Hit | Hit[]>): typeof fetch {
 		return async (input, init) => {
@@ -1496,7 +1496,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		// Every season settled: out of the pass and the queue.
 		expect(cat.searchable(10_000).some((r) => r.id === id)).toBe(false);
 		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(false);
-		// An anime's search is stored once, against its season (c355).
+		// An anime's search is stored once, against its season.
 		expect(db.prepare(`SELECT 1 FROM link_searches WHERE series_id = ?`).get(id)).toBeUndefined();
 		expect(db.prepare(`SELECT 1 FROM link_candidates WHERE series_id = ?`).get(id)).toBeUndefined();
 	});
@@ -1623,7 +1623,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 			expect(seasons.linkSeason(id, 1, 2, animeEntry(7999, { mal: 8901 }), via, NOW)).toBe(false);
 		}
 		// LINK N SEASONS, even with the entry kept as season 2's candidate: refused,
-		// and named (c418).
+		// and named.
 		db.prepare(
 			`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data) VALUES (?, 2, 1, 7901, 0, ?)`
 		).run(id, JSON.stringify(animeEntry(7901)));
@@ -1650,7 +1650,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		expect(seasons.linkSeason(id, 1, 1, animeEntry(7901, { mal: 8901 }), 'review', NOW)).toBe(true);
 	});
 
-	it('one item a season: every open season searched is in the queue, each with its own search, and the count agrees (c352)', async () => {
+	it('one item a season: every open season searched is in the queue, each with its own search, and the count agrees', async () => {
 		const id = show({
 			title: 'Many Show',
 			seasons: [
@@ -1696,7 +1696,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 				.map((i) => i.season)
 		).toEqual([1, 2]);
 		expect(cat.linkQueueCount(false)).toBe(before + 2);
-		// FIND on season 2 shows the same search the queue holds (c355).
+		// FIND on season 2 shows the same search the queue holds.
 		expect(cat.reviewItem(id, false, 2)).toMatchObject({
 			season: 2,
 			query: 'Many Show Season 2',
@@ -1757,7 +1757,7 @@ describe('the pass and the queue ask each season’s own search, never the serie
 	});
 });
 
-// ---- the series-level state and sends are a comic's (wave 17) ----------------------------
+// ---- the series-level state and sends are a comic's ----------------------------
 
 describe('an anime’s list state and sends are its seasons’, at every door', () => {
 	afterEach(() => vi.stubGlobal('fetch', fake));
@@ -1849,7 +1849,7 @@ describe('Ranobe on an anime', () => {
 		return { f, calls };
 	};
 
-	it('is looked up on Ranobe by its lowest linked season (wave 17)', async () => {
+	it('is looked up on Ranobe by its lowest linked season', async () => {
 		process.env.RANOBE_TOKEN = 'rb_test';
 		process.env.RANOBE_URL = 'https://ranobe.test/api/v1';
 		const rb = await import('$lib/server/ranobe');
@@ -1929,9 +1929,9 @@ describe('Ranobe on an anime', () => {
 	});
 });
 
-// ---- TRY AGAIN on one season's line (c424) ------------------------------------------------
+// ---- TRY AGAIN on one season's line ------------------------------------------------
 
-describe('TRY AGAIN on a season’s line sends that season’s alone (c424)', () => {
+describe('TRY AGAIN on a season’s line sends that season’s alone', () => {
 	it('sends the season it names, and leaves another season’s wait for its own line', async () => {
 		const id = show({
 			seasons: [

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Rung 47 (doc/ANIME.md; card c153): `anime` among series.kind's values,
+// Rung 47 (doc/ANIME.md): `anime` among series.kind's values,
 // written into the schema's text, since rebuilding the table would cascade
 // its drop through the whole library. On a file, as the live database is.
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung47-'));

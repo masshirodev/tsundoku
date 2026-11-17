@@ -9,7 +9,7 @@ import { markerPath } from '../src/lib/cache/policy';
 import { expect, hydrated, test } from './fixtures';
 
 /**
- * The library's CONTINUE row (c840, c841; doc/LIBRARY.md, "The CONTINUE row"):
+ * The library's CONTINUE row (doc/LIBRARY.md, "The CONTINUE row"):
  * ▶ centred by what is drawn rather than by a font's metrics, on every device
  * the row is drawn on, so a plain `*.e2e.ts` in the four device projects.
  * Read-only: nothing here writes to the database the other projects share.
@@ -57,7 +57,7 @@ async function ink(page: Page, cell: Locator) {
 
 const firstGo = (page: Page) => page.locator('.cont > .row .go:not(:disabled)').first();
 
-test.describe('▶ in its cell (c840)', () => {
+test.describe('▶ in its cell', () => {
 	const within = async (page: Page, state: string) => {
 		const m = await ink(page, firstGo(page));
 		expect(m.mass, `${state}: the cell has a mark at all`).toBeGreaterThan(0);
@@ -137,13 +137,13 @@ test('a CONTINUE row hovers as one, all the way past ▶', async ({ page, isMobi
 });
 
 /**
- * The band is a link and ▶ its sibling (c841). The seed's CONTINUE has only
+ * The band is a link and ▶ its sibling. The seed's CONTINUE has only
  * series; a Work's row is walked in `tests/works-library-frame.e2e.ts`, whose
  * own database has one.
  */
 const row = (page: Page) => page.locator('.cont > .row').first();
 
-test.describe('the band opens the entry, ▶ the reader (c841)', () => {
+test.describe('the band opens the entry, ▶ the reader', () => {
 	test('valid HTML: a link around the cover, text and progress, with ▶ its sibling', async ({
 		page
 	}) => {
@@ -194,7 +194,7 @@ test.describe('the band opens the entry, ▶ the reader (c841)', () => {
 	 * The first ▶'s `data-focus-down` names the shelf tabs because a TV lays its
 	 * cards three across (`tests/tv-library-top.e2e.ts`). Off a TV the rows are
 	 * stacked (one column under 1024 px wide, two from there), and ↓ means the
-	 * row under this one (c841, round 2).
+	 * row under this one.
 	 */
 	test('off a TV, ↓ from the first ▶ is the ▶ of the row under it, not the shelf tabs', async ({
 		page
@@ -253,7 +253,7 @@ test.describe('the band opens the entry, ▶ the reader (c841)', () => {
 
 		// A chapter on the tablet (the marker the reader's download leaves, which
 		// is all `cachedOn` reads) and the series' screen never seen: the worker
-		// would answer with the library under a series URL (measured, c841), so
+		// would answer with the library under a series URL (measured), so
 		// the row must not offer it. ▶ stays, because the chapter really is here.
 		const entry = 1;
 		await page.evaluate(
@@ -304,10 +304,10 @@ test.describe('the band opens the entry, ▶ the reader (c841)', () => {
 });
 
 /**
- * A held press opens what a grid tile's hold opens (c860). The sheet is only
+ * A held press opens what a grid tile's hold opens. The sheet is only
  * read, so the shared database is untouched.
  */
-test.describe('a held press on the row (c860)', () => {
+test.describe('a held press on the row', () => {
 	const SERIES_READ = /\/api\/series\/\d+$/;
 	const sheetOf = async (page: Page) => {
 		const title = (await row(page).locator('.title').textContent())!.trim();
@@ -540,7 +540,7 @@ test.describe('a held press on the row (c860)', () => {
  * (`tests/works-library-frame.e2e.ts`): a seeded database of its own and a
  * preview on an OS port, with the Work made through the app.
  */
-test.describe('a Work’s row (c860)', () => {
+test.describe('a Work’s row', () => {
 	const dbPath = join(tmpdir(), `tsundoku-e2e-continue-${process.pid}.sqlite`);
 	let server: ChildProcess | null = null;
 	let base = '';

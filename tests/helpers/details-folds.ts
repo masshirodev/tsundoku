@@ -9,6 +9,6 @@
  * replaced were `series-layout.e2e.ts`'s and `series-rename-flow.e2e.ts`'s).
  * Read it with `matchMedia` before the panel draws, never with a one-shot
  * `isVisible()`: a line that has not drawn yet reads as "no fold" on a loaded
- * phone or TV (c439).
+ * phone or TV.
  */
 export const DETAILS_FOLDS = '(max-width: 599px), (pointer: none) and (min-width: 900px)';

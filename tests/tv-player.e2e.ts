@@ -9,7 +9,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './helpers/hydrated';
 
 /**
- * The player on a TV (c235; TV-Player, TV-Board-Player): the picture until a
+ * The player on a TV (TV-Player, TV-Board-Player): the picture until a
  * key, then all eight cells on one row with the scrubber above (the minute pair
  * is c865), the settings as a 420px panel, and the media keys a remote sends.
  *
@@ -28,7 +28,7 @@ const EPISODE = "The Ferryman's Count";
 
 test.use({ baseURL: BROWSE });
 
-// Measured, not guessed (doc/TESTING.md, "Load"; c448): with the box at a
+// Measured, not guessed (doc/TESTING.md, "Load"): with the box at a
 // load average of 15-68, every case here took 24-30 s even when it passed,
 // and all eight reds of that run were the default 30 s running out, each
 // waiting on the right state (the chrome's own 4 s, SKIP's 8 s alone window,
@@ -66,7 +66,7 @@ async function openEpisode(page: import('@playwright/test').Page): Promise<void>
 /**
  * The series' last episode, EP. 12 of season 2: it has no next, so the
  * end-of-episode card never appears and the bar keeps the keys through a seek
- * to the clip's end (c296).
+ * to the clip's end.
  */
 async function openLastEpisode(page: import('@playwright/test').Page): Promise<void> {
 	await page.goto('/');
@@ -81,7 +81,7 @@ async function openLastEpisode(page: import('@playwright/test').Page): Promise<v
  * Playing, on the working stream, with the bar up. A browser that won't start
  * a video by itself is started by the bar, as a remote would.
  *
- * Waits on the picture's own state, never on time (c448). Until wave 20 this
+ * Waits on the picture's own state, never on time. Until wave 20 this
  * gave autoplay 5 s and then pressed ▶❚❚ regardless: under load autoplay
  * started in the same breath as the press, which paused it, and the case
  * began on a paused picture (its "Pause" read "Play"). So ▶❚❚ is pressed only
@@ -123,7 +123,7 @@ async function streamReady(page: import('@playwright/test').Page): Promise<void>
 const bar = (page: import('@playwright/test').Page) => page.locator('.bottom .cells > :visible');
 
 /**
- * The fixture clip claiming ten minutes (c865): at 8 s a 60 s jump and a 10 s
+ * The fixture clip claiming ten minutes: at 8 s a 60 s jump and a 10 s
  * one both reach the same end, so the minute's landing could not be told from
  * the fine step's. The WebM's `Duration` (ID 0x4489, size 0x88, a double in
  * milliseconds) is raised, and the source's 6–8 s ending is taken out of the
@@ -221,7 +221,7 @@ test('eight cells on one row, and the first arrow lands on ▶❚❚', async ({ 
 	await play(page);
 
 	// 6B: the bar's own cells, in the design's order, on one row. The minute
-	// pair (c865) sits outside the 10 s pair. (The volume, ? KEYS and the
+	// pair sits outside the 10 s pair. (The volume, ? KEYS and the
 	// desktop's minute cells are not drawn here.)
 	await expect(bar(page)).toHaveCount(8);
 	await expect(bar(page).nth(0)).toHaveAttribute('aria-label', /Pause|Play/);
@@ -267,7 +267,7 @@ test('the settings cell opens the 420px panel, ← → changes a row, BACK gives
 	// Paused: SPEED's 1× below plays the clip at its own speed (the slowdown in
 	// beforeEach is a tenth), and under load it reached the 1 s opening before
 	// BACK, where SKIP INTRO takes the pad by design and the settings cell
-	// never got it back (c448). A paused picture also keeps the bar up.
+	// never got it back. A paused picture also keeps the bar up.
 	await page.locator('video').evaluate((v: HTMLVideoElement) => v.pause());
 	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
 	const settings = page.locator('.cells .grow');
@@ -308,9 +308,7 @@ test('the settings cell opens the 420px panel, ← → changes a row, BACK gives
  * pad walks to the last, which is then wholly inside the panel and below the
  * head. A TV opens KEYS with `?` (its ? KEYS cell is the desktop's).
  */
-test('KEYS: the pad walks to the last row, and it is wholly on the panel (c715)', async ({
-	page
-}) => {
+test('KEYS: the pad walks to the last row, and it is wholly on the panel', async ({ page }) => {
 	await openEpisode(page);
 	await play(page);
 	await page.locator('video').evaluate((v: HTMLVideoElement) => v.pause());
@@ -363,11 +361,11 @@ test('KEYS: the pad walks to the last row, and it is wholly on the panel (c715)'
 	await expect(keys).toHaveCount(0);
 });
 
-test('the DIM range keeps ← → and lets ↑ leave it on a TV (c611)', async ({ page }) => {
+test('the DIM range keeps ← → and lets ↑ leave it on a TV', async ({ page }) => {
 	await openEpisode(page);
 	await play(page);
 	// Paused, so the clip cannot end under the panel and the bar stays up
-	// (c448, as the settings case above).
+	// (as the settings case above).
 	await page.locator('video').evaluate((v: HTMLVideoElement) => v.pause());
 	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
 	await page.locator('.cells .grow').focus();
@@ -379,7 +377,7 @@ test('the DIM range keeps ← → and lets ↑ leave it on a TV (c611)', async (
 	const at = () => dim.inputValue();
 	await dim.focus();
 	expect(await at()).toBe('0');
-	// A native range with no attribute keeps the arrows along its axis (c259):
+	// A native range with no attribute keeps the arrows along its axis:
 	// the browser's own step, 0.05 here.
 	await page.keyboard.press('ArrowRight');
 	await expect.poll(at).toBe('0.05');
@@ -408,7 +406,7 @@ test('the DIM range keeps ← → and lets ↑ leave it on a TV (c611)', async (
 	await expect.poll(at).toBe('0');
 });
 
-test.describe('the minute step (c865)', () => {
+test.describe('the minute step', () => {
 	// The worker answers an episode's videos and media itself once it has
 	// installed, past page.route (doc/TESTING.md, "Load"): the stand-in long
 	// episode below can only be seen with it out of the way.
@@ -427,7 +425,7 @@ test.describe('the minute step (c865)', () => {
 
 		const at = () => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime);
 		const video = page.locator('video');
-		// ⏪ ⏩ are a minute each (c865): 1:40 back to 0:40, and on to 1:40 again,
+		// ⏪ ⏩ are a minute each: 1:40 back to 0:40, and on to 1:40 again,
 		// on the ten-minute stand-in, where a 10 s step could not reach either.
 		await video.evaluate((v: HTMLVideoElement) => {
 			v.pause();
@@ -441,7 +439,7 @@ test.describe('the minute step (c865)', () => {
 		await expect(page.locator('.flash .by')).toHaveText('+60 S');
 	});
 
-	test('a held ⏩ is one minute, not a minute per repeat (c865)', async ({ page }) => {
+	test('a held ⏩ is one minute, not a minute per repeat', async ({ page }) => {
 		await longEpisode(page);
 		await openEpisode(page);
 		await play(page);
@@ -480,9 +478,7 @@ test.describe('the minute step (c865)', () => {
 		await expect.poll(at).toBeCloseTo(220, 1);
 	});
 
-	test('a press right after a held ⏩ is released moves a minute again (c865)', async ({
-		page
-	}) => {
+	test('a press right after a held ⏩ is released moves a minute again', async ({ page }) => {
 		await longEpisode(page);
 		await openEpisode(page);
 		await play(page);
@@ -504,7 +500,7 @@ test.describe('the minute step (c865)', () => {
 		await expect.poll(at).toBeCloseTo(160, 1);
 	});
 
-	test('the bar’s −1m and +1m are stops in reading order, and each moves a minute (c865)', async ({
+	test('the bar’s −1m and +1m are stops in reading order, and each moves a minute', async ({
 		page
 	}) => {
 		await longEpisode(page);
@@ -597,7 +593,7 @@ test('the player’s ← goes back to the series, so the next BACK does not reop
 });
 
 /**
- * The seek bar as the pad's own control (c296, parts 1-3): ← → are the
+ * The seek bar as the pad's own control (parts 1-3): ← → are the
  * slider's, ↑ from any cell in the bar's row lands on it, and the bar's ⇥
  * keeps seeking with the flash. The last episode has no next, so a seek to the
  * clip's end cannot offer the end card over this.
@@ -642,7 +638,7 @@ test('the seek bar keeps ← →, and ↑ from every cell of the row lands on it
 	await expect(track).toBeFocused();
 
 	// OK on the bar is the pad's click on it, and it toggles the picture rather
-	// than doing nothing at all (c296, the review's round-1 low 5).
+	// than doing nothing at all (the review's round-1 low 5).
 	await page.keyboard.press('Enter');
 	await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
 	await page.keyboard.press('Enter');
@@ -656,7 +652,7 @@ test('the seek bar keeps ← →, and ↑ from every cell of the row lands on it
  * arrow, and the player's own handler seeks (doc/handoff-notes/tv-player.md,
  * part 2). The pause is at 0.4 s because the browse world's episodes open at
  * 1-3 s (tests/browse-setup.ts), and inside the opening SKIP INTRO is offered,
- * which lifts the opt-out (c316).
+ * which lifts the opt-out.
  */
 test('← → with the bar hidden and nothing offered seek and put focus on the seek bar', async ({
 	page
@@ -675,7 +671,7 @@ test('← → with the bar hidden and nothing offered seek and put focus on the 
 	});
 	// The player has taken the pause in (its ▶❚❚ reads Play), which shows the
 	// bar: under a loaded suite the pause event landed after Escape and drew
-	// the bar again over the hidden one (c336, c439).
+	// the bar again over the hidden one.
 	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
 	await expect(page.getByRole('button', { name: /^SKIP/ })).toHaveCount(0);
 	// Escape hides the bar; the paused picture leaves it hidden, and with
@@ -745,7 +741,7 @@ test('with SKIP INTRO offered and the bar hidden, ← → still seek and put foc
 });
 
 /**
- * The next-episode card (c296, part 4): PLAY NOW is focused the moment it
+ * The next-episode card (part 4): PLAY NOW is focused the moment it
  * appears, ← → walk it, ↓ reaches the bar, ↑ comes back and OK plays EP. 12.
  */
 test('the next-episode card takes PLAY NOW, and the bar’s ↑ comes back to it', async ({ page }) => {
@@ -784,7 +780,7 @@ test('the next-episode card takes PLAY NOW, and the bar’s ↑ comes back to it
 });
 
 /**
- * SKIP on a TV (c296, part 5): it takes focus when it appears, ↓ puts the pad
+ * SKIP on a TV (part 5): it takes focus when it appears, ↓ puts the pad
  * on the bar, ↑ returns to it, and the opening passing takes it away without
  * losing focus.
  */
@@ -824,7 +820,7 @@ test('SKIP takes focus, gives the bar focus, and gives it back', async ({ page }
 	await expect(track).toBeFocused();
 });
 
-/** OK on the focused SKIP skips the opening in one press (c296, part 5). */
+/** OK on the focused SKIP skips the opening in one press (part 5). */
 test('OK on the focused SKIP skips the opening', async ({ page }) => {
 	await openEpisode(page);
 	await play(page);
@@ -844,7 +840,7 @@ test('OK on the focused SKIP skips the opening', async ({ page }) => {
 
 /**
  * The chrome's own 4 s must not strand the pad on the bar it has just hidden
- * (c296, round 2): with the card up, `.bottom` is `data-focus-skip`, so a cell
+ *: with the card up, `.bottom` is `data-focus-skip`, so a cell
  * focused there stops being a stop at all -- every arrow ran the layer's
  * "nothing focused" path (STAY), and OK clicked the dead track. The offer keeps
  * the pad while it is up. Playing, not paused: the card only stays while the
@@ -860,7 +856,7 @@ test('the chrome’s auto-hide hands the pad back to the card', async ({ page })
 
 	// Playing with the bar down: the card appears over the picture. The bar
 	// goes by its own 4 s rather than by BACK: under load those 4 s could pass
-	// before the key, and BACK at a bare picture leaves for the series (c448).
+	// before the key, and BACK at a bare picture leaves for the series.
 	await expect(page.locator('.player')).not.toHaveClass(/chrome/, { timeout: 15_000 });
 	await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 6.2));
 	await expect(page.locator('.endcard')).toBeVisible();
@@ -873,7 +869,7 @@ test('the chrome’s auto-hide hands the pad back to the card', async ({ page })
 
 	// The 4 s go by with the card still up: focus comes back to the offer
 	// rather than staying on a cell that is no longer a stop. Waited on as the
-	// bar going, not as 4.5 s, which a loaded worker stretches (c448).
+	// bar going, not as 4.5 s, which a loaded worker stretches.
 	await expect(page.locator('.player')).not.toHaveClass(/chrome/, { timeout: 15_000 });
 	await expect(playNow).toBeFocused();
 
@@ -912,7 +908,7 @@ test('revealing the bar keeps ▶❚❚, and ↑ still reaches an offered SKIP',
 	// Paused, so the opening cannot run out while the alone window does (a
 	// loaded worker stretched the wait past the clip's 3 s), and the bar stays
 	// up until BACK hides it rather than hiding by itself first, which turned
-	// BACK into leaving the player (c448).
+	// BACK into leaving the player.
 	await video.evaluate((v: HTMLVideoElement) => {
 		v.pause();
 		v.currentTime = 1.2;
@@ -994,7 +990,7 @@ const MANY_SUBS = [
 	'Vietnamese'
 ];
 
-test.describe('many languages (c386)', () => {
+test.describe('many languages', () => {
 	// The service worker answers a page it controls itself, past page.route.
 	test.use({ serviceWorkers: 'block' });
 
@@ -1103,7 +1099,7 @@ test.describe('many languages (c386)', () => {
 	});
 });
 
-// ---- the Work card (c517) ------------------------------------------------------------
+// ---- the Work card ------------------------------------------------------------
 //
 // The player's last episode of a series in a Work offers the Work's next part
 // (`.upn`, `data-player-work`), and on a TV that card takes the pad as PLAY NOW
@@ -1113,7 +1109,7 @@ test.describe('many languages (c386)', () => {
 // files, and a Work of it and a seed manga, in SQL. It serves the build on a
 // port the OS gives and reads in incognito, so nothing it does reaches another
 // spec.
-test.describe('the Work card on a TV (c517)', () => {
+test.describe('the Work card on a TV', () => {
 	let server: ChildProcess | null = null;
 	let port = 0;
 	let episode = 0;
@@ -1261,7 +1257,7 @@ test.describe('the Work card on a TV (c517)', () => {
 });
 
 /**
- * The seek preview on a TV (c457; doc/ANIME.md, "The player"): no pointer, so
+ * The seek preview on a TV (doc/ANIME.md, "The player"): no pointer, so
  * while ← → move the time with the bar up, the bar's tip shows the sprite's
  * tile for where it landed, kept inside the track at either end. The episode's
  * answer is widened in the browser as tests/browse-player-preview.e2e.ts
@@ -1269,11 +1265,11 @@ test.describe('the Work card on a TV (c517)', () => {
  * the clip's own loopback address, and a sheet of four coloured tiles, one
  * every 2 s of the 8 s clip. A stream keeps the time alone.
  */
-test.describe('the seek preview on a TV (c457)', () => {
+test.describe('the seek preview on a TV', () => {
 	// The stand-ins below are `page.route`s on the stream list, which a service
 	// worker answers without passing them (src/service-worker.ts): once it had
 	// claimed the page in time, the player got the real two servers and no sprite
-	// (c709: 4 of 30 alone, exactly the 4 `fromServiceWorker` answers).
+	// (4 of 30 alone, exactly the 4 `fromServiceWorker` answers).
 	test.use({ serviceWorkers: 'block' });
 
 	const SPRITE = '/__preview/tv-sprite.jpg';
@@ -1427,7 +1423,7 @@ test.describe('the seek preview on a TV (c457)', () => {
 	 * 480p). It is last, so the picture still starts on the first. Every
 	 * request for it is counted and then answered with the real clip, as the
 	 * engine's loopback would answer it. A preview that started would ask for
-	 * it, playlist or file, the moment it opened (c575).
+	 * it, playlist or file, the moment it opened.
 	 */
 	async function countedLowQuality(page: import('@playwright/test').Page): Promise<string[]> {
 		const LOW = '/__preview/tv-low.webm';
@@ -1500,7 +1496,7 @@ test.describe('the seek preview on a TV (c457)', () => {
  * is the whole account and the other devices; this is the same stream made to
  * buffer, on the remote's own door (the bar's slider keeps the key once it has it).
  */
-test('a held → leaves the full 15 s after the release on a TV (c867)', async ({ page }) => {
+test('a held → leaves the full 15 s after the release on a TV', async ({ page }) => {
 	test.setTimeout(120_000);
 	const KEPT = 36_000;
 	let clip: string | null = null;

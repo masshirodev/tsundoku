@@ -11,7 +11,7 @@ import {
 } from '$lib/library/tmdb';
 
 /**
- * The query TMDB is asked (card c989): the source's title with the release
+ * The query TMDB is asked: the source's title with the release
  * group's words and the season number taken off, and the year read before
  * `cleanTitle` removes the bracket that held it.
  */

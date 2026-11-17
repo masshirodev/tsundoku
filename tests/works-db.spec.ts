@@ -393,7 +393,7 @@ describe('a Work’s rating and FAV', () => {
 		expect(workRating(all.parts, all.total)).toEqual({ shown: 6, settable: false, value: null });
 	});
 
-	it('shows a partial read the visible parts’ own numbers, which a hidden part never moves (c309)', () => {
+	it('shows a partial read the visible parts’ own numbers, which a hidden part never moves', () => {
 		const [a, b] = AGREE.map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [a, b], name: 'Seen', now: NOW });
 		lib.setRating([a], 8);
@@ -792,7 +792,7 @@ describe('what W4 and W5 read off a Work', () => {
 	});
 });
 
-describe('a part’s place after a take-out (wave 16)', () => {
+describe('a part’s place after a take-out', () => {
 	it('says PART 2 OF 2 for the last part on every read, not its sparse position', () => {
 		const ids = [
 			idOf('Isekai Ojisan')!,
@@ -841,7 +841,7 @@ describe('a part’s place after a take-out (wave 16)', () => {
 	});
 });
 
-describe('hiding by id keeps a Work whole (wave 16)', () => {
+describe('hiding by id keeps a Work whole', () => {
 	it('takes a part’s Work with it, both ways, and leaves a series in no Work alone', () => {
 		const [a, b] = STEM.map(idOf) as number[];
 		const loose = idOf('Chainsaw Man')!;
@@ -879,7 +879,7 @@ describe('hiding by id keeps a Work whole (wave 16)', () => {
 /**
  * The library's and the Work screen's own actions, called as SvelteKit calls
  * them: what an UNDO's refusal comes back as is the route's answer, not the
- * function's throw (c308: "a refusal the route shows, never a 500").
+ * function's throw ("a refusal the route shows, never a 500").
  */
 const library = await import('../src/routes/+page.server');
 const workScreen = await import('../src/routes/work/[id]/+page.server');
@@ -908,7 +908,7 @@ async function post(
 const ids = (list: number[]) => list.map((id) => ['id', id] as [string, number]);
 const membersNow = (workId: number) => positions(workId).map((p) => p.seriesId);
 
-describe('an UNDO never takes a series from the Work it joined since (c308)', () => {
+describe('an UNDO never takes a series from the Work it joined since', () => {
 	// Three unrelated, visible, unrated series in no Work, and two more.
 	const pick = () =>
 		[
@@ -1021,7 +1021,7 @@ describe('an UNDO never takes a series from the Work it joined since (c308)', ()
 		expect(works.workOfSeries(c)).toEqual(next.work);
 		expect(membersNow(next.work.id)).toEqual([c, d]);
 		// A second press of the same UNDO finds the Work back, under its new id
-		// (c470: before, it named the members as taken, by itself).
+		// (before, it named the members as taken, by itself).
 		expect(() => works.undoTakeOut(out)).toThrow(/Two is already back/i);
 		// Nor may a create's UNDO delete the newer Work in its place.
 		works.ungroup(back.id);
@@ -1101,14 +1101,14 @@ describe('an UNDO never takes a series from the Work it joined since (c308)', ()
 		});
 		// e is in Three no more, so the UNDO has nothing left to take out and
 		// says where it is, rather than answer OK for a press that changed
-		// nothing (c470); Away keeps it either way.
+		// nothing; Away keeps it either way.
 		expect(again.status).toBe(400);
 		expect(again.data?.message).toMatch(/CHAINSAW MAN IS IN AWAY NOW/);
 		expect(works.workOfSeries(e)?.name).toBe('Away');
 	});
 });
 
-describe('an UNDO that brings an ended Work back under a new id carries the id through (round 2)', () => {
+describe('an UNDO that brings an ended Work back under a new id carries the id through', () => {
 	// Seven visible series in no Work: a Work of three, a Work to add into, and
 	// two for the newer Work that is given the ended one's id.
 	const seven = () =>
@@ -1206,7 +1206,7 @@ describe('an UNDO that brings an ended Work back under a new id carries the id t
 	});
 });
 
-describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
+describe('a HIDE’s UNDO puts back only what the HIDE changed', () => {
 	const W = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'];
 
 	it('leaves a Work hidden that was hidden before the press (the card’s TAKE OUT repro)', async () => {
@@ -1254,7 +1254,7 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
 		expect(hiddenOf(other)).toBe(false);
 	});
 
-	it('answers HIDE ALL with a band for the loose series it hid beside a Work it only settled (c469)', async () => {
+	it('answers HIDE ALL with a band for the loose series it hid beside a Work it only settled', async () => {
 		const [p, q, r] = W.map(idOf) as number[];
 		const x = idOf('Villainess Level 99')!;
 		works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
@@ -1275,19 +1275,19 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
 
 	/**
 	 * The series screen's HIDE ALL n (`?/hideWork`) on a Work whose press hides
-	 * nothing an UNDO may show (c469, wave 19's Gap 6): a Work hidden in part
+	 * nothing an UNDO may show (wave 19's Gap 6): a Work hidden in part
 	 * (the legacy state a fold made until c389, written here as it left it) is
 	 * settled hidden with no UNDO, and a Work hidden whole changes nothing.
 	 * Neither draws a band: before, reveal on answered `hideFacts` whose UNDO
 	 * refused as NOTHING TO UNDO, and reveal off redirected to
 	 * `/?band=hidden&n=0`.
 	 */
-	it('draws no band from the series screen’s HIDE ALL n when it changed nothing UNDO may show (c469)', async () => {
+	it('draws no band from the series screen’s HIDE ALL n when it changed nothing UNDO may show', async () => {
 		const [p, q, r] = W.map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
 		const series = await import('../src/routes/series/[id]/+page.server');
 		const hideAll = async (on: number, reveal: boolean) => {
-			// The screen posts the Work it was drawn on (c640): this one, at its own moment.
+			// The screen posts the Work it was drawn on: this one, at its own moment.
 			const body = new FormData();
 			body.append('made', String(work.createdAt));
 			try {
@@ -1435,7 +1435,7 @@ async function postSeries(
 	})) as Answer;
 }
 
-describe('the series screen’s TAKE OUT, THEN HIDE and its UNDO, through its own actions (c390)', () => {
+describe('the series screen’s TAKE OUT, THEN HIDE and its UNDO, through its own actions', () => {
 	const [P, Q, R, X, Y] = [
 		'Isekai Yakkyoku',
 		'Tensei Shitara Ken Deshita',
@@ -1505,7 +1505,7 @@ describe('the series screen’s TAKE OUT, THEN HIDE and its UNDO, through its ow
 	});
 });
 
-describe('the series screen’s WORK row TAKE OUT and its UNDO, through its own actions (c468)', () => {
+describe('the series screen’s WORK row TAKE OUT and its UNDO, through its own actions', () => {
 	const [P, Q, R, X] = ['Lookism', 'Tower of God', 'Dungeon Meshi', 'Yofukashi no Uta'];
 
 	it('puts the series back where it was', async () => {
@@ -1543,7 +1543,7 @@ describe('the series screen’s WORK row TAKE OUT and its UNDO, through its own 
 	});
 });
 
-describe('an add’s UNDO never leaves a Work of one, and a later UNDO finds a restored Work (c470)', () => {
+describe('an add’s UNDO never leaves a Work of one, and a later UNDO finds a restored Work', () => {
 	const five = () =>
 		[
 			'Isekai Yakkyoku',
@@ -1654,7 +1654,7 @@ describe('an add’s UNDO never leaves a Work of one, and a later UNDO finds a r
 	});
 });
 
-describe('an episode that streams is online at the end page (c536)', () => {
+describe('an episode that streams is online at the end page', () => {
 	const now = Date.UTC(2026, 10, 5);
 	const db = getDb();
 
@@ -1748,7 +1748,7 @@ describe('an episode that streams is online at the end page (c536)', () => {
  * nothing but the guard. Each action is also posted with the newer Work's own
  * moment, which goes through, so the guard is not refusing everything.
  */
-describe('the Work screen refuses a Work its id now names (c583)', () => {
+describe('the Work screen refuses a Work its id now names', () => {
 	const STALE = { message: 'THAT WORK HAS CHANGED · LOOK AGAIN', stale: true };
 	/** Everything a Work-screen action may write, as one comparable value. */
 	const snapshot = () => {
@@ -1933,7 +1933,7 @@ describe('the Work screen refuses a Work its id now names (c583)', () => {
 	});
 });
 
-describe('the series screen’s Work controls act on the Work their screen was drawn on (c640)', () => {
+describe('the series screen’s Work controls act on the Work their screen was drawn on', () => {
 	const STALE = { message: 'THAT WORK HAS CHANGED · LOOK AGAIN', stale: true };
 	/** Everything a series-screen Work action may write, as one comparable value. */
 	const snapshot = () => {
@@ -1999,7 +1999,7 @@ describe('the series screen’s Work controls act on the Work their screen was d
 		}
 	);
 
-	it('a series taken out of its Work since answers stale too (c661)', async () => {
+	it('a series taken out of its Work since answers stale too', async () => {
 		const [p, q, r] = parts().map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
 		// Another tab takes this series out: the screen's Work is gone from it.
@@ -2010,13 +2010,13 @@ describe('the series screen’s Work controls act on the Work their screen was d
 		]);
 		expect(answer.status).toBe(400);
 		// Its own words, not the stale Work's, but `stale` all the same: the
-		// screen still draws a Work that is gone, so it is read again (c661).
+		// screen still draws a Work that is gone, so it is read again.
 		expect(answer.data).toEqual({ message: 'THIS SERIES IS IN NO WORK', stale: true });
 		expect(snapshot()).toEqual(before);
 	});
 });
 
-describe('the Work screen answers a malformed UNDO with a sentence, not a 500 (c641)', () => {
+describe('the Work screen answers a malformed UNDO with a sentence, not a 500', () => {
 	const snapshot = () => {
 		const db = getDb();
 		return {
@@ -2069,7 +2069,7 @@ describe('the Work screen answers a malformed UNDO with a sentence, not a 500 (c
 		).toEqual({ ok: true });
 	});
 
-	it('?/undoTakeOut refuses a real band with no seriesId, and changes nothing (c641)', async () => {
+	it('?/undoTakeOut refuses a real band with no seriesId, and changes nothing', async () => {
 		const { facts } = takenOut();
 		const before = snapshot();
 		const bare = { ...facts } as Record<string, unknown>;
@@ -2105,7 +2105,7 @@ describe('the Work screen answers a malformed UNDO with a sentence, not a 500 (c
 		expect(membersNow(work.id)).toEqual([a, b]);
 	});
 
-	it('?/undoAdd refuses a real band with no seriesId, and changes nothing (c641)', async () => {
+	it('?/undoAdd refuses a real band with no seriesId, and changes nothing', async () => {
 		const [a, b, c] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'].map(
 			idOf
 		) as number[];
@@ -2125,7 +2125,7 @@ describe('the Work screen answers a malformed UNDO with a sentence, not a 500 (c
 		expect(membersNow(work.id)).toEqual([a, b]);
 	});
 
-	it('?/undoRename refuses junk too: it parsed its facts outside a guard before (c641)', async () => {
+	it('?/undoRename refuses junk too: it parsed its facts outside a guard before', async () => {
 		const [a, b] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita'].map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [a, b], name: 'Run', now: NOW });
 		const before = snapshot();

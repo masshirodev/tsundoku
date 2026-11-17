@@ -175,8 +175,8 @@ async function settledAt(page: Page) {
 	return atOf(page);
 }
 
-test.describe('the text reader resumes the saved place (c622, c653)', () => {
-	test("the seed's novel in progress opens at its saved block, from a fresh context (c622, c653)", async ({
+test.describe('the text reader resumes the saved place', () => {
+	test("the seed's novel in progress opens at its saved block, from a fresh context", async ({
 		page
 	}) => {
 		const { series, place } = row('Mushoku Tensei', 13);
@@ -186,9 +186,7 @@ test.describe('the text reader resumes the saved place (c622, c653)', () => {
 		await expect.poll(() => onScreen(page, 7)).toBe('on screen');
 	});
 
-	test('a place the reader saved midway is the one ▶ CONTINUE comes back to (c622)', async ({
-		page
-	}) => {
+	test('a place the reader saved midway is the one ▶ CONTINUE comes back to', async ({ page }) => {
 		const { entry } = row('Villainess Level 99', 2);
 		// From its top: one turn from the seed's block 7 can land on the last
 		// page, which finishes the chapter.
@@ -212,9 +210,7 @@ test.describe('the text reader resumes the saved place (c622, c653)', () => {
 		await expect.poll(() => atOf(page), { timeout: 10_000 }).toBe(left);
 	});
 
-	test('an explicit ?at=0.0 is a place: the top, whatever the server saved (c622)', async ({
-		page
-	}) => {
+	test('an explicit ?at=0.0 is a place: the top, whatever the server saved', async ({ page }) => {
 		const { series, entry } = row('Tensei Shitara Ken Deshita', 2);
 		await page.request.post(`${base}/api/reading`, {
 			data: { seriesId: series, entryId: entry, kind: 'page', page: 7, offset: 0, total: 15 },
@@ -227,7 +223,7 @@ test.describe('the text reader resumes the saved place (c622, c653)', () => {
 		await expect.poll(() => onScreen(page, 0)).toBe('on screen');
 	});
 
-	test("a saved block past the chapter's end opens at the top and settles there (c622)", async ({
+	test("a saved block past the chapter's end opens at the top and settles there", async ({
 		page
 	}) => {
 		const { series, entry } = row('Tensei Shitara Ken Deshita', 1);
@@ -313,10 +309,8 @@ async function finishText(page: Page, entry: number) {
 	await expect.poll(() => row('Mushoku Tensei', 13).readAt).not.toBeNull();
 }
 
-test.describe('MARK UNREAD starts a finished chapter from the top, in both readers (c652, c666)', () => {
-	test('an image chapter finished, then MARK UNREAD: ▶ CONTINUE opens page 1 (c652)', async ({
-		page
-	}) => {
+test.describe('MARK UNREAD starts a finished chapter from the top, in both readers', () => {
+	test('an image chapter finished, then MARK UNREAD: ▶ CONTINUE opens page 1', async ({ page }) => {
 		const { series, entry } = row('Hikaru ga Shinda Natsu', 29);
 		await finishImage(page, entry);
 		await expect.poll(() => row('Hikaru ga Shinda Natsu', 29).readAt).not.toBeNull();
@@ -330,7 +324,7 @@ test.describe('MARK UNREAD starts a finished chapter from the top, in both reade
 		await expect(imageMeta(page)).toContainText('P. 1 OF');
 	});
 
-	test('an image chapter finished, MARK READ, then MARK UNREAD: ▶ CONTINUE opens page 1 (c666)', async ({
+	test('an image chapter finished, MARK READ, then MARK UNREAD: ▶ CONTINUE opens page 1', async ({
 		page
 	}) => {
 		const { series, entry } = row('Hikaru ga Shinda Natsu', 30);
@@ -352,9 +346,7 @@ test.describe('MARK UNREAD starts a finished chapter from the top, in both reade
 		await expect(imageMeta(page)).toContainText('P. 1 OF');
 	});
 
-	test('a novel finished, then MARK UNREAD: ▶ CONTINUE opens at its top (c622, c652)', async ({
-		page
-	}) => {
+	test('a novel finished, then MARK UNREAD: ▶ CONTINUE opens at its top', async ({ page }) => {
 		const { series, entry } = row('Mushoku Tensei', 13);
 		await finishText(page, entry);
 		expect(row('Mushoku Tensei', 13).place).toBeGreaterThan(0);
@@ -367,7 +359,7 @@ test.describe('MARK UNREAD starts a finished chapter from the top, in both reade
 	});
 });
 
-test.describe('UNDO of a long-press MARK READ THROUGH resumes the chapter (c652, c666)', () => {
+test.describe('UNDO of a long-press MARK READ THROUGH resumes the chapter', () => {
 	test('an image chapter read halfway: UNDO, then ▶ CONTINUE opens the page it was left on', async ({
 		page
 	}) => {

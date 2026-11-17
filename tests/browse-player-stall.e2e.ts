@@ -2,7 +2,7 @@ import { devices, type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * What counts as a stall (c867; doc/ANIME.md): a held ← or →, a double-tap run
+ * What counts as a stall (doc/ANIME.md): a held ← or →, a double-tap run
  * and the scrubber are the reader moving, so the 15 s clock starts over with
  * each of them, and only a full 15 s after the last does the player give up on
  * the quality. Runs in `browse`, where the fixture's real 8 s clip is served,
@@ -180,15 +180,15 @@ const DESKTOP = {
 test.describe('on a desktop', () => {
 	test.use(DESKTOP);
 
-	test('a key held 12 s leaves the full 15 s after the release (c867)', async ({ page }) => {
+	test('a key held 12 s leaves the full 15 s after the release', async ({ page }) => {
 		await holdLeavesFullClock(page, 12_000);
 	});
 
-	test('a key held 20 s leaves the full 15 s after the release (c867)', async ({ page }) => {
+	test('a key held 20 s leaves the full 15 s after the release', async ({ page }) => {
 		await holdLeavesFullClock(page, 20_000);
 	});
 
-	test('a seek that lands with nothing to play starts the clock from the landing (c867)', async ({
+	test('a seek that lands with nothing to play starts the clock from the landing', async ({
 		page
 	}) => {
 		await bufferingStream(page);
@@ -214,7 +214,7 @@ test.describe('on a desktop', () => {
 		expect(await stepAfter(page, landing)).toBeGreaterThanOrEqual(STALL_MS);
 	});
 
-	test('the scrubber held and moved is a seek, not a stall (c867)', async ({ page }) => {
+	test('the scrubber held and moved is a seek, not a stall', async ({ page }) => {
 		await bufferingStream(page);
 		await openPlaying(page);
 		await page.mouse.move(640, 400);
@@ -242,7 +242,7 @@ test.describe('on a desktop', () => {
 		expect(await stepAfter(page, last)).toBeGreaterThanOrEqual(STALL_MS);
 	});
 
-	test('a paused player runs no clock, and PLAY starts it (c867)', async ({ page }) => {
+	test('a paused player runs no clock, and PLAY starts it', async ({ page }) => {
 		await bufferingStream(page);
 		await openPlaying(page);
 		await page.evaluate(() => document.querySelector('video')!.pause());
@@ -296,7 +296,7 @@ function touch(name: string) {
 test.describe('on a touch tablet', () => {
 	test.use({ ...touch('Galaxy Tab S4 landscape'), serviceWorkers: 'block' });
 
-	test('a double-tap run leaves the full 15 s after its last tap (c867)', async ({ page }) => {
+	test('a double-tap run leaves the full 15 s after its last tap', async ({ page }) => {
 		await bufferingStream(page);
 		await openPlaying(page);
 		const last = await tapRun(page, 6_000);
@@ -307,7 +307,7 @@ test.describe('on a touch tablet', () => {
 test.describe('on a phone', () => {
 	test.use({ ...touch('Pixel 5'), serviceWorkers: 'block' });
 
-	test('a double-tap run leaves the full 15 s after its last tap (c867)', async ({ page }) => {
+	test('a double-tap run leaves the full 15 s after its last tap', async ({ page }) => {
 		await bufferingStream(page);
 		await openPlaying(page);
 		const last = await tapRun(page, 6_000);

@@ -3,7 +3,7 @@ import { expect, test } from './fixtures';
 /**
  * Tracking end to end (doc/TRACKING.md), as the e2e server has it: no
  * sign-ins, no app keys, no catalogue reachable. Read-only: what the series
- * screen's LISTS line (c424; TRACKING was its own row before) and SETTINGS
+ * screen's LISTS line (TRACKING was its own row before) and SETTINGS
  * say when nothing is signed in. Signing in itself leaves
  * for the catalogue's own page, and is the db spec's to check.
  */
@@ -11,7 +11,7 @@ test('the LISTS line asks for a sign-in, and sends nothing', async ({ page }) =>
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: 'The Greatest Estate Developer' }).click();
 	await page.waitForURL(/\/series\/\d+/);
-	// LINK and TRACKING are one row now (c424): AniList's line, MAL folded into it.
+	// LINK and TRACKING are one row now: AniList's line, MAL folded into it.
 	const row = page.locator('[data-row="lists"]');
 	const line = row.locator('[data-line="anilist"]');
 	await expect(line.locator('.tag')).toHaveText('ANILIST');
@@ -34,9 +34,9 @@ test('SETTINGS lists both catalogues, not signed in, and why they can’t be yet
 }) => {
 	await page.goto('/settings');
 	await expect(page.getByRole('heading', { name: '06 — CATALOGUES' })).toBeVisible();
-	// Only CATALOGUES' rows: SETTINGS > 05's IMPORT A BACKUP is drawn as an account row too (c438).
+	// Only CATALOGUES' rows: SETTINGS > 05's IMPORT A BACKUP is drawn as an account row too.
 	const rows = page.getByRole('region', { name: '06 — CATALOGUES' }).locator('.acct');
-	// TMDB's key row comes first (c993; its own cases are in tmdb-key-flow.e2e.ts),
+	// TMDB's key row comes first (its own cases are in tmdb-key-flow.e2e.ts),
 	// and Ranobe's row is there without a token too, saying so (Ranobe 3b;
 	// doc/RANOBE.md).
 	await expect(rows.locator('.label')).toHaveText(['TMDB', 'ANILIST', 'MAL', 'RANOBE']);

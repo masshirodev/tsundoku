@@ -257,7 +257,7 @@ test('N1: a long press selects the word and brings up the bar over it', async ({
 	const line = await page.locator('.sel').boundingBox();
 	expect(box!.y + box!.height).toBeLessThanOrEqual(line!.y + 1);
 	// LOOK UP is the bar's fourth cell wherever the book's language has a pack
-	// (c198): the panel opens from the selection, not from the press itself.
+	//: the panel opens from the selection, not from the press itself.
 	await expect(bar(page).getByRole('button')).toHaveText(['HIGHLIGHT', 'NOTE', 'COPY', 'LOOK UP']);
 });
 
@@ -1028,7 +1028,7 @@ test.describe('a Japanese book', () => {
 		});
 
 	/**
-	 * The way into the panel for any language with a pack (c198): a long press
+	 * The way into the panel for any language with a pack: a long press
 	 * selects the word, and LOOK UP on the bar opens the panel over it.
 	 */
 	async function lookUpFrom(page: Page, p: { x: number; y: number }) {
@@ -1105,7 +1105,7 @@ test.describe('a Japanese book', () => {
 });
 
 /**
- * Round 2 (c702): each case reaches its state through the app's own doors and
+ * Round 2: each case reaches its state through the app's own doors and
  * holds or fails the named request with `page.route`.
  */
 const HIGHLIGHT_ROW = /\/api\/highlights\/\d+$/;
@@ -1877,7 +1877,7 @@ test('R2 the join reaching the workstation first: the queue’s body is its row,
 });
 
 /**
- * Round 3 (c702): a join that ends with no row and no queue item puts back the
+ * Round 3: a join that ends with no row and no queue item puts back the
  * waiting quotes it took in. `keepSpan` takes each one off the device before
  * the join has an answer, and only saved rows are restored by `settleQuote`, so
  * a refusal or a refused storage lost the waiting highlight and its note.
@@ -2228,7 +2228,7 @@ test('R3 a reload with the quote re-queued draws it waiting, and the next connec
 });
 
 /**
- * Round 4 (c702): a join that waits on the device carries what it took in on
+ * Round 4: a join that waits on the device carries what it took in on
  * its own queue item, so a refusal at the flush puts those waiting quotes back
  * with their notes — and it survives a reload, since the join can sit in the
  * queue for sessions. The refusal is reachable without a bug in the reader: a
@@ -2367,7 +2367,7 @@ test('R4 a colour chosen while its POST was out comes back with the quote the jo
 });
 
 /**
- * Round 5 (c702): UNDO restores what DELETE removed, all of it. A waiting join
+ * Round 5: UNDO restores what DELETE removed, all of it. A waiting join
  * carries the quotes it took in (`covers`), and DELETE takes the whole item
  * back. UNDO must put that item back as it was, or a later refusal of the join
  * loses the covered quote and its note for good.
@@ -2484,7 +2484,7 @@ test('R5 UNDO of a join deleted while its POST is out brings back the quote it c
 });
 
 /**
- * Round 6 (c702): the exact re-press of a waiting quote. The press supersedes
+ * Round 6: the exact re-press of a waiting quote. The press supersedes
  * the item and queues the same key again (`waitOnDevice`'s own-span branch:
  * `j.waiting === key`). What the reader changed while it waited — a colour
  * chosen in the sheet — lives on the taken-back item, not on the drawn quote
@@ -2542,7 +2542,7 @@ test('R6 the exact re-press of a waiting quote carries the colour the reader cho
 });
 
 /**
- * Round 7 (c702): a DELETE inside the press's own POST. `waitOnDevice` returns
+ * Round 7: a DELETE inside the press's own POST. `waitOnDevice` returns
  * at once for a DELETE that came first, so `deleteQuote`'s in-flight door is
  * the one that answers UNDO. On the exact re-press of a waiting quote W the
  * press is W itself, not something it covers: what W carried — the colour the
@@ -2605,7 +2605,7 @@ test('R7 UNDO of a waiting quote deleted in flight keeps the colour chosen while
 });
 
 /**
- * Round 8 (c702): the same in-flight door, for a join W over a waiting quote X.
+ * Round 8: the same in-flight door, for a join W over a waiting quote X.
  * The exact re-press of W makes W the item again, and W's own covers (X, note
  * included) must ride the UNDONE item, or a later refusal of W skips the cover
  * under its own key and X exists nowhere.
@@ -2664,7 +2664,7 @@ test('R8 UNDO of a join deleted in flight keeps the quote it covered', async ({ 
 });
 
 /**
- * Round 9 (c702, wave 46): the chapter's own re-read can land after a press took
+ * Round 9: the chapter's own re-read can land after a press took
  * a saved row in. `onQueueChange`'s refused event calls `loadMarks`, whose GET
  * may still be out when the press removes that row from `quotes`; the answer it
  * carries names the row again, so `fresh` draws it beside the press that covers
@@ -2751,7 +2751,7 @@ for (const how of ['lands', 'refused'] as const) {
 }
 
 /**
- * Round 11 (c702, wave 46): DISMISS is not a door onto a cover. The refusal puts
+ * Round 11: DISMISS is not a door onto a cover. The refusal puts
  * each waiting quote back before the join is stored refused (`sendAll`), so the
  * band's DISMISS only takes the refused item: the quote it covered stays drawn,
  * stays on the device with its note, and is sent at the next connection. The
@@ -2795,7 +2795,7 @@ test('R11 DISMISS takes only the refused join: the quote it covered stays waitin
 });
 
 /**
- * Round 12 (c702, wave 46): the in-flight DELETE door's band with no UNDO. The
+ * Round 12: the in-flight DELETE door's band with no UNDO. The
  * door consumes its carry when it builds the band (`carryFor` reads the stash,
  * or `carriedBy` on the early-return path R7 takes), so nothing waits on the
  * reader's press: leaving the band alone for its six seconds must draw nothing,
@@ -2843,7 +2843,7 @@ test('R12 a DELETE left un-undone in flight leaves nothing drawn and nothing wai
 });
 
 /**
- * Round 13 (c702, wave 46): the press that may not wait. In reveal a hidden
+ * Round 13: the press that may not wait. In reveal a hidden
  * series is read but nothing is queued (`mayWait`), and a press that took a
  * waiting quote in would otherwise keep it off the device for good. Its end here
  * is `restoreJoinedWaiting`: the quote comes back under its own key with its
@@ -2903,7 +2903,7 @@ test('R13 a press in reveal puts back the waiting quote it took in, and keeps th
 });
 
 /**
- * Round 14 (c702, wave 46): the browser that will not keep the queue. A press
+ * Round 14: the browser that will not keep the queue. A press
  * that cannot be put on the device says so (`NOT KEPT`), and the saved row it
  * took in is drawn again by `settleQuote`, not lost with the join. The notes'
  * table marked this row `none`, on the claim that a browser's refused storage
@@ -2980,7 +2980,7 @@ async function gateQueueDb(page: Page) {
 }
 
 /**
- * Round 15 (c702, wave 46): the door R7 and R8 never reach. A DELETE that lands
+ * Round 15: the door R7 and R8 never reach. A DELETE that lands
  * while the device is still writing the press down finds `waitOnDevice` past its
  * early return: the item is written, then taken back (`takeBackHighlight`), and
  * the take-back clears `remembered` for the item's own key. On the exact
@@ -3050,7 +3050,7 @@ test('R15 UNDO of a re-press deleted while the device writes it keeps its colour
 });
 
 /**
- * Round 16 (c702, wave 46): the in-flight DELETE door's band across a chapter's
+ * Round 16: the in-flight DELETE door's band across a chapter's
  * end. `carryFor` has consumed the carry when the band is drawn, and the band
  * outlives the turn, so UNDO on the next chapter must queue W under its own
  * chapter, with what it carried, and draw nothing on the chapter it is not of.
@@ -3104,7 +3104,7 @@ test('R16 UNDO of a re-press deleted in flight, after a crossing, keeps it under
 });
 
 /**
- * Round 17 (c702, wave 46; fixed in round 4): a device whose storage stops
+ * Round 17 (fixed in round 4): a device whose storage stops
  * keeping new writes after a quote already waits there (a full quota: a delete
  * still goes through, a larger put is aborted, here by the browser's own
  * `abort()`). Every press that covers that quote used to take it off the device
@@ -3161,7 +3161,7 @@ for (const door of ['a join offline', 'the exact re-press', 'a join refused onli
 }
 
 /**
- * Round 19 (c702, round 4): the new state round 4 makes. A waiting quote now
+ * Round 19: the new state round 4 makes. A waiting quote now
  * stays on the device while the press that covers it is out, so two things can
  * reach it there that could not before.
  *
@@ -3292,7 +3292,7 @@ test('R19 the queue sends a covered quote while its join is out, and the join is
 });
 
 /**
- * Round 20 (c702, round 4; R13's cause): a chapter's list of quotes taken before
+ * Round 20 (R13's cause): a chapter's list of quotes taken before
  * a waiting quote of that chapter is sent. The reader draws a chapter from its
  * list (the page's own load, or the next chapter's prefetch) and from the
  * device, read when the chapter opens. A quote sent in between is in neither:

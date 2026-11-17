@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * Whose page may make the bridge write (c529), and since c549 read the owner's
+ * Whose page may make the bridge write, and since c549 read the owner's
  * things (the list, the TV's address, its network): the app's own asset page,
  * or a page of a server this TV already knows. `window.TsundokuTV` is injected into
  * every page and frame the WebView loads, and nothing keeps the WebView on
@@ -12,7 +12,7 @@ package dev.masshiro.tsundoku.tv
  * The rule is asked about the WebView's top-level URL, read on the UI thread
  * (`PairingBridge.Host.topUrl`). A frame cannot change that URL; a top-level
  * navigation can, and that is what the rule is about. The scheme test is
- * case-blind, as [Address.originOf]'s is (c646): `HTTP://zen.local:42143` is
+ * case-blind, as [Address.originOf]'s is: `HTTP://zen.local:42143` is
  * the same page as `http://zen.local:42143`, not a scheme of its own, and a
  * capitalised scheme on an unknown host is still refused by the origin
  * comparison. A frame inside a known
@@ -28,7 +28,7 @@ package dev.masshiro.tsundoku.tv
  * Pure, so BridgeGuardTest and PairingBridgeTest pin it.
  */
 object BridgeGuard {
-	/** The host `WebViewAssetLoader` serves the app's own page from (c549). */
+	/** The host `WebViewAssetLoader` serves the app's own page from. */
 	const val ASSET_HOST = "appassets.androidplatform.net"
 
 	/** The app's own page (9A, 9B, 9D, S5, S7, S8, S9), whatever its launch token and fragment. */
@@ -39,7 +39,7 @@ object BridgeGuard {
 	 * serves [ASSET] there in `MainActivity.shouldInterceptRequest`, and a real
 	 * network answer at that host is never trusted. The loader is mounted at
 	 * `/`, so any file under `assets/` is served there to a main-frame GET that
-	 * carries the launch's token (round 4); a path the loader does not hold is
+	 * carries the launch's token; a path the loader does not hold is
 	 * 404, and every other request for the host is 404 before the loader is
 	 * asked. A message from the page carries this as its `sourceOrigin`, which
 	 * is what [allowsMessage] trusts.
@@ -55,7 +55,7 @@ object BridgeGuard {
 	/**
 	 * True for a navigation the WebView must not carry out: anything addressed
 	 * to [ASSET_HOST], case-blind, whatever its scheme, path, query or
-	 * fragment (c549, round 2).
+	 * fragment.
 	 *
 	 * [ASSET] is an ordinary https URL since wave 29, so any page the WebView
 	 * shows — a server's page, an external link followed from one, a frame in
@@ -86,7 +86,7 @@ object BridgeGuard {
 	 *
 	 * The last test is a **per-launch capability** rather than a navigation
 	 * callback: `MainActivity.loadAsset` writes a random `?t=…` into the URL it
-	 * loads (round 4), and a request is served only when its query is exactly
+	 * loads, and a request is served only when its query is exactly
 	 * that token. Only the app knows it, so a URL a page can write — a link,
 	 * `location =`, a meta refresh, a 302, a form submit, `window.open` —
 	 * arrives without it and is 404 whatever the WebView version calls. It
@@ -109,7 +109,7 @@ object BridgeGuard {
 		return !carriesAssetToken(url, token)
 	}
 
-	/** True when [url]'s query is exactly the launch's own `t=<token>` (round 4). */
+	/** True when [url]'s query is exactly the launch's own `t=<token>`. */
 	fun carriesAssetToken(url: String?, token: String?): Boolean {
 		val t = token?.trim().orEmpty()
 		if (t.isEmpty()) return false
@@ -120,7 +120,7 @@ object BridgeGuard {
 	/**
 	 * True when [url] names [ASSET_HOST], read case-blind, whatever its scheme,
 	 * path, query or fragment, and whether or not the rest of it parses
-	 * (c684). Every refusal of the host asks this, so it must fail closed: a
+	 *. Every refusal of the host asks this, so it must fail closed: a
 	 * URL that names the host is the host's, even when it is not a URL
 	 * `java.net.URI` accepts.
 	 */
@@ -135,7 +135,7 @@ object BridgeGuard {
 
 	/**
 	 * The host [url] names, lower-cased, read the way a browser reads an
-	 * authority, or null when it names none (c684).
+	 * authority, or null when it names none.
 	 *
 	 * `java.net.URI` was the reader until c684, and it throws on characters a
 	 * WebView leaves as they are: the URL standard's query percent-encode set
@@ -253,7 +253,7 @@ object BridgeGuard {
 	 *
 	 * A known server is compared through [Address.originOf], as the top-level
 	 * guard's is, and [Address.originOf] lower-cases the scheme and the host
-	 * (c548): a message whose origin kept the host's capitals is the same
+	 *: a message whose origin kept the host's capitals is the same
 	 * server, and so is one whose scheme is capitalised. Its http/https twin or
 	 * another port is not.
 	 */

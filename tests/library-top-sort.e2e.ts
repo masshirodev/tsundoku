@@ -147,7 +147,7 @@ test('on a keyboard: Enter opens it on the choice in use, the arrows walk, Enter
 	await expect(page).toHaveURL(/sort=title/);
 });
 
-test.describe('a sort that takes past 1 s (c560)', () => {
+test.describe('a sort that takes past 1 s', () => {
 	// The service worker answers `__data.json` itself once it controls the
 	// page, past page.route (doc/TESTING.md, "Load").
 	test.use({ serviceWorkers: 'block' });

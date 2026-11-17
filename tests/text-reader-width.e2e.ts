@@ -246,7 +246,7 @@ test('SCROLL, R→L and one column take the width too', async ({ page }) => {
 	await pick(page, 50);
 	const want = expected(page, 50);
 
-	// R→L (c440): the columns mirror inside the same centred box.
+	// R→L: the columns mirror inside the same centred box.
 	await openSheet(page);
 	await sheet(page).getByRole('radio', { name: 'R→L' }).click();
 	await closeSheet(page);

@@ -77,7 +77,7 @@ describe('deciding', () => {
 	});
 
 	// c671: KEEP BOTH on the series screen carries out the decisions waiting
-	// from before first, as every decision does (c648), and used to drop what
+	// from before first, as every decision does, and used to drop what
 	// `decide` answered of them. A 409 would be false -- this KEEP BOTH is
 	// recorded -- so the answer is a success that names the refusal.
 	it('the series screen’s KEEP BOTH is recorded and says an earlier decision was refused', async () => {

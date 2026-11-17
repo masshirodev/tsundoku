@@ -5,7 +5,7 @@ import { gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * IMPORT A BACKUP's server half (c438, doc/IMPORT-BACKUP.md): the upload in pieces,
+ * IMPORT A BACKUP's server half (doc/IMPORT.md): the upload in pieces,
  * the import area, reading a file before anything is written, the preview,
  * IMPORT as a scan job, a second backup merging, and the log's counts
  * following reveal. Reached through the functions the routes call, from a
@@ -201,7 +201,7 @@ describe('a file that is not a backup it reads', () => {
 		expect((db().prepare(`SELECT COUNT(*) n FROM series`).get() as { n: number }).n).toBe(series0);
 	});
 
-	it('a small file that unpacks past the cap is refused with a sentence (round 2)', () => {
+	it('a small file that unpacks past the cap is refused with a sentence', () => {
 		// 2 MB of zeros gzips to about 2 KB; with a 1 MB cap it never inflates whole.
 		const bomb = gz(new Uint8Array(2 * 1024 * 1024));
 		expect(bomb.length).toBeLessThan(10_000);
@@ -442,7 +442,7 @@ describe('a second backup of the same library', () => {
 		const r = upload(gz(lean), 'app.mihon_2026-11-04_08-00.tachibk');
 		const p = b.previewImport(r.state === 'read' ? r.id : -1, true)!;
 		expect(p.ok && p.preview.same).toMatchObject({ importId: second, gone: 2, fresh: 0 });
-		// Bunk Beds is hidden: with reveal off it is neither here nor gone (round 2).
+		// Bunk Beds is hidden: with reveal off it is neither here nor gone.
 		const off = b.previewImport(r.state === 'read' ? r.id : -1, false)!;
 		expect(off.ok && off.preview.same).toMatchObject({ importId: second, gone: 1, fresh: 0 });
 		expect(series('Bunk Beds') ?? series('My Title')).toBeDefined();
@@ -545,7 +545,7 @@ const jobs = () =>
 		source_label: string;
 	}[];
 
-describe('an import whose process died (round 2)', () => {
+describe('an import whose process died', () => {
 	it('reads as stopped, and the log has nothing live', () => {
 		// Rows left `running` and `waiting` by a process that is gone: no queue here holds them.
 		const ids = ['app.mihon_2026-11-06_01-00.tachibk', 'app.mihon_2026-11-06_02-00.tachibk'].map(
@@ -592,7 +592,7 @@ describe('an import whose process died (round 2)', () => {
 	});
 });
 
-describe('a scan asked for during a backup’s import (round 2)', () => {
+describe('a scan asked for during a backup’s import', () => {
 	it('waits its turn, says so, then reads the folder in a job of its own', async () => {
 		const { writeFileSync } = await import('node:fs');
 		mkdirSync(join(library, 'Mihon', 'autobackup'), { recursive: true });
@@ -642,7 +642,7 @@ describe('a scan asked for during a backup’s import (round 2)', () => {
 		rmSync(join(library, 'Mihon'), { recursive: true });
 	});
 
-	it('RESCAN during a held import answers WAITING, and the sidebar’s line follows the queue past the scan’s end (c512)', async () => {
+	it('RESCAN during a held import answers WAITING, and the sidebar’s line follows the queue past the scan’s end', async () => {
 		const { writeFileSync } = await import('node:fs');
 		mkdirSync(join(library, 'Mihon', 'autobackup'), { recursive: true });
 		writeFileSync(join(library, 'Mihon', 'autobackup', NAME), gzipSync(backup()));
@@ -679,7 +679,7 @@ describe('a scan asked for during a backup’s import (round 2)', () => {
 	});
 });
 
-describe('an IMPORT that throws before its run (c512)', () => {
+describe('an IMPORT that throws before its run', () => {
 	it('fails where it stands, with a reason, and leaves nothing live', async () => {
 		const r = upload(gz(backup([7])), 'app.mihon_2026-11-07_01-00.tachibk');
 		const id = r.state === 'read' ? r.id : -1;
@@ -713,7 +713,7 @@ describe('an IMPORT that throws before its run (c512)', () => {
 	});
 });
 
-describe('IMPORT A BACKUP from a source with ADDED HIDDEN (c503)', () => {
+describe('IMPORT A BACKUP from a source with ADDED HIDDEN', () => {
 	it('brings a series new to the library in hidden, and leaves one already here as it is', async () => {
 		const { setSourceFlag } = await import('$lib/server/engine/source-flags');
 		const SWITCHED = 9_200_000_000_000_000_001n;
@@ -750,7 +750,7 @@ describe('IMPORT A BACKUP from a source with ADDED HIDDEN (c503)', () => {
 	});
 });
 
-describe('the TV never imports, refused on the server (c511)', () => {
+describe('the TV never imports, refused on the server', () => {
 	const TV =
 		'Mozilla/5.0 (Linux; Android 9; BRAVIA 4K GB) AppleWebKit/537.36 Chrome/94.0 Safari/537.36 TsundokuTV/1.0.0';
 	const PHONE =

@@ -143,7 +143,7 @@ test.afterEach(async ({ page, baseURL }) => {
 	dropBig();
 	const origin = new URL(baseURL!).origin;
 	// Every switch this file sets goes back off, for the two seeded packages it
-	// ticks; REMOVE keeps a switch the way it keeps its settings (c569).
+	// ticks; REMOVE keeps a switch the way it keeps its settings.
 	for (const pkg of [OPEN, SHELF]) {
 		for (const flag of FLAGS)
 			await page.request.post(`${origin}/browse/extensions?/flags`, {

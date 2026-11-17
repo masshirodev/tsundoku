@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Rung 58 (doc/MOVE.md; card c139): every key a series has left, not only the
+// Rung 58 (doc/MOVE.md): every key a series has left, not only the
 // one rung 57 kept, and every address an entry has left. On a file, as the live
 // database is, and never editing a rung below it.
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung58-'));

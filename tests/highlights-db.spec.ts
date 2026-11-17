@@ -21,7 +21,7 @@ const { buildMoveMap } = await import('$lib/library/move');
 const { foldSeries } = await import('$lib/server/import/fold');
 
 /**
- * Highlights' life (c701; doc/HIGHLIGHTS.md): rung 72's record and its
+ * Highlights' life (doc/HIGHLIGHTS.md): rung 72's record and its
  * triggers, reached through the app's own doors. Every highlight here is
  * seeded straight into the table, because H1 has no way to make one; every
  * change to a pointer comes from a door the app has (delete.ts, the

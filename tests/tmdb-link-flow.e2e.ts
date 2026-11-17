@@ -8,7 +8,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * A film's TMDB link, end to end (card c989; doc/LINKS.md, "TMDB links"): the
+ * A film's TMDB link, end to end (doc/LINKS.md, "TMDB links"): the
  * LISTS line says what the pass found, FIND opens the review on it, LINK reads
  * the entry by id and the line names it. Its own preview and database,
  * because the shared server has no key by design (playwright.config.ts) and a
@@ -138,7 +138,7 @@ test.afterAll(async () => {
 	if (work) rmSync(work, { recursive: true, force: true });
 });
 
-test('a film’s LISTS line, FIND, LINK, and the line names the entry (c989)', async ({ page }) => {
+test('a film’s LISTS line, FIND, LINK, and the line names the entry', async ({ page }) => {
 	await page.goto(`${BASE}/series/${filmId}`);
 	const line = page.locator('[data-line="tmdb"]').first();
 	await expect(line).toBeVisible();

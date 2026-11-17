@@ -80,7 +80,7 @@ describe('snapshotBeforeMigration', () => {
 	});
 });
 
-describe('the highlights’ copies (c701)', () => {
+describe('the highlights’ copies', () => {
 	const source = join(work, 'highlights');
 	const put = (rel: string, body: string) => {
 		mkdirSync(join(source, rel, '..'), { recursive: true });
@@ -249,7 +249,7 @@ describe('the highlights’ copies (c701)', () => {
 		expect(existsSync(join(work, 'none', 'highlights'))).toBe(false);
 	});
 
-	it('a mirror that fails leaves the snapshot in place and pruned, and says why (c730)', () => {
+	it('a mirror that fails leaves the snapshot in place and pruned, and says why', () => {
 		// A file where the mirror's folder should be: what ENOSPC or EACCES do, on demand.
 		const at = join(work, 'blocked');
 		mkdirSync(at, { recursive: true });
@@ -283,7 +283,7 @@ describe('the highlights’ copies (c701)', () => {
 	});
 });
 
-describe('scripts/backup.ts, the nightly run (c730)', () => {
+describe('scripts/backup.ts, the nightly run', () => {
 	const root = fileURLToPath(new URL('../', import.meta.url));
 	const covers = join(work, 'covers');
 	const episodes = join(covers, 'episodes');

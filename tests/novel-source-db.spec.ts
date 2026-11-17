@@ -11,7 +11,7 @@ process.env.LIBRARY_ROOT = join(work, 'library');
 process.env.COVER_DIR = join(work, 'covers');
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
-// A novel plugin as a source (doc/NOVELS.md; card c149), on a fake host: the
+// A novel plugin as a source (doc/NOVELS.md), on a fake host: the
 // real one is tests/novel-host.spec.ts's. Its answers are LNReader's shapes.
 type Call = { method: string; args: unknown[] };
 let calls: Call[] = [];
@@ -116,7 +116,7 @@ beforeEach(() => {
 	).run();
 	forgetSourceUse();
 	// A novel parsed by one case was kept for the next, which then asked for
-	// none of its pages (c293).
+	// none of its pages.
 	source.forgetNovels();
 });
 
@@ -294,7 +294,7 @@ describe('a novel', () => {
 });
 
 describe('a source that adds hidden', () => {
-	it('ADDED HIDDEN: added from a source that adds hidden, it starts hidden, a browsing record once ADD promotes it (c435)', async () => {
+	it('ADDED HIDDEN: added from a source that adds hidden, it starts hidden, a browsing record once ADD promotes it', async () => {
 		const flags = await import('$lib/server/engine/source-flags');
 		const row = (id: number) =>
 			db.prepare(`SELECT hidden, in_library AS inLibrary FROM series WHERE id = ?`).get(id);

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Candidate } from '$lib/library/catalogue';
 
 /**
- * OTHER FORMS (c700; doc/SERIES.md, "OTHER FORMS"): the same work's manga,
+ * OTHER FORMS (doc/SERIES.md, "OTHER FORMS"): the same work's manga,
  * novel or anime, from the relation cache the link pass fills.
  *
  * The answer below is AniList's own, recorded on 2026-11-08 by posting
@@ -205,7 +205,7 @@ const heard = () => {
 	asked.length = 0;
 };
 
-describe('what counts as another form (c700)', () => {
+describe('what counts as another form', () => {
 	it('is a SOURCE, an ADAPTATION or an ALTERNATIVE of another kind, each with its facts', async () => {
 		fresh();
 		const show = anime('Ranma Show', 178533);
@@ -331,7 +331,7 @@ describe('what counts as another form (c700)', () => {
 	});
 });
 
-describe('IN LIBRARY (c700)', () => {
+describe('IN LIBRARY', () => {
 	it('is the other series’ own link, by season or by series, never its title', async () => {
 		fresh();
 		const show = anime('Ranma Show', 178533);
@@ -370,7 +370,7 @@ describe('IN LIBRARY (c700)', () => {
 	});
 });
 
-describe('the Work on an IN LIBRARY row (c700)', () => {
+describe('the Work on an IN LIBRARY row', () => {
 	const setup = async () => {
 		fresh();
 		const show = anime('Ranma Work', 178533);
@@ -404,7 +404,7 @@ describe('the Work on an IN LIBRARY row (c700)', () => {
 	});
 });
 
-describe('the comics’ and novels’ side (c700)', () => {
+describe('the comics’ and novels’ side', () => {
 	it('is one more MANGA ask in the same pass, cached in the same table', async () => {
 		fresh();
 		const manga = comic('Ranma Comic', 'manga', 30023, 'MANGA');
@@ -481,7 +481,7 @@ describe('the comics’ and novels’ side (c700)', () => {
 	});
 });
 
-describe('a middle season AniList answers nothing for (c700, round 2)', () => {
+describe('a middle season AniList answers nothing for', () => {
 	/**
 	 * Its own world per case, so a case that kills an entry kills nobody
 	 * else's: P <- FIRST (manga source), MIDDLE, LAST (novel adaptation) -> NEXT.
@@ -783,7 +783,7 @@ describe('a middle season AniList answers nothing for (c700, round 2)', () => {
 	});
 });
 
-describe('one comic AniList answers nothing for (c700, round 2)', () => {
+describe('one comic AniList answers nothing for', () => {
 	const alive = (id: number) =>
 		WORLD.set(id, {
 			...node(id, 'MANGA', 'MANGA'),

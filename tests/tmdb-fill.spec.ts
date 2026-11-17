@@ -8,7 +8,7 @@ import {
 } from '$lib/server/tmdb-fill';
 
 /**
- * TMDB's timer (card c989): what makes "a key added later backfills" true on an
+ * TMDB's timer: what makes "a key added later backfills" true on an
  * install that never imports. No network: the pass is a stand-in.
  */
 describe('tmdbCadence', () => {

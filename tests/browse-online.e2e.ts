@@ -8,7 +8,7 @@ import { engineDown, resetEngine, SOURCES } from './browse-world';
  * its chapters read online from the series screen, ↓ downloading apart.
  */
 
-test('a chapter opens online from the preview, a record keeps the place, the series reads online (c166)', async ({
+test('a chapter opens online from the preview, a record keeps the place, the series reads online', async ({
 	page
 }) => {
 	test.setTimeout(90_000);
@@ -23,7 +23,7 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 		'3 · ALL ONLINE'
 	);
 	// The pages come from the source, through tsundoku, and are never kept:
-	// the reader holds them in memory only, as blob: URLs (c1038).
+	// the reader holds them in memory only, as blob: URLs.
 	const first = page.waitForResponse((r) => /\/api\/entries\/\d+\/pages\/0\?/.test(r.url()));
 	await page.locator('.cta-go .cta').click();
 	await expect(page).toHaveURL(/\/read\/\d+/);
@@ -50,7 +50,7 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 	// Added: the series screen reads each chapter online, and ↓ downloads apart.
 	await page.getByRole('button', { name: /ADD TO LIBRARY/ }).click();
 	await expect(page).toHaveURL(/\/series\/\d+/);
-	// ← goes back to the source it was added from, not the library (c262).
+	// ← goes back to the source it was added from, not the library.
 	const back = page.getByRole('banner', { name: 'Series' }).locator('a.back');
 	await expect(back.locator('.back-label')).toHaveText('BROWSE');
 	// Its pages too (?pages=), so the source's results come back as they were left.
@@ -85,7 +85,7 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 	});
 
 	// Opened again from BROWSE, an in-library series is its series, not a
-	// preview again — and its ← still goes back to BROWSE (c262).
+	// preview again — and its ← still goes back to BROWSE.
 	await page.goto(`/browse/${SOURCES.open.id}`);
 	await page.locator('.grid .tile', { hasText: 'Open Source 1-4' }).click();
 	await expect(page).toHaveURL(new RegExp(`${series}\\?from=`));
@@ -166,7 +166,7 @@ test('a page read online takes its own shape once it arrives, paged and vertical
 });
 
 /**
- * Turning back (c1038; the owner, 2026-11-16): a page read online is
+ * Turning back (the owner, 2026-11-16): a page read online is
  * `no-store`, and a turn mounts a new element for the page turned to, so the
  * browser asked the workstation, and the workstation the source, for a page
  * that had just been on screen; a bad connection made the loading box stay.
@@ -174,7 +174,7 @@ test('a page read online takes its own shape once it arrives, paged and vertical
  * ($lib/reader/online-pages): forward and back again asks for each page once,
  * and a page drawn before is never drawn as its loading box again.
  */
-test('turning back and forth on a chapter read online asks for each page once and never redraws its loading box (c1038)', async ({
+test('turning back and forth on a chapter read online asks for each page once and never redraws its loading box', async ({
 	page
 }) => {
 	test.setTimeout(90_000);

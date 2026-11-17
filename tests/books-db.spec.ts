@@ -220,7 +220,7 @@ describe('a book’s own tags', () => {
 	});
 });
 
-describe('a hand-made extra beside a doujin (c650)', () => {
+describe('a hand-made extra beside a doujin', () => {
 	/** An entry carrying front matter: what only a hand-made row writes on a doujin. */
 	const addExtra = (seriesId: number, title = 'An Extra', position = 99) =>
 		Number(

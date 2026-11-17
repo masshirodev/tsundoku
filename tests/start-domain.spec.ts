@@ -17,7 +17,7 @@ import {
 } from '../src/lib/library/start';
 
 /**
- * GET STARTED's steps (doc/ONBOARDING.md; cards c208, c209): what ticks them,
+ * GET STARTED's steps (doc/ONBOARDING.md): what ticks them,
  * skips and what they take with them, the two parts, the way back, and the words.
  */
 
@@ -215,7 +215,7 @@ describe('the way back', () => {
 		expect(trailHere('repo', '/browse/extensions')).toBe(true);
 		expect(trailHere('repo', '/browse')).toBe(false);
 	});
-	it('03’s IMPORT A BACKUP → starts a trip on the import pages, not the log (c511)', () => {
+	it('03’s IMPORT A BACKUP → starts a trip on the import pages, not the log', () => {
 		expect(TRAIL.library?.href).toBe('/import');
 		for (const p of ['/import', '/import/12', '/import/upload'])
 			expect(trailHere('library', p), p).toBe(true);
@@ -228,7 +228,7 @@ describe('the way back', () => {
 		// Every step with a trail ends its trip off its screens: none lasts on the library.
 		for (const id of Object.keys(TRAIL) as StepId[]) expect(trailLasts(id, '/'), id).toBe(false);
 	});
-	it('03 done by an import names it and its count; a scan alone keeps the step’s line (c511)', () => {
+	it('03 done by an import names it and its count; a scan alone keeps the step’s line', () => {
 		expect(importDoneLine({ id: 4, app: 'mihon', series: 382 })).toBe(
 			'Done · Mihon backup · 382 series'
 		);

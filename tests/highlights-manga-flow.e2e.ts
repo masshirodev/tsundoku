@@ -198,7 +198,7 @@ test('✓ HIGHLIGHTED opens the page’s sheet and never unmarks; NOTE, SAVE IMA
 	await expect(page.locator('.track .tick')).toHaveCount(1);
 });
 
-test('DELETE, HIGHLIGHT again, then UNDO: the page keeps one highlight, the same one (round 2)', async ({
+test('DELETE, HIGHLIGHT again, then UNDO: the page keeps one highlight, the same one', async ({
 	page
 }) => {
 	const entry = await readAt(page, 'Natsu no Owari ni Kimi to', 2);
@@ -291,7 +291,7 @@ test('a failure keeps nothing and says why; TRY AGAIN keeps one (M7)', async ({ 
 	expect(kept(entry).filter((r) => r.page === 8)).toHaveLength(1);
 });
 
-test('offline: ○ HIGHLIGHT at 0.4, and a press waits for the next connection, asking nothing yet (M7, c842)', async ({
+test('offline: ○ HIGHLIGHT at 0.4, and a press waits for the next connection, asking nothing yet (M7)', async ({
 	page,
 	context
 }) => {

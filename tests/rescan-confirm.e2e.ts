@@ -10,14 +10,14 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * RESCAN asks first (c525; doc/LIBRARY.md, "RESCAN"): the sidebar's RESCAN
+ * RESCAN asks first (doc/LIBRARY.md, "RESCAN"): the sidebar's RESCAN
  * opens the house's ConfirmSheet, CANCEL the default, and no scan starts
  * until its own RESCAN is pressed; Esc and the scrim cancel; a scan already
  * running is joined without the question; without script the form still
  * posts. Its own preview and seeded database, because one case stages a
  * running scan, which every screen of the shared server would then show. The
  * sidebar is the desktop's, so most cases run there; the phone and the
- * tablets reach the same form through MORE's RESCAN (c561), and no
+ * tablets reach the same form through MORE's RESCAN, and no
  * scan starts there until it is confirmed either. The port is the OS's to
  * give.
  */
@@ -41,9 +41,9 @@ function freePort(): Promise<number> {
 test.beforeAll(async () => {
 	// This hook seeds a database and spawns a preview, then polls up to 60 s
 	// for it: all inside the default 30 s hook budget, where `work-end-frame`'s
-	// same shape ran past 30 s in wave 20's gate (c477). Measured at 3 s here,
+	// same shape ran past 30 s in wave 20's gate. Measured at 3 s here,
 	// desktop at a load average of 20 with the other slots at work; the house
-	// budget is 120 s so a loaded gate fails a case, never the hook (c599). In
+	// budget is 120 s so a loaded gate fails a case, never the hook. In
 	// a hook, `test.setTimeout` sets the hook's own budget (Playwright's
 	// test.d.ts).
 	test.setTimeout(120_000);
@@ -228,7 +228,7 @@ test('without script, RESCAN is the plain form it was: it posts, and the scan is
 });
 
 /*
- * MORE's RESCAN (c561, the owner's yes, 2026-11-05): where there is no
+ * MORE's RESCAN (the owner's yes, 2026-11-05): where there is no
  * sidebar (a phone, a tablet), MORE has a RESCAN row, and it presses the
  * sidebar's own form, so the question, CANCEL focused, joining a running scan
  * and the action's answer are the sidebar's. MORE closes first, so the
@@ -245,7 +245,7 @@ async function rescanFromMore(page: Page) {
 }
 const band = (page: Page) => page.locator('.rescan-band');
 
-test('on a phone or tablet, MORE’s RESCAN asks the same question, and nothing starts until it is confirmed (c561)', async ({
+test('on a phone or tablet, MORE’s RESCAN asks the same question, and nothing starts until it is confirmed', async ({
 	page
 }, info) => {
 	noSidebar(info.project.name);
@@ -276,7 +276,7 @@ test('on a phone or tablet, MORE’s RESCAN asks the same question, and nothing 
 	expect(posted).toEqual([]);
 });
 
-test('MORE’s RESCAN, confirmed, posts the scan once, and its refusal is a band the ✕ puts away (c561)', async ({
+test('MORE’s RESCAN, confirmed, posts the scan once, and its refusal is a band the ✕ puts away', async ({
 	page
 }, info) => {
 	noSidebar(info.project.name);
@@ -297,7 +297,7 @@ test('MORE’s RESCAN, confirmed, posts the scan once, and its refusal is a band
 	expect(posted).toHaveLength(1);
 });
 
-test('MORE’s RESCAN joins a scan already running at once, without the question (c561)', async ({
+test('MORE’s RESCAN joins a scan already running at once, without the question', async ({
 	page
 }, info) => {
 	noSidebar(info.project.name);
@@ -319,7 +319,7 @@ test('MORE’s RESCAN joins a scan already running at once, without the question
 	}
 });
 
-test('a tap on the band’s ✕ does not hand the mark back, so a phone’s keyboard stays down (c639)', async ({
+test('a tap on the band’s ✕ does not hand the mark back, so a phone’s keyboard stays down', async ({
 	page
 }, info) => {
 	test.skip(info.project.name !== 'phone', 'a tap only focuses a button on a touch device');

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultShowName, seasonMark, stripSeason } from '$lib/library/season-name';
 
 /**
- * The name rule (card c283, S2; doc/WORKS.md, "Per-season sources"). Rung
+ * The name rule (S2, doc/WORKS.md, "Per-season sources"). Rung
  * 55's frozen SQL stamps `entries.season` from the same shapes, so every
  * marker it knows is here, and the near misses say what is a name and what
  * only looks like one.
@@ -22,7 +22,7 @@ describe('seasonMark', () => {
 		['Attack on Titan Part 2', 2, 'Part 2'],
 		['Attack on Titan part 3', 3, 'part 3'],
 		['Made in Abyss II', 2, 'II'],
-		// A numeral after Season or Part is part of that word's marker (round 2):
+		// A numeral after Season or Part is part of that word's marker:
 		// the name is what is left without the whole suffix.
 		['Made in Abyss Season III', 3, 'Season III'],
 		['Made in Abyss Part II', 2, 'Part II'],

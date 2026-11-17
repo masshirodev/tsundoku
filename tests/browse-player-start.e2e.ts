@@ -5,7 +5,7 @@ import { devices, type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * The player's `?t=` (c734; doc/HIGHLIGHTS.md): a link opens an episode at a
+ * The player's `?t=` (doc/HIGHLIGHTS.md): a link opens an episode at a
  * second, over its saved place, once, and that second is not the viewer's until
  * the picture plays from it. Runs in `browse`, where the fixture's real 8 s clip
  * is served, and through the fake's first server, which stops as the clip starts,

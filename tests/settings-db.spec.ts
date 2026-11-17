@@ -14,7 +14,7 @@ const { kindDirection } = await import('$lib/server/series');
 const textDir = await import('../src/routes/read/[entry]/text-direction.server');
 
 /**
- * The SETTINGS page's server side (doc/SETTINGS.md; card c171): devices'
+ * The SETTINGS page's server side (doc/SETTINGS.md): devices'
  * settings kept here, the player's choices, the library's values and their
  * overrides.
  */
@@ -223,7 +223,7 @@ describe('the library’s values', () => {
 		expect(page.overrideCounts(false).mode.manga).toBe(0);
 	});
 
-	it('counts and lists a novel kept R→L, once beside its layout, and ✕ puts both back (c552)', () => {
+	it('counts and lists a novel kept R→L, once beside its layout, and ✕ puts both back', () => {
 		const novels = (
 			db
 				.prepare(
@@ -277,7 +277,7 @@ describe('the library’s values', () => {
 		db.prepare(`UPDATE series SET text_direction = NULL WHERE id = ?`).run(storedLtr);
 	});
 
-	it('leaves a comic’s text_direction alone: it is not what makes a comic differ, and not its ✕’s (c552)', () => {
+	it('leaves a comic’s text_direction alone: it is not what makes a comic differ, and not its ✕’s', () => {
 		const id = (
 			db
 				.prepare(
@@ -302,7 +302,7 @@ describe('the library’s values', () => {
 		db.prepare(`UPDATE series SET text_direction = NULL WHERE id = ?`).run(id);
 	});
 
-	describe('✕ clears what the line names, and a novel’s page direction whichever way it was chosen (c637, c617)', () => {
+	describe('✕ clears what the line names, and a novel’s page direction whichever way it was chosen', () => {
 		const KIND_ROWS = ['manga', 'manhwa', 'doujin', 'novel'] as const;
 		const visible = (kind: string) =>
 			(
@@ -413,7 +413,7 @@ describe('the library’s values', () => {
 		});
 	});
 
-	it('counts a hidden novel kept R→L only while revealed (c552)', () => {
+	it('counts a hidden novel kept R→L only while revealed', () => {
 		const id = (
 			db
 				.prepare(

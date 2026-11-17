@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 process.env.DATABASE_PATH = ':memory:';
 process.env.ENGINE_TOKEN = 'engine-secret';
 
-// An episode's streams through tsundoku (doc/ANIME.md, "Streams"; card c155):
+// An episode's streams through tsundoku (doc/ANIME.md, "Streams"):
 // a fake engine whose videos are its own /video/ proxy (as AnimePahe's are)
 // and a site's playlist with headers (as KickAssAnime's are), behind a fake web.
 const SOURCE = '7000';
@@ -88,7 +88,7 @@ let aniSkipCalls = 0;
 const realFetch = globalThis.fetch;
 vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
 	const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-	// AniSkip (c239): the player's resolve asks it when the source gave no marks.
+	// AniSkip: the player's resolve asks it when the source gave no marks.
 	if (url.startsWith('https://api.aniskip.com/v2/skip-times/')) {
 		aniSkipCalls++;
 		return new Response(
@@ -183,7 +183,7 @@ const KWIK_AND_VIDSTREAM = [
 
 // Each case starts from the source's two servers and nothing kept: several
 // set an answer of their own, and a stream resolved by one was served from
-// memory to the next, so the order decided what a case saw (c293).
+// memory to the next, so the order decided what a case saw.
 beforeEach(() => {
 	videoAnswer = KWIK_AND_VIDSTREAM;
 	streams.forgetStreams();
@@ -344,7 +344,7 @@ describe('an episode’s streams', () => {
 		);
 	});
 
-	it('name every track by a short code of its own, the language in full beside it (c386)', async () => {
+	it('name every track by a short code of its own, the language in full beside it', async () => {
 		// The owner's screenshot (VidStreaming, KickAssAnime, 2026-11-03): most
 		// labels were codes, Hungarian and Italian whole words, and dozens of
 		// subtitles printed over each other.
@@ -390,7 +390,7 @@ describe('an episode’s streams', () => {
 		expect(master).toMatch(/NAME="PT-BR",LANGUAGE="pt-br"/);
 	});
 
-	it('keep a choice of every code the sheet can show, and never a whole word (c386)', async () => {
+	it('keep a choice of every code the sheet can show, and never a whole word', async () => {
 		const { cleanChoice } = await import('$lib/server/anime/choices');
 		const { LANGS, langCode, trackCodes } = await import('$lib/library/streams');
 		// Every language, every variant a label can carry, an unknown one, and
@@ -433,7 +433,7 @@ describe('an episode’s streams', () => {
 		expect(s.servers[0].qualities[0].kind).toBe('file');
 	});
 
-	it('ask AniSkip for what the source left empty, and only once (c239)', async () => {
+	it('ask AniSkip for what the source left empty, and only once', async () => {
 		const linked = Number(
 			db
 				.prepare(
@@ -443,7 +443,7 @@ describe('an episode’s streams', () => {
 				.run(root).lastInsertRowid
 		);
 		db.prepare(
-			// An anime's entry (TV): AniSkip is asked under no other link (c395).
+			// An anime's entry (TV): AniSkip is asked under no other link.
 			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at, format) VALUES (?, 1, 21, 'mihon', 0, 'TV')`
 		).run(linked);
 		const ep = Number(

@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * What FORGET does to the WebView's cookie jar (c261; S4): the cookies the
+ * What FORGET does to the WebView's cookie jar (S4): the cookies the
  * jar would send to that origin, expired, so adding the server back pairs
  * again with six digits instead of finding the old pairing still there.
  *
@@ -64,7 +64,7 @@ object Forget {
 	/**
 	 * The server's name from what MainActivity's `PAIRED_JS` read on 9E: the
 	 * `data-paired-name` attribute, a newline, then the first line's text
-	 * (c545). The attribute wins, so a change to the label's words cannot lose
+	 *. The attribute wins, so a change to the label's words cannot lose
 	 * the name; a server older than c545 has no attribute, and its line is
 	 * parsed as before ([pairedName]). Null when the page is not 9E.
 	 */

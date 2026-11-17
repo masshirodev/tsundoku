@@ -2,7 +2,7 @@ import { type Locator, type Page } from '@playwright/test';
 import { expect, readerReady, test } from './fixtures';
 
 /**
- * The page menu end to end (Page Menu, card c26; doc/COVERS.md, "Chosen").
+ * The page menu end to end (Page Menu, doc/COVERS.md, "Chosen").
  * Serial, tablet-portrait only. This file owns Omniscient Reader's Viewpoint
  * (a manhwa, read in the vertical strip) and the covers of Kōhai no Himitsu
  * Nikki (a hidden single), and puts both back to automatic. Not Rakugaki
@@ -16,7 +16,7 @@ const menu = (page: Page) => page.getByRole('dialog', { name: /^Page \d+$/ });
 /**
  * Hold the left button without moving until the menu shows, then let go: the
  * desktop long press. The release waits on the page's own state, not on the
- * runner's clock (c498): the reader opens the menu from a 450 ms timer started
+ * runner's clock: the reader opens the menu from a 450 ms timer started
  * on pointerdown and cancelled on pointerup (`HOLD_MS`, ImageReader.svelte),
  * and a starved page handled a release sent after 600 ms of the runner's time
  * before that timer's task, so the menu never opened. Every caller expects the
@@ -68,7 +68,7 @@ test('a long press on a manhwa page: the series row only, then the band', async 
 	// press below is on the page the first chose: the strip grows and shifts
 	// as its chapters' images arrive, and under load a second press at the
 	// same point of the screen landed on Ch. 213's P. 12 after the first had
-	// chosen Ch. 214's (wave 23, beside six burners: c439).
+	// chosen Ch. 214's (beside six burners: c439).
 	const slot = await slotAt(page, vp.width / 2, vp.height / 3);
 	await holdOn(page, slot);
 	await expect(menu(page)).toBeVisible();

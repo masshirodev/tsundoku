@@ -199,7 +199,7 @@ describe('writes touch only what was asked', () => {
 	});
 });
 
-describe('the FILTER panel (c68, doc/FILTERS.md)', () => {
+describe('the FILTER panel (doc/FILTERS.md)', () => {
 	const list = (filters: Filters, reveal = false, shelf = 'all') =>
 		lib.listSeries({ reveal, shelf, filters });
 	const everything = (reveal = false) => lib.listSeries({ reveal });
@@ -313,7 +313,7 @@ describe('the FILTER panel (c68, doc/FILTERS.md)', () => {
 	});
 });
 
-describe('SERIES and ONE-OFF (c68)', () => {
+describe('SERIES and ONE-OFF', () => {
 	it('split the library: a single doujin book is a one-off, everything else a series', () => {
 		const oneoff = lib.listSeries({ reveal: true, shelf: 'oneoff' });
 		const series = lib.listSeries({ reveal: true, shelf: 'series' });
@@ -357,7 +357,7 @@ describe('pages of a shelf', () => {
 		expect(begun('asc')).toEqual(begun('desc'));
 	});
 
-	it('turn each sort round with ?dir=, RECENTLY READ included (c524: an add counts as a read)', () => {
+	it('turn each sort round with ?dir=, RECENTLY READ included (an add counts as a read)', () => {
 		for (const sort of ['title', 'added', 'recent'] as const) {
 			const down = lib.listSeries({ reveal: true, sort, dir: 'desc' }).map((c) => c.id);
 			const up = lib.listSeries({ reveal: true, sort, dir: 'asc' }).map((c) => c.id);
@@ -585,7 +585,7 @@ describe('new chapters', () => {
  * shelf's count, its grid, the device's filter and the binder alike. A
  * shadowed entry (an edition, a duplicate set aside) is no book either.
  */
-describe('ONE-OFF counts one book the same way everywhere (c558)', () => {
+describe('ONE-OFF counts one book the same way everywhere', () => {
 	/** A visible doujin single from the seed, by the server's own rule. */
 	const single = () => {
 		const card = lib

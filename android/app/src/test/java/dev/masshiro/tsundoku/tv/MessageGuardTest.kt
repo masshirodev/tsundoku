@@ -65,7 +65,7 @@ class MessageGuardTest {
 	}
 
 	@Test
-	fun `the file asset's old URL is refused, and the asset URL is not an origin (c549)`() {
+	fun `the file asset's old URL is refused, and the asset URL is not an origin`() {
 		// Since wave 29 the page loads from ASSET_ORIGIN (WebViewAssetLoader),
 		// and a message's sourceOrigin is an origin: the URL the page was loaded
 		// from, with its path, is never one. No page loads a file:// URL now.
@@ -89,7 +89,7 @@ class MessageGuardTest {
 
 	@Test
 	fun `a known host or scheme typed with capitals is the same origin, by Address originOf's rule`() {
-		// Address.originOf lower-cases the scheme and the host (c548), so a
+		// Address.originOf lower-cases the scheme and the host, so a
 		// sourceOrigin that kept a capital is the same server. Allowed as the
 		// main frame, refused below one. (The top-level URL rule, BridgeGuard
 		// .allows, still tests the scheme case-sensitively; see the notes.)

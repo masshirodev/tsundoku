@@ -15,7 +15,7 @@ import { revealOn } from './helpers/reveal';
  * seasons around it"), end to end: the link pass run by its own script
  * (`scripts/links.ts`) against a stand-in AniList fills the relation cache,
  * and the screen draws the seasons before, NEXT SEASON and the folded extras
- * from it without asking AniList. And KEEP BOTH's note (c671), which needs a
+ * from it without asking AniList. And KEEP BOTH's note, which needs a
  * decision waiting that the next library load would carry out. Both need a
  * database of their own (the shared seed has no anime, and a KEEP BOTH writes),
  * so the file seeds one, serves the build on a port the OS hands out, with a
@@ -252,7 +252,7 @@ function seed(): Ids {
 			`INSERT OR REPLACE INTO link_decisions (series_id, decision, at) SELECT id, 'none', ? FROM series`
 		).run(now);
 
-		// KEEP BOTH (c671): the seed's twin pair, and a FOLD waiting from before
+		// KEEP BOTH: the seed's twin pair, and a FOLD waiting from before
 		// that the library will refuse (two series of several entries: only a
 		// single book folds), as tests/dupes-db.spec.ts' case.
 		const twin = (
@@ -307,7 +307,7 @@ async function runPass(anilistPort: number): Promise<string> {
 test.beforeAll(async () => {
 	// The hook seeds, runs the pass against the stand-in (about 2 s a request,
 	// AniList's own spacing) and waits for its own preview: the house budget
-	// is 120 s so a loaded box fails a case, never the hook (c599).
+	// is 120 s so a loaded box fails a case, never the hook.
 	test.setTimeout(120_000);
 	const anilistPort = await freePort();
 	anilist = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -391,7 +391,7 @@ const heads = (page: Page) =>
 		.locator('.season.around .a-what')
 		.evaluateAll((n) => n.map((x) => x.textContent?.trim() ?? ''));
 
-test('an anime’s screen draws the seasons before it, NEXT SEASON, and the extras folded (c358)', async ({
+test('an anime’s screen draws the seasons before it, NEXT SEASON, and the extras folded', async ({
 	page
 }) => {
 	anilistCalls = 0;
@@ -499,7 +499,7 @@ test('an unlinked anime, a manga and a novel draw no seasons around', async ({ p
 	}
 });
 
-test('KEEP BOTH says an earlier decision could not be carried out, and the note outlives the band (c671)', async ({
+test('KEEP BOTH says an earlier decision could not be carried out, and the note outlives the band', async ({
 	page
 }) => {
 	await revealOn(page.context(), BASE);
@@ -514,7 +514,7 @@ test('KEEP BOTH says an earlier decision could not be carried out, and the note 
 		db.close();
 	}
 	await page.goto(`${BASE}/series/${ids.twin}`);
-	// Drawn twice, one copy per order, and CSS shows one (c556, doc/SERIES.md).
+	// Drawn twice, one copy per order, and CSS shows one (doc/SERIES.md).
 	const band = page.locator('.twin').filter({ visible: true });
 	await expect(band).toContainText('SAME BOOK AS');
 	await band.getByRole('button', { name: 'KEEP BOTH', exact: true }).click();

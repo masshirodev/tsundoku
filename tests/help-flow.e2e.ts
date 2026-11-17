@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 
 /**
- * HELP (doc/HELP.md; card c208; the HELP handoff): the list, a topic, a topic
+ * HELP (doc/HELP.md, the HELP handoff): the list, a topic, a topic
  * that can't apply here, the ways in, and a "?" in SETTINGS opening its
  * sheet. The reader's "?" is reader-flow.e2e.ts's; a series' DOWNLOAD "?" is
  * downloads-flow.e2e.ts's (the only server with downloading on).

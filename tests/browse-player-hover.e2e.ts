@@ -7,7 +7,7 @@ import { hydrated } from './helpers/hydration';
 
 /**
  * Hovering the picture never tints it, and clicking it never flashes it
- * (c485; doc/ANIME.md, "The player"; doc/MOTION.md, "Hovering"). The tap zone
+ * (doc/ANIME.md, "The player", doc/MOTION.md, "Hovering"). The tap zone
  * over the picture is a `<button>`, so the hover rule in motion.css tinted it
  * until it said `data-press="off"`; the visible controls (the cluster, the
  * scrubber, the bar's cells) keep their tint, and one of them is asserted
@@ -87,7 +87,7 @@ async function bareSpot(page: Page): Promise<{ x: number; y: number }> {
 	});
 }
 
-test('hovering the picture leaves it untinted, and a visible control still tints (c485)', async ({
+test('hovering the picture leaves it untinted, and a visible control still tints', async ({
 	page
 }) => {
 	test.setTimeout(60_000);
@@ -124,7 +124,7 @@ test('hovering the picture leaves it untinted, and a visible control still tints
  * back, and the readers' key no longer moves the player. Through SETTINGS' own
  * row. A context of its own each, because the keys are this browser's storage.
  */
-test.describe('the player’s CURSOR has its own key (c713)', () => {
+test.describe('the player’s CURSOR has its own key', () => {
 	const SHARED = 'tsundoku.reader.cursor';
 	const OWN = 'tsundoku:anime:cursor';
 	const local = (page: Page, key: string) => page.evaluate((k) => localStorage.getItem(k), key);
@@ -203,12 +203,12 @@ test.describe('the player’s CURSOR has its own key (c713)', () => {
 
 /**
  * c678: the player's cursor follows its controls. The player's CURSOR defaults
- * to on (c713, a key of its own), so no row is touched here; the
+ * to on (a key of its own), so no row is touched here; the
  * player has no timer of its own, and the cursor goes exactly when the controls
  * go during playback (`HIDE_MOUSE_MS` after the last move) and comes back with
  * them: a move, a key, a pause. Incognito, so nothing is logged.
  */
-test('the cursor goes with the controls during playback and comes back with them (c678)', async ({
+test('the cursor goes with the controls during playback and comes back with them', async ({
 	page
 }) => {
 	test.setTimeout(90_000);
@@ -242,7 +242,7 @@ test('the cursor goes with the controls during playback and comes back with them
 	await expect(sheet).toBeVisible();
 	await page.waitForTimeout(2500);
 	expect(await cursor()).toBe('auto');
-	// The KEYS dialog keeps both up too (round 2). Close the settings sheet,
+	// The KEYS dialog keeps both up too. Close the settings sheet,
 	// let playback carry on, then press `?` and keep the mouse still past
 	// HIDE_MOUSE_MS: the bar stays because the dialog is open, so the cursor
 	// must stay over the dialog and its ✕.
@@ -268,7 +268,7 @@ test('the cursor goes with the controls during playback and comes back with them
  * exists (the shared seed has none); its database is this run's one, and the
  * anime's events are counted before and after.
  */
-test('an episode watched incognito posts nothing, even when END is pressed elsewhere (c680)', async ({
+test('an episode watched incognito posts nothing, even when END is pressed elsewhere', async ({
 	page,
 	context
 }) => {

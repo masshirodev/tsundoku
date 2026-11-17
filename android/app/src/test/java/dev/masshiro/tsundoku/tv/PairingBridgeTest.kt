@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Every bridge call that writes, probes or opens a screen that writes, asked
- * from an unknown page, from the app's own and from a known server's (c529).
+ * from an unknown page, from the app's own and from a known server's.
  * The Host stands in for the activity and records what the bridge asked of it.
  */
 class PairingBridgeTest {
@@ -134,7 +134,7 @@ class PairingBridgeTest {
 	}
 
 	@Test
-	fun `forgetServer from an unknown page forgets nothing and answers no list (c549)`() {
+	fun `forgetServer from an unknown page forgets nothing and answers no list`() {
 		// Until c549 it answered the list as it was, which was a read of the
 		// owner's servers by any page; in round 1 of c549 it answered "[]",
 		// which MoreSheet read as "the last one is gone" and sent the TV to 9A.
@@ -154,7 +154,7 @@ class PairingBridgeTest {
 		)
 
 	@Test
-	fun `an unknown page reads what a TV that knows nothing would, never an exception (c549)`() {
+	fun `an unknown page reads what a TV that knows nothing would, never an exception`() {
 		val unknown =
 			listOf(
 				"https://example.com/",
@@ -176,7 +176,7 @@ class PairingBridgeTest {
 	}
 
 	@Test
-	fun `the app's own page and a known server's page read as before (c549)`() {
+	fun `the app's own page and a known server's page read as before`() {
 		for (top in listOf(asset, "$home/series/3", "$zen/")) {
 			for ((name, read, want) in reads) {
 				val w = world(top)
@@ -195,7 +195,7 @@ class PairingBridgeTest {
 	}
 
 	@Test
-	fun `form and defaultPort stay open, since the user agent and the source already say them (c549)`() {
+	fun `form and defaultPort stay open, since the user agent and the source already say them`() {
 		val w = world("https://example.com/")
 		assertEquals("tv", w.bridge.form())
 		assertEquals(PairingBridge.DEFAULT_PORT, w.bridge.defaultPort())
@@ -230,7 +230,7 @@ class PairingBridgeTest {
 	}
 
 	@Test
-	fun `forget from a known server's page forgets every server, its own first or not (round 2)`() {
+	fun `forget from a known server's page forgets every server, its own first or not`() {
 		// The guard is asked once: once home is gone its page is unknown, and
 		// asking again for each server stopped the loop after home.
 		val w = world("$home/")

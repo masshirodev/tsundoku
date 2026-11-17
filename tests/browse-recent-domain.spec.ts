@@ -9,7 +9,7 @@ import {
 	recentRight
 } from '$lib/library/browse-recent';
 
-/** BROWSE's RECENT fold (card c726; doc/BROWSE.md, "RECENT folds"): the stored word and the label's words. */
+/** BROWSE's RECENT fold (doc/BROWSE.md, "RECENT folds"): the stored word and the label's words. */
 describe('the stored word', () => {
 	it('folds only on its own word: nothing, junk and the DETAILS fold’s word leave RECENT open', () => {
 		expect(recentFolded(FOLDED)).toBe(true);

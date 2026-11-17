@@ -19,7 +19,7 @@ import {
 } from './browse-world';
 
 /**
- * BROWSE's world for the browser suite (doc/BROWSE.md, card c141): a fake
+ * BROWSE's world for the browser suite (doc/BROWSE.md): a fake
  * extension engine in the runner's process, and a preview of the same build
  * on its own seeded database with ENGINE_URL pointing at it.
  * It's its own server because turning downloads on for the shared one would
@@ -35,16 +35,16 @@ import {
 
 let calls: EngineCall[] = [];
 let down = false;
-/** /__novideo: the source answers, with no video for any episode (c999). */
+/** /__novideo: the source answers, with no video for any episode. */
 let noVideo = false;
-/** /__check: the next search takes this long, while example.org's "check" is solved (c143). */
+/** /__check: the next search takes this long, while example.org's "check" is solved. */
 let checkMs = 0;
 const challenges: { solving: Record<string, number>; solved: Record<string, number> } = {
 	solving: {},
 	solved: {}
 };
 
-// ---- a fake web: extension repositories (c144) ------------------------------------------------
+// ---- a fake web: extension repositories ------------------------------------------------
 
 // Real Keiyoushi-signed APKs (tests/fixtures/apk/README.md), so installs are
 // checked against a real signature.
@@ -149,7 +149,7 @@ function answer(b: EngineCall): unknown {
 	const animeData = (b as { animeData?: { url: string } }).animeData;
 	switch (b.method) {
 		// The anime source (tests/browse-anime.e2e.ts): two shows, two seasons of two
-		// each. Kōri is added; Yuki is only ever played from its preview (c161).
+		// each. Kōri is added; Yuki is only ever played from its preview.
 		case 'supportLatestAnime':
 			return false;
 		case 'filterSchemaAnime':
@@ -163,7 +163,7 @@ function answer(b: EngineCall): unknown {
 				],
 				hasNextPage: false
 			};
-		// A search of the anime source (c735). The shape is the two readers':
+		// A search of the anime source. The shape is the two readers':
 		// `callSource` turns it into a manga page by
 		// `if (got && typeof got === 'object' && 'animes' in got)`
 		// (src/lib/server/engine/backend.ts), and Aniyomi's own is
@@ -195,7 +195,7 @@ function answer(b: EngineCall): unknown {
 					subtitleTracks: [{ url: 'http://127.0.0.1:1/video/en.vtt', lang: 'English' }],
 					timestamps: [
 						{ start: 1, end: 3, name: 'Opening', type: 'Opening' },
-						// The 8 s clip's last two seconds: the ending, where watching counts (c239).
+						// The 8 s clip's last two seconds: the ending, where watching counts.
 						{ start: 6, end: 8, name: 'Ending', type: 'Ending' }
 					]
 				}
@@ -274,7 +274,7 @@ function answer(b: EngineCall): unknown {
 					editTextPreference: { title: 'Blocked groups', summary: '', value: '', text: '' }
 				}
 			];
-		// A manga read online from its preview (c166): its details, three chapters,
+		// A manga read online from its preview: its details, three chapters,
 		// three pages each through the engine's /image/ proxy.
 		case 'getDetailsManga': {
 			const url = (b as { mangaData?: { url: string } }).mangaData?.url ?? '';
@@ -481,7 +481,7 @@ function startEngine(): Promise<Server> {
 
 /**
  * Listen, or say which port was taken: a server that can't listen emits
- * `error` and never calls back, which left a run waiting on nothing (c340).
+ * `error` and never calls back, which left a run waiting on nothing.
  * The port is the OS's unless a slot assigned one (`browse-world.ts`), so the
  * message names the server rather than a variable.
  */
@@ -735,7 +735,7 @@ export default async function setup() {
 				ENGINE_STORE: store,
 				NODE_EXTRA_CA_CERTS: join(store, 'cert.pem'),
 				BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups'),
-				// The world's own hold on a form post (c636): browse-extensions'
+				// The world's own hold on a form post: browse-extensions'
 				// afterEach waits for the page's unanswered writes, and only a
 				// server-side hold can put one past a case's end. Nothing but this
 				// setup sets it, so a build the owner runs never reads the header

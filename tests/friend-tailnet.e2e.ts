@@ -12,7 +12,7 @@ import { E2E_TOKEN } from '../playwright.config';
 
 /**
  * A TV's six digits on installs served the way `scripts/serve.ts` serves one
- * on the tailnet (c266; doc/SIGN-IN.md, doc/WIFI.md "Where they show"): its
+ * on the tailnet (doc/SIGN-IN.md, doc/WIFI.md "Where they show"): its
  * `http` mode, bound to 127.0.0.1, with an `ORIGIN` on a tailnet-like host, so
  * the origin the hook and `tvBlockFor` read is the real path's, not `vite
  * preview`'s.
@@ -182,7 +182,7 @@ async function signsIn(at: Install, cookie: string, host = at.host) {
 	}
 }
 
-test('a friend’s install on its tailnet origin draws no TV digits, and no door makes them (c266)', async () => {
+test('a friend’s install on its tailnet origin draws no TV digits, and no door makes them', async () => {
 	const owner = await tailnet(friend, `tsundoku_session=${sessionFor(login)}`);
 	try {
 		const { html, digits } = await settingsDigits(owner);
@@ -198,7 +198,7 @@ test('a friend’s install on its tailnet origin draws no TV digits, and no door
 	}
 });
 
-test('a TV’s paired cookie signs nothing in on a friend’s tailnet origin (c266)', async () => {
+test('a TV’s paired cookie signs nothing in on a friend’s tailnet origin', async () => {
 	// The pairing no door here can make (the digits are never drawn, and
 	// /api/pair/tv answers only at the computer, which a served instance's
 	// ORIGIN never names), written as /pair/tv would write it: what the guard
@@ -218,7 +218,7 @@ test('a TV’s paired cookie signs nothing in on a friend’s tailnet origin (c2
 	} finally {
 		db.close();
 	}
-	// Under this origin's name (c530) and under the name used before it: neither opens.
+	// Under this origin's name and under the name used before it: neither opens.
 	for (const name of [`tsundoku_paired_${friend.port}`, 'tsundoku_paired']) {
 		const r = await signsIn(friend, `${name}=${cookie}`);
 		expect(r.status, name).toBe(303);
@@ -230,7 +230,7 @@ test('a TV’s paired cookie signs nothing in on a friend’s tailnet origin (c2
 	});
 });
 
-test('the token install on the same origin draws the digits, and the TV they pair signs in there only (c266)', async () => {
+test('the token install on the same origin draws the digits, and the TV they pair signs in there only', async () => {
 	const owner = await tailnet(token, `tsundoku_session=${tokenSession}`);
 	let digits: string | null;
 	try {
@@ -257,7 +257,7 @@ test('the token install on the same origin draws the digits, and the TV they pai
 		expect(r.status()).toBe(303);
 		expect(r.headers()['location']).toBe('/pair/tv');
 		const set = r.headersArray().find((h) => h.name.toLowerCase() === 'set-cookie')?.value ?? '';
-		// Named for this origin (c530): the port ORIGIN names, plain http.
+		// Named for this origin: the port ORIGIN names, plain http.
 		expect(set).toMatch(new RegExp(`^tsundoku_paired_${token.port}=`));
 		cookie = set.match(/^tsundoku_paired_\d+=([^;]+)/)?.[1] ?? '';
 		expect(cookie).not.toBe('');

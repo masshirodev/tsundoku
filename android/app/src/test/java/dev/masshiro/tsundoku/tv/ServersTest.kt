@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The TV's servers (c261): the list, the launch choice, and the migration
+ * The TV's servers: the list, the launch choice, and the migration
  * from the one `address` an app paired before c261 kept.
  */
 class ServersTest {
@@ -246,14 +246,14 @@ class ServersTest {
 	}
 
 	@Test
-	fun `an entry stored with its scheme's own port is read without it (round 2)`() {
+	fun `an entry stored with its scheme's own port is read without it`() {
 		kv.put("servers", "https://lib.example.com:443\tLIB\t\t5\t5")
 		assertEquals(listOf("https://lib.example.com"), servers.all().map { it.origin })
 		assertEquals("LIB", servers.find("https://lib.example.com/")?.name)
 	}
 
 	@Test
-	fun `a mixed-case entry reads back lower case, and is found by its page's origin (c548)`() {
+	fun `a mixed-case entry reads back lower case, and is found by its page's origin`() {
 		kv.put("servers", "http://Zen.Local:42143\tZEN\t\t5\t5")
 		assertEquals(listOf("http://zen.local:42143"), servers.all().map { it.origin })
 		assertEquals("ZEN", servers.find("http://zen.local:42143/")?.name)
@@ -263,14 +263,14 @@ class ServersTest {
 	}
 
 	@Test
-	fun `an address added with capitals is stored lower case (c548)`() {
+	fun `an address added with capitals is stored lower case`() {
 		assertTrue(servers.add("HTTP://Zen.local:42143"))
 		assertFalse(servers.add("http://zen.local:42143"))
 		assertEquals(listOf("http://zen.local:42143"), servers.all().map { it.origin })
 	}
 
 	@Test
-	fun `two entries that differ only in case are one server, the one opened last winning (c548)`() {
+	fun `two entries that differ only in case are one server, the one opened last winning`() {
 		// The capitalised one was opened last; the lower-case one holds the TV's name.
 		kv.put(
 			"servers",
@@ -289,7 +289,7 @@ class ServersTest {
 	}
 
 	@Test
-	fun `a twin's names never overwrite the winner's own (c548)`() {
+	fun `a twin's names never overwrite the winner's own`() {
 		kv.put(
 			"servers",
 			"http://zen.local:42143\tOLD\tOLDTV\t5\t1\n" +

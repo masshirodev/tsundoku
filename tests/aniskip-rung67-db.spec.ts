@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 process.env.DATABASE_PATH = ':memory:';
 
 /**
- * Rung 67 (card c463): AniSkip answers asked before c349 under another
+ * Rung 67: AniSkip answers asked before c349 under another
  * season's entry are forgotten, and asked again on the next play.
  *
  * Each library is made the way the app made it. The links are written by the
@@ -97,7 +97,7 @@ let nextEntry = 1000;
  * One anime in both databases under the same ids: its episodes, its links
  * made by `linkSeason` on the app's database, those season rows copied into
  * `old`, which stands at v66, and the mirror as v66's app kept it beside them
- * (no door writes one since rung 74, c467, but this rung is about that row).
+ * (no door writes one since rung 74, but this rung is about that row).
  */
 function show(old: Database.Database, eps: Omit<Ep, 'id'>[], links: Link[]) {
 	const id = ++nextSeries;
@@ -198,7 +198,7 @@ function agreesWithTheRule(conn: Database.Database): void {
 		).toBe(marks.chosenMarks(id, conn).ending?.start ?? null);
 }
 
-describe('rung 67: AniSkip answers asked under another season’s entry (c463)', () => {
+describe('rung 67: AniSkip answers asked under another season’s entry', () => {
 	it('the mirror the old lookup read is the lowest season linked, part 1', () => {
 		// The premise every case below stands on: with season 0 and season 1
 		// both linked, the mirror is season 0's, so a season-1 episode was asked

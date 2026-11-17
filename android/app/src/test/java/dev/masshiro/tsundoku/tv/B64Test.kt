@@ -4,7 +4,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** The small base64 decoder the signature check uses on Android 6 (c614; B64.kt). */
+/** The small base64 decoder the signature check uses on Android 6 (B64.kt). */
 class B64Test {
 	private fun check(bytes: ByteArray) {
 		val text = java.util.Base64.getEncoder().encodeToString(bytes)

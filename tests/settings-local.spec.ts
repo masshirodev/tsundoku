@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * This device's settings in its browser (settings/local.ts; card c171): each
+ * This device's settings in its browser (settings/local.ts): each
  * change stamped, the record sent, what's newer taken back, and what the
  * player kept before c171 handed over once.
  */

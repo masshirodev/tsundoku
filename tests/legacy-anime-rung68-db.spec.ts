@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 /**
- * Rung 68 (card c383): an anime linked before rung 62 has only a
+ * Rung 68: an anime linked before rung 62 has only a
  * `series_links` row, which the season rule read as the whole series settled,
  * so its season 2 never reached the pass or the review. The rung moves the
  * link onto the season it stood for. The library is a file stopped at v67,
@@ -103,7 +103,7 @@ const searchable = () =>
 		.map((r) => [r.id, r.season ?? null])
 		.sort((a, b) => (a[0]! - b[0]! || a[1]! - b[1]!) as number);
 
-describe('rung 68: a link from before rung 62 becomes its season’s row (c383)', () => {
+describe('rung 68: a link from before rung 62 becomes its season’s row', () => {
 	it('is the rung the app climbs to on opening a v67 library', () => {
 		expect(db.pragma('user_version', { simple: true })).toBeGreaterThanOrEqual(68);
 	});
@@ -229,7 +229,7 @@ describe('rung 68: a link from before rung 62 becomes its season’s row (c383)'
 	});
 
 	it('ends, past rung 74, with only the comic’s row, and its readers read the same answer', () => {
-		// Rung 68 left each row as it was; rung 74 (c467) took those with a season
+		// Rung 68 left each row as it was; rung 74 took those with a season
 		// row beside them, which is every anime here. The columns it had at v67:
 		// a later rung's own (rung 70's country and year) are that rung's to add.
 		const atV67 = Object.keys(mirrors[0] as Record<string, unknown>);

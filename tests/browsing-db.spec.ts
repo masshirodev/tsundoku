@@ -23,7 +23,7 @@ const { recordReading, seriesPage } = await import('$lib/server/series');
 const { historyMeta } = await import('$lib/library/history');
 const { sourceMangaId } = await import('$lib/server/engine/backend');
 
-// The browsing record (doc/READING-ONLINE.md; card c161): an episode played from a
+// The browsing record (doc/BROWSING.md): an episode played from a
 // source's preview without ADD. A series all the same, so the player works on
 // it, but on no shelf, in no count, never searched or queued; HISTORY has it,
 // and ADD makes it the library's with its progress.
@@ -150,7 +150,7 @@ describe('an episode played without ADD', () => {
 	});
 });
 
-describe('a record forgotten or pruned (c165)', () => {
+describe('a record forgotten or pruned', () => {
 	it('shows what it holds: what was watched, where it stopped, and when it goes', async () => {
 		const { recordView } = await import('$lib/server/browsing');
 		const other = sourceMangaId(ANIME, '/anime/kept');

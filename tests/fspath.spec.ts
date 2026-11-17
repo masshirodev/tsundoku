@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { pathsFor } from '../src/lib/server/fspath.ts';
 import { isUnder, commonDir } from '../src/lib/server/paths.ts';
 
-describe('fspath on Windows (c183)', () => {
+describe('fspath on Windows', () => {
 	const w = pathsFor('win32');
 
 	it('writes what it builds with /', () => {

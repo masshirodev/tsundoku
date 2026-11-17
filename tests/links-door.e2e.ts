@@ -7,9 +7,9 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * The links review's own door (c475; doc/NAVIGATION.md, doc/LIBRARY.md): a
+ * The links review's own door (doc/NAVIGATION.md, doc/LIBRARY.md): a
  * TO LINK row in the desktop's sidebar and in MORE while anything waits, so
- * the library's SERIES TO LINK band can be put away (c430) without hiding the
+ * the library's SERIES TO LINK band can be put away without hiding the
  * review. The band goes, and the review is still one press away; with nothing
  * left to link, the row goes too.
  *
@@ -42,10 +42,10 @@ const freePort = () =>
 test.beforeAll(async () => {
 	// This hook seeds a database and spawns a preview, then polls up to 60 s
 	// for it: all inside the default 30 s hook budget, where `work-end-frame`'s
-	// same shape ran past 30 s in wave 20's gate (c477). Measured at 2 s here,
+	// same shape ran past 30 s in wave 20's gate. Measured at 2 s here,
 	// desktop at a load average of 20; it returns at once on the two tablets,
 	// which skip this file. The house budget is 120 s so a loaded gate fails a
-	// case, never the hook (c599). In a hook, `test.setTimeout` sets the hook's
+	// case, never the hook. In a hook, `test.setTimeout` sets the hook's
 	// own budget (Playwright's test.d.ts).
 	test.setTimeout(120_000);
 	if (!runs()) return;

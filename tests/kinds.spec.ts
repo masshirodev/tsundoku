@@ -60,7 +60,7 @@ import { groupAnswers } from '$lib/library/books';
 
 /**
  * The kind registry's own invariants, and the behaviour its first users read
- * (doc/KINDS.md; card c301). Every assertion here is about what ships: this
+ * (doc/KINDS.md). Every assertion here is about what ships: this
  * slice changes no behaviour, so the strings and answers below are the ones
  * the code gave before it read the registry.
  */
@@ -86,7 +86,7 @@ describe('the registry', () => {
 	it('has exactly five entries, and each literal kind reaches its own facts', () => {
 		// A hand-written list, not `KINDS` or `Object.keys(KIND_FACTS)`: those
 		// *are* the registry's own keys, so comparing them proves nothing. This
-		// goes red if a key is renamed or an entry dropped (round 2, c301).
+		// goes red if a key is renamed or an entry dropped.
 		const literals: Kind[] = ['manga', 'manhwa', 'doujin', 'novel', 'anime', 'movie', 'show'];
 		expect(Object.keys(KIND_FACTS)).toHaveLength(literals.length);
 		for (const kind of literals) expect(KIND_FACTS[kind].kind).toBe(kind);
@@ -98,7 +98,7 @@ describe('the registry', () => {
 		for (const kind of KINDS) {
 			const facts: KindFacts = kindFacts(kind);
 			expect(media).toContain(facts.medium);
-			// A film is one entry: no unit, and `kindUnit` answers none (c987).
+			// A film is one entry: no unit, and `kindUnit` answers none.
 			if (kind === 'movie') expect(facts.unit).toBeUndefined();
 			else {
 				expect(facts.unit!.short).not.toBe('');
@@ -138,7 +138,7 @@ describe('the registry', () => {
 		// so one in-place `sort()` in a screen would reorder the panel and the
 		// registry together. If `KINDS` widened back to `Kind[]`, the assignment
 		// below would compile and this directive would be an unused-error, which
-		// `yarn run check` fails on (round 2, c301).
+		// `yarn run check` fails on.
 		// @ts-expect-error KINDS is readonly.
 		const mutable: Kind[] = KINDS;
 		expect(mutable).toBe(KINDS);
@@ -179,7 +179,7 @@ describe('MOVABLE', () => {
 });
 
 /**
- * K4 (card c304): MOVE asks the registry. Each replacement is asserted for
+ * K4: MOVE asks the registry. Each replacement is asserted for
  * every member of `KINDS` against the answer the code gave at `fb2bd3a7`,
  * written out here as the old expressions, not derived from the registry,
  * so a wrong fact goes red rather than agreeing with itself.
@@ -279,7 +279,7 @@ describe('the source families', () => {
 	});
 
 	it('include Mihon for a doujin, because a gallery source keeps its mihon: key', () => {
-		// Round 2's medium (c301): `sources: []` was copied from a comment
+		// Round 2's medium: `sources: []` was copied from a comment
 		// ("a doujin is Hentoid's"). The importer disproves it: a gallery
 		// source's series is a doujin and its key is `mihon:<source>:<url>`
 		// (src/lib/import/mihon-plan.ts:106,128,388; doc/IMPORT-MIHON.md).
@@ -373,7 +373,7 @@ describe('the source families', () => {
 });
 
 /**
- * K3 (card c303): a key's family is `keyFamily`, built on `KEY_PREFIX`. The
+ * K3: a key's family is `keyFamily`, built on `KEY_PREFIX`. The
  * old answers are written out here as the regular expressions
  * library/downloads.ts had at fb2bd3a7, not derived from the new code, and
  * every key prefix a writer stores is asked, plus the edges.
@@ -509,7 +509,7 @@ describe('a key\u2019s family', () => {
 });
 
 /**
- * K3 (card c303): books.ts and covers.ts ask `grouping` and `medium` where
+ * K3: books.ts and covers.ts ask `grouping` and `medium` where
  * they named a doujin, a novel or an anime. Every kind, against the old
  * expressions written out.
  */
@@ -523,7 +523,7 @@ describe('what GROUP binds, and which covers a kind has', () => {
 		expect(kindsGrouped('volumes')).toEqual(['novel']);
 	});
 
-	it('offers GROUP\u2019s answers by the registry, for every kind (card c375)', () => {
+	it('offers GROUP\u2019s answers by the registry, for every kind', () => {
 		// The old expressions of books.ts:140-142 at d5c4bf6f, written out: one
 		// series of books is doujin singletons, one of volumes is novels.
 		const oldAnswers = (items: { kind: Kind; entryCount: number }[]) => [
@@ -657,7 +657,7 @@ describe('what may match what (doc/LINKS.md, "A novel never matches a comic")', 
 		expect(wrongKind('anime', 'MANGA')).toBe(true);
 		expect(wrongKind('manga', 'TV')).toBe(true);
 		expect(wrongKind('manga', 'MANGA')).toBe(false);
-		// The novel across to its comic is a cover, not a wrong kind (c298).
+		// The novel across to its comic is a cover, not a wrong kind.
 		expect(wrongKind('novel', 'MANGA')).toBe(false);
 		expect(wrongKind('manga', 'NOVEL')).toBe(false);
 		expect(wrongKind('doujin', 'NOVEL')).toBe(false);
@@ -776,7 +776,7 @@ const ALLOWED: { file: string; reason: string }[] = [
 	{
 		file: 'src/lib/server/settings-page.ts',
 		reason:
-			"SQL: MODE's and LAYOUT's N SERIES DIFFER is about reading direction, which only the kinds read in pages or text have (c552). A new kind read that way must change the line."
+			"SQL: MODE's and LAYOUT's N SERIES DIFFER is about reading direction, which only the kinds read in pages or text have. A new kind read that way must change the line."
 	},
 	{
 		file: 'src/lib/library/catalogue.ts',
@@ -817,13 +817,13 @@ const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime|movie|show)`;
 const FIXED = String.raw`(?:['"]${NAME}['"]|SOURCE_KINDS(?:\.\w+|\[[^\]]*\]))`;
 const COMPARED = new RegExp(
 	String.raw`\bkind\s*[!=]==?\s*(?:['"]${NAME}['"]|SOURCE_KINDS\b)|${FIXED}\s*[!=]==?\s*[A-Za-z_$][\w$.]*kind\b` +
-		// SQL (c991): `s.kind = 'anime'`, `kind != 'novel'`, `kind IN ('movie', …)`.
+		// SQL: `s.kind = 'anime'`, `kind != 'novel'`, `kind IN ('movie', …)`.
 		// The registry is not a column, so SQL spells the kinds; `videoKindsSql`
 		// (kinds.ts) is where it does, and any other spelling is counted here.
 		String.raw`|\bkind\s*(?:=|!=|<>)\s*'${NAME}'|\bkind\s+(?:NOT\s+)?IN\s*\(\s*'${NAME}'`
 );
 
-describe('what the ratchet sees (card c420)', () => {
+describe('what the ratchet sees', () => {
 	// Every spelling of a kind check the scan must count, and the questions it
 	// must not: a family asked through its decoder, or a download's own kind.
 	const counted = [
@@ -888,7 +888,7 @@ describe('no new kind checks', () => {
 	});
 });
 
-describe('the kinds a source family may serve (c986)', () => {
+describe('the kinds a source family may serve', () => {
 	it('defaults every family to the first kind it may serve', () => {
 		for (const family of SOURCE_FAMILIES)
 			expect(SOURCE_KIND_CHOICES[family][0], family).toBe(SOURCE_KINDS[family]);

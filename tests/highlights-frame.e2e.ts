@@ -22,7 +22,7 @@ import { startPreview } from './highlights-preview';
  * Hand edits after generation, which regenerating drops (doc/HIGHLIGHTS.md,
  * "The frame"): the generator writes `import { expect, test } from
  * '@playwright/test'` (gen-conformance.mjs:222), changed to `./fixtures`
- * as every new e2e file takes it (c542); and this preamble, because the
+ * as every new e2e file takes it; and this preamble, because the
  * shared seed has no highlights: it seeds a database of its own with one
  * highlight per kind and serves the build on a port the OS gives it
  * (`listen(0)`, as tests/highlights-flow.e2e.ts does), never

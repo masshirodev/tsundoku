@@ -51,9 +51,9 @@ test('the controls: a 64px bar on top, a 56px scrubber and 64px cells below', as
 
 test('off a TV the chrome declares no focus start of its own', async ({ page }) => {
 	await open(page);
-	// The start belongs to the TV's chrome (c241), where OK focuses it anyway.
+	// The start belongs to the TV's chrome, where OK focuses it anyway.
 	// Off a TV it would matter where the reader lifts its opt-out, at the end
-	// page (c235): a declared start there would take the first arrow to the
+	// page: a declared start there would take the first arrow to the
 	// footer instead of the end page's cells. This case does not reach the end
 	// page (`open` resumes inside a chapter, never past it); it reads the attribute
 	// on the footer itself, with the chrome up.
@@ -92,7 +92,7 @@ async function sampleExit(page: import('@playwright/test').Page) {
 const ys = (frames: string[]) =>
 	frames.filter((t) => t !== 'none').map((t) => parseFloat(t.split(' ')[1] ?? '0'));
 
-test('hiding, the top bar goes up and away and the bottom one down (c427)', async ({ page }) => {
+test('hiding, the top bar goes up and away and the bottom one down', async ({ page }) => {
 	await open(page);
 	const vp = page.viewportSize()!;
 	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
@@ -137,9 +137,7 @@ test('hiding under reduced motion, the bars only fade', async ({ page }) => {
 	expect(exit.opacity.some((o) => parseFloat(o) < 1)).toBe(true);
 });
 
-test('READING: every segmented choice is the full-height cell SIDES is (c428)', async ({
-	page
-}) => {
+test('READING: every segmented choice is the full-height cell SIDES is', async ({ page }) => {
 	await open(page);
 	const vp = page.viewportSize()!;
 	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
@@ -174,7 +172,7 @@ test('READING: every segmented choice is the full-height cell SIDES is (c428)', 
 		expect.arrayContaining(['Mode', 'Fit', 'Wide pages', 'Side margins', 'Zoom'])
 	);
 	// RATING is not a row: the slider sits in the sheet's column itself, and a
-	// column that scrolls squeezed it to about 38px (c728). It keeps its own
+	// column that scrolls squeezed it to about 38px. It keeps its own
 	// height, the tablet's 64 or the phone's 52 (RatingSlider's `height` and
 	// `phoneHeight`, switched at 599px), whether or not the sheet overflows.
 	const rating = await sheet.locator('.rs').evaluate((el) => ({
@@ -191,7 +189,7 @@ test('READING: every segmented choice is the full-height cell SIDES is (c428)', 
  * cases as the text reader's (`text-reader-turn.e2e.ts`), since the two
  * readers share it (`src/lib/reader/pointer.ts`).
  */
-test('a scrub during a slide wins: the turn gives way instead of landing one past it (c515)', async ({
+test('a scrub during a slide wins: the turn gives way instead of landing one past it', async ({
 	page
 }) => {
 	await open(page);
@@ -226,7 +224,7 @@ test('a scrub during a slide wins: the turn gives way instead of landing one pas
 	await expect(track).toHaveAttribute('aria-valuenow', '1');
 });
 
-test('a turn asked for right after a mid-slide scrub waits for the first, and slides whole (c515)', async ({
+test('a turn asked for right after a mid-slide scrub waits for the first, and slides whole', async ({
 	page
 }) => {
 	await open(page);
@@ -303,7 +301,7 @@ test('a turn asked for right after a mid-slide scrub waits for the first, and sl
 	expect(spans.at(-1)!).toBeGreaterThanOrEqual(200);
 });
 
-test('an arrow pressed while a short drag goes back is taken right after, once (c553)', async ({
+test('an arrow pressed while a short drag goes back is taken right after, once', async ({
 	page
 }) => {
 	await open(page);
@@ -351,9 +349,7 @@ test('an arrow pressed while a short drag goes back is taken right after, once (
 	expect(await now()).toBe(v1);
 });
 
-test('a drag begun right after a mid-slide scrub never snaps back to nothing (c553)', async ({
-	page
-}) => {
+test('a drag begun right after a mid-slide scrub never snaps back to nothing', async ({ page }) => {
 	await open(page);
 	const track = page.locator('footer[aria-label="Reader controls"] .track');
 	const stage = page.locator('.stage .track');
@@ -450,7 +446,7 @@ test('a drag begun right after a mid-slide scrub never snaps back to nothing (c5
 	await expect(track).toHaveAttribute('aria-valuenow', on!);
 });
 
-test('a second finger cancels a drag: the page goes back rather than jerking to it (c515)', async ({
+test('a second finger cancels a drag: the page goes back rather than jerking to it', async ({
 	page
 }) => {
 	test.skip(!test.info().project.use.hasTouch, 'two fingers need a touchscreen');

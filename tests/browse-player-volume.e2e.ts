@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 import { devices, type Page } from '@playwright/test';
 
 /**
- * The VOL cell's slider (c385, doc/ANIME.md "The player"): it sets the
+ * The VOL cell's slider (doc/ANIME.md "The player"): it sets the
  * picture's volume, the wheel steps it, the level is this device's and the
  * next episode starts at it, and mute is never carried over. On the browse
  * server's "Tsukiakari no Ryokōsha" (tests/browse-setup.ts), on a desktop: VOL
@@ -47,7 +47,7 @@ async function waitForPicture(page: Page) {
 	await page.evaluate(() => document.querySelector('video')?.pause());
 }
 
-/** The controls come back on a real move, not a jitter (c217). */
+/** The controls come back on a real move, not a jitter. */
 async function showControls(page: Page) {
 	await page.mouse.move(120, 120);
 	await page.mouse.move(640, 300 + Math.random() * 10);
@@ -76,7 +76,7 @@ async function slideTo(page: Page, f: number) {
 	await page.mouse.up();
 }
 
-test('the VOL slider sets the volume, the wheel steps it, and NEXT starts at it (c385)', async ({
+test('the VOL slider sets the volume, the wheel steps it, and NEXT starts at it', async ({
 	page
 }) => {
 	test.setTimeout(120_000);
@@ -125,9 +125,7 @@ test('the VOL slider sets the volume, the wheel steps it, and NEXT starts at it 
 	await expect(page.locator('.cells .vol .cell')).toHaveText(`VOL ${Math.round(kept * 100)}%`);
 });
 
-test('↑ ↓ go through the same door: kept, and read once on the next open (c385)', async ({
-	page
-}) => {
+test('↑ ↓ go through the same door: kept, and read once on the next open', async ({ page }) => {
 	test.setTimeout(90_000);
 	await openEpisode(page, 'A Letter from Hollin');
 	await page.locator('.player').focus();

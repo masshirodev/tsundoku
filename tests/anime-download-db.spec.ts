@@ -15,7 +15,7 @@ process.env.LIBRARY_ROOT = library;
 process.env.COVER_DIR = join(work, 'covers');
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
-// Downloading episodes (doc/ANIME.md, "Downloading"; card c157), with the real
+// Downloading episodes (doc/ANIME.md, "Downloading"), with the real
 // ffmpeg, from a fake engine whose first server is broken and whose second
 // is the fixture clip (tests/fixtures/video), through its /video/ proxy.
 const CLIP = readFileSync('tests/fixtures/video/clip.webm');
@@ -48,7 +48,7 @@ beforeAll(async () => {
 					{
 						quality: 'Kwik - 360p',
 						videoUrl: `${SELF}/video/clip.webm`,
-						// Two the mux's own 19 languages left untagged (c419).
+						// Two the mux's own 19 languages left untagged.
 						subtitleTracks: [
 							{ url: `${SELF}/video/en.vtt`, lang: 'English' },
 							{ url: `${SELF}/video/en.vtt`, lang: 'Hungarian' },
@@ -186,7 +186,7 @@ describe('downloading an episode', () => {
 		]);
 	});
 
-	// The scan stays the cross-check (c170): it reads the same files and agrees.
+	// The scan stays the cross-check: it reads the same files and agrees.
 	it('is left exactly as it was by the scan that follows', async () => {
 		const before = snapshot(shown);
 		await runImport(library, { now: deps.now() });
@@ -239,7 +239,7 @@ describe('downloading an episode', () => {
 		).toEqual({ state: 'queued', tries: 1, error: 'No server answered' });
 	});
 
-	it('names its catalogue entry to Jellyfin only when the link is an anime’s (c395)', async () => {
+	it('names its catalogue entry to Jellyfin only when the link is an anime’s', async () => {
 		// A link to the manga (a wrong-kind link from before c298): its ids are
 		// another work's, so tvshow.nfo carries only tsundoku's own key.
 		db.prepare(`DELETE FROM download_queue`).run();
@@ -266,7 +266,7 @@ describe('downloading an episode', () => {
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(shown);
 	});
 
-	it('names the show by its season links, so one with only season 2 linked has ids (c381)', async () => {
+	it('names the show by its season links, so one with only season 2 linked has ids', async () => {
 		// An anime's ids are its season rows': with season 2 linked alone there
 		// is still something for tvshow.nfo to name.
 		db.prepare(`DELETE FROM download_queue`).run();
@@ -306,7 +306,7 @@ describe('downloading an episode', () => {
 			await fetchIt(1);
 			expect(tv()).toContain('<uniqueid type="anilist">20002</uniqueid>');
 			expect(tv()).toContain('<uniqueid type="mal">30002</uniqueid>');
-			// Season 1 linked to the manga: not the show's own kind of entry (c395),
+			// Season 1 linked to the manga: not the show's own kind of entry,
 			// so season 2's ids still name it.
 			expect(seasons.linkSeason(shown, 1, 1, entryOf(30023, 23, 'MANGA'), 'review')).toBe(true);
 			await fetchIt(2);
@@ -330,7 +330,7 @@ describe('downloading an episode', () => {
 	});
 });
 
-describe('a film (c991)', () => {
+describe('a film', () => {
 	const filmRoot = ensureNamedRoot(db, 'Movies', join(library, 'Movies'), false);
 	const film = Number(
 		db

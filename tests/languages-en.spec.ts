@@ -8,7 +8,7 @@ import { writeEnglishPack } from './helpers/en-pack';
 
 /**
  * The English pack's two halves: the words a block splits into on the device,
- * and the entries the pack answers on the workstation (doc/LANGUAGES.md, c198).
+ * and the entries the pack answers on the workstation (doc/LANGUAGES.md).
  *
  * The fixture (`helpers/en-pack.ts`) is the shape `scripts/pack-en.ts` writes,
  * cut down to the cases that decide the rules; the e2e run uses the same file.
@@ -137,7 +137,7 @@ describe('defining English', () => {
 		expect(entries.map((e) => e.headword)).toEqual(['give up', 'give']);
 	});
 
-	it('carries a Portuguese gloss when the sense has one (c200)', () => {
+	it('carries a Portuguese gloss when the sense has one', () => {
 		setPackPath(mapDatabase());
 		const [entry] = define({ surface: 'give up' });
 		expect(entry.senses[1].glosses).toEqual([

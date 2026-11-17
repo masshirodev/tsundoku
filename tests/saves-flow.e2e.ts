@@ -18,7 +18,7 @@ const isAction = (action: string) => (u: URL) =>
 const band = (page: Page, text: string) => page.locator('[role="alert"]', { hasText: text });
 const panelOf = (page: Page) => page.getByRole('region', { name: 'About this series' });
 
-test('two failed fields on the series screen each keep PUT BACK and RETRY, through a navigation (c686)', async ({
+test('two failed fields on the series screen each keep PUT BACK and RETRY, through a navigation', async ({
 	page
 }) => {
 	const lostFav = isAction('favourite');

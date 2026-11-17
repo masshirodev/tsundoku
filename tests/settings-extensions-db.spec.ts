@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 /**
- * SETTINGS › 07 — BROWSE's EXTENSIONS row (c725; doc/SETTINGS.md): the counts
+ * SETTINGS › 07 — BROWSE's EXTENSIONS row (doc/SETTINGS.md): the counts
  * it draws are the ones EXTENSIONS' own INSTALLED tab draws, from SETTINGS'
  * load as SvelteKit runs it, on a library with every kind of installed row:
  * up to date, an update waiting, one that failed to load, one gone from its
@@ -133,7 +133,7 @@ async function extensionsCounts(reveal: boolean): Promise<Counts> {
 	};
 }
 
-describe('the EXTENSIONS row in SETTINGS (c725)', () => {
+describe('the EXTENSIONS row in SETTINGS', () => {
 	it('reads the real counts, the ones EXTENSIONS itself draws', async () => {
 		// Four APKs and the one plugin not hidden; the APK and the plugin with updates.
 		expect(await settingsCounts(false)).toEqual({ installed: 5, updates: 2 });

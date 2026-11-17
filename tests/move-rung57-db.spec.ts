@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
-// Rung 57 (doc/MOVE.md; card c139): the old origin key and when it was left,
+// Rung 57 (doc/MOVE.md): the old origin key and when it was left,
 // each entry's own source, and the NO SERVER failures a move's band reads. On
 // a file, as the live database is, and never editing a rung below it.
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung57-'));

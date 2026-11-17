@@ -31,7 +31,7 @@ test('GROUP takes novels as volumes; CONTENTS heads each; the reader crosses; UN
 	await expect(page.getByText('SERIES CREATED · 2 VOLUMES')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Two Isekai', exact: true })).toBeVisible();
 	const list = page.getByRole('region', { name: 'Contents' });
-	// Each volume's head: its number as the label, its title verbatim (c835).
+	// Each volume's head: its number as the label, its title verbatim.
 	await expect(list.getByText('VOL. 1', { exact: true })).toBeVisible();
 	await expect(list.getByText('VOL. 2', { exact: true })).toBeVisible();
 	await expect(list.getByText(TWO, { exact: true })).toBeVisible();

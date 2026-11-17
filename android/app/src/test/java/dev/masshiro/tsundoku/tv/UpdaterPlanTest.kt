@@ -9,7 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** When the app looks for an update, and what it offers (c614; Updater.Plan). */
+/** When the app looks for an update, and what it offers (Updater.Plan). */
 class UpdaterPlanTest {
 	private val apk = ReleaseFile("tsundoku-app.apk", 9_000_000, "a".repeat(64))
 

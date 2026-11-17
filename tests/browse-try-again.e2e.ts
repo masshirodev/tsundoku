@@ -3,7 +3,7 @@ import { expect, hydrated, test } from './fixtures';
 import { NOVEL_REPO } from './browse-world';
 
 /**
- * A source page's TRY AGAIN really asks the server (c688, round 2): a plain
+ * A source page's TRY AGAIN really asks the server: a plain
  * one is a link to the page's own URL, which SvelteKit would not load again,
  * so it reloads the document. Runs in the browse project, against an LNReader
  * plugin installed in the browse world's shared database and put back after
@@ -17,7 +17,7 @@ const SOURCE = `/browse/${PLUGIN}`;
 /** This page's asks of the source page: every document and every `__data.json`. */
 type Ask = { how: 'document' | 'data'; url: string; response: Promise<Response | null> };
 let asked: Ask[] = [];
-/** This page's writes still unanswered, so a timed-out INSTALL can't land after the put-back (c569). */
+/** This page's writes still unanswered, so a timed-out INSTALL can't land after the put-back. */
 let writes = new Set<Request>();
 
 const band = (page: Page) => page.locator('.band', { hasText: 'GOOD NOVELS DID NOT ANSWER' });
@@ -116,8 +116,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 // Teardown has its own budget, so this reaches the server even when the case
-// timed out, and the browse database is every browse-* file's (c507). Each
-// failure is soft, so the body's own error stays the one reported (c649).
+// timed out, and the browse database is every browse-* file's. Each
+// failure is soft, so the body's own error stays the one reported.
 test.afterEach(async ({ page }, testInfo) => {
 	await Promise.race([
 		Promise.allSettled([...writes].map((r) => r.response())),
@@ -126,7 +126,7 @@ test.afterEach(async ({ page }, testInfo) => {
 	await page.unrouteAll({ behavior: 'ignoreErrors' });
 	const origin = new URL(testInfo.project.use.baseURL!).origin;
 	const post = (path: string, form: Record<string, string>) =>
-		// Without `accept: text/html` SvelteKit answers an action 200, not its 303 (c665).
+		// Without `accept: text/html` SvelteKit answers an action 200, not its 303.
 		page.request.post(`${origin}${path}`, {
 			form,
 			headers: { origin, accept: 'text/html' },
@@ -197,12 +197,12 @@ test.describe('a refused check', () => {
 	});
 });
 
-test.describe('under a hovering pointer (c538, c604)', () => {
+test.describe('under a hovering pointer', () => {
 	const { defaultBrowserType: _b, ...desktop } = devices['Desktop Chrome'];
 	void _b;
 	test.use({ ...desktop, viewport: { width: 1440, height: 900 } });
 
-	/** The second rest is the one a page hears as a `mousemove` for certain (c604). */
+	/** The second rest is the one a page hears as a `mousemove` for certain. */
 	const restOn = async (page: Page, link: Locator) => {
 		await link.hover();
 		await page.mouse.move(0, 0);

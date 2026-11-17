@@ -12,7 +12,7 @@ import {
 } from '$lib/focus/geometry';
 
 /**
- * Arrow keys move focus by geometry (card c234, doc/FOCUS.md). These pin the
+ * Arrow keys move focus by geometry (doc/FOCUS.md). These pin the
  * rules the design draws: the nearest thing that way, the column kept in a
  * grid, no wrap at the end of a row, and an overlapping candidate winning.
  */
@@ -146,7 +146,7 @@ describe('nextInDirection', () => {
 	});
 
 	it('lands on the player’s seek bar above a cell, not the far top bar that overlaps it', () => {
-		// The player's bar at 960x540 (c296): ▶❚❚ is 49–125 and the top bar's ←
+		// The player's bar at 960x540: ▶❚❚ is 49–125 and the top bar's ←
 		// is 48–113, so it overlaps the cell; the seek bar's line was 126–826,
 		// one pixel aside, and the overlap rule sent ↑ to the far link. The line's
 		// own box now reaches 106, so the bar is the overlapping, nearer thing.
@@ -170,7 +170,7 @@ describe('nextInDirection', () => {
  * c578: which scroller ↑ ↓ move when nothing is that way, on a TV. A scroller
  * at its end in the key's direction is passed over for the next one out.
  */
-describe('canScroll (c578)', () => {
+describe('canScroll', () => {
 	const at = (scrollTop: number, clientHeight = 300, scrollHeight = 900) => ({
 		scrollTop,
 		clientHeight,
@@ -207,7 +207,7 @@ describe('canScroll (c578)', () => {
 	});
 });
 
-describe('stepInSection (c861)', () => {
+describe('stepInSection', () => {
 	/** A two-column screen: the panel at x 0 to 100, the list at x 200 to 300. */
 	const panel = (top: number, bottom = top + 40) => rect(0, top, 100, bottom);
 	const list = (top: number, bottom = top + 40) => rect(200, top, 300, bottom);

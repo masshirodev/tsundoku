@@ -1,7 +1,7 @@
 import { expect, readerReady, test } from './fixtures';
 
 /**
- * The reader on a TV (c238; TV-Reader). Read-only: it reads in incognito, so
+ * The reader on a TV (TV-Reader). Read-only: it reads in incognito, so
  * turning a page writes nothing to the shared database, and it reads the
  * series reader-layout reads (Sousou no Frieren).
  */
@@ -28,7 +28,7 @@ test('a spread is the default on a TV, not one page', async ({ page }) => {
 	// beside a wide page (src/lib/server/pages/sample.ts). The case used to
 	// press on from there and count two pages, which only the outgoing spread,
 	// still sliding out, ever gave it: 2 runs in 3 red alone, and 10 in 10 at a
-	// load of 40 (c479).
+	// load of 40.
 	await page.goto(page.url().replace(/\?.*$/, '') + '?p=1');
 	await readerReady(page);
 	// The pages on the stage once a slide has landed: one screen, no neighbour.
@@ -71,7 +71,7 @@ test('the end page takes the pad: its cells are reachable, and its ANOTHER SOURC
 	page
 }) => {
 	await open(page);
-	// The end page is the reader's one screen the pad drives (c235): the page
+	// The end page is the reader's one screen the pad drives: the page
 	// before it keeps every arrow, so the opt-out is bounded to "not the end".
 	const read = page.url();
 	await page.goto(`${read}?p=last`);
@@ -166,7 +166,7 @@ test('OK brings the chrome as a focus row, and READING opens, changes the mode, 
 	await expect(reading).toContainText('R→L');
 });
 
-test('a sheet on its way out keeps no keys: OK at once after BACK opens READING again (c445)', async ({
+test('a sheet on its way out keeps no keys: OK at once after BACK opens READING again', async ({
 	page
 }) => {
 	await open(page);
@@ -204,13 +204,13 @@ test('a sheet on its way out keeps no keys: OK at once after BACK opens READING 
 
 /**
  * On a vertical strip, the reader's own turn keys stand down while the chrome
- * is up (c253; `ImageReader.svelte`, the `TURNS` guard in `keydown`), so an
+ * is up (`ImageReader.svelte`, the `TURNS` guard in `keydown`), so an
  * arrow that finds no cell at the chrome's edge does not scroll the strip
  * underneath. The strip is reached from READING, whose mode is session state
  * that only REMEMBER stores, never pressed here: nothing is written, as the
  * seeded library has no vertical series and none may be made one for this.
  */
-test("on a vertical strip, an arrow past the chrome's last cell does not move the strip (c253)", async ({
+test("on a vertical strip, an arrow past the chrome's last cell does not move the strip", async ({
 	page
 }) => {
 	await open(page);

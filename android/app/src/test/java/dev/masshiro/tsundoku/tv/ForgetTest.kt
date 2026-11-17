@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * FORGET's two pure pieces (c261, S4): the cookie lines it writes into the
+ * FORGET's two pure pieces (S4): the cookie lines it writes into the
  * WebView's jar, and the server's name it reads from 9E's first line.
  */
 class ForgetTest {
@@ -47,7 +47,7 @@ class ForgetTest {
 	}
 
 	@Test
-	fun `each origin's paired cookie is named as the server names it (c530)`() {
+	fun `each origin's paired cookie is named as the server names it`() {
 		val rows = table()
 		assertTrue("the table has its rows", rows.size >= 15)
 		for ((origin, name) in rows) {
@@ -60,7 +60,7 @@ class ForgetTest {
 	}
 
 	@Test
-	fun `forget expires its own pairing and the old shared name, never another server's (c530)`() {
+	fun `forget expires its own pairing and the old shared name, never another server's`() {
 		// Two servers on one computer: 42143 over http, 8443 over https. The
 		// jar hands both servers' cookies to either, since it keys on the host.
 		val header =
@@ -87,7 +87,7 @@ class ForgetTest {
 	}
 
 	@Test
-	fun `9E's name comes from its attribute, and from its first line on an older server (c545)`() {
+	fun `9E's name comes from its attribute, and from its first line on an older server`() {
 		val line = "✓ PAIRED WITH ZEN · 192.168.1.23:42143"
 		assertEquals("ZEN", Forget.pairedNameFrom("ZEN\n$line"))
 		// The attribute wins over whatever the line says: a copy change loses nothing.

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { recordServer, RUN_PREFIX, startedAt, sweepRuns } from './run-servers';
 
 /**
- * The sweep of a killed run's servers (c689), on a folder of this file's own
+ * The sweep of a killed run's servers, on a folder of this file's own
  * standing in for `TMPDIR`: run directories named after a runner that is gone
  * (an exited pid) or alive (another worktree's run, still going: a process
  * this file started), each with the server records `friend-setup` writes.

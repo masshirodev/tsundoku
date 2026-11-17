@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { RUN_PREFIX, sweepRuns } from './run-servers';
 
 /**
- * One temporary directory per e2e run (c439, c105), so a run cleans up after
+ * One temporary directory per e2e run, so a run cleans up after
  * itself and two runs never share a file.
  *
  * Imported first by playwright.config.ts, for its side effect: the runner
@@ -25,7 +25,7 @@ import { RUN_PREFIX, sweepRuns } from './run-servers';
  * it again as it exits, after the web servers it stopped wrote their last.
  * A run that was killed leaves its directory, so the next run removes any
  * whose runner is no longer alive, and first stops the servers that run
- * recorded there and left running (`run-servers.ts`, c689). Only directories
+ * recorded there and left running (`run-servers.ts`). Only directories
  * under this run's own `TMPDIR` are seen: a run started with another one is
  * swept by the next run that shares it.
  */

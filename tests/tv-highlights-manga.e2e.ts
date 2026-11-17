@@ -10,7 +10,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { startPreview } from './highlights-preview';
 
 /**
- * Highlights H3 on a TV (card c703; Manga M1, M2, M5; doc/TV.md): the
+ * Highlights H3 on a TV (Manga M1, M2, M5, doc/TV.md): the
  * reader's controls gain a focus stop, HIGHLIGHT, which OK presses; on a
  * spread (the TV's default) it asks which, and the pad walks the rows; MENU
  * opens the page menu, whose first row is HIGHLIGHT THIS PAGE.

@@ -377,7 +377,7 @@ describe('the next part, at the end of one', () => {
 		);
 	});
 
-	it('the end page’s next part speaks its own kind, for every kind there is (c343)', () => {
+	it('the end page’s next part speaks its own kind, for every kind there is', () => {
 		// The whole registry, not a pick: a sixth kind lands here with its own words.
 		const all = Object.fromEntries(
 			KINDS.map((k) => {
@@ -397,7 +397,7 @@ describe('the next part, at the end of one', () => {
 		// Every word agrees with the part's own line under its title (workPartMeta).
 		for (const k of KINDS) {
 			// A film's Work row is c992's: it has no unit, so there is no "first
-			// ten" line to agree with (c987).
+			// ten" line to agree with.
 			if (k === 'movie') continue;
 			expect(workPartMeta({ kind: k, entries: 10, downloaded: 0 }, 'rtl')).toContain(
 				nextPartWords(k).downloadFirst.replace('DOWNLOAD FIRST ', '')
@@ -526,7 +526,7 @@ describe('UNHIDE is offered only when every selected series is hidden (W4 round 
 	});
 });
 
-describe('the HIDE and UNHIDE bands are worded from the count (wave 16)', () => {
+describe('the HIDE and UNHIDE bands are worded from the count', () => {
 	it('says THE WORK for one Work and the number for more', () => {
 		expect(wholeLine(1)).toBe('THE WORK, WHOLE');
 		expect(wholeLine(2)).toBe('2 WORKS, WHOLE');
@@ -547,7 +547,7 @@ describe('the HIDE and UNHIDE bands are worded from the count (wave 16)', () => 
 	});
 });
 
-describe('MIGHT CONTINUE’s stem rule, over its whole domain (W7, c281)', () => {
+describe('MIGHT CONTINUE’s stem rule, over its whole domain (W7)', () => {
 	// Every title against every stem: the table is the rule, so a pair the
 	// code decides differently fails by name. A hand-picked pair or two would
 	// prove only the pairs picked.

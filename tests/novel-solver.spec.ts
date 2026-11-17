@@ -17,8 +17,8 @@ const ADDRESSES: Record<string, string[]> = {
 };
 vi.mock('node:dns/promises', () => ({
 	lookup: async (host: string) => {
-		// Names whose lookup fails as a transient DNS error does (c630), before
-		// the browser is asked and after it answers (c662).
+		// Names whose lookup fails as a transient DNS error does, before
+		// the browser is asked and after it answers.
 		if (host === 'flaky.example' || host === 'lost.example') {
 			const code = host === 'flaky.example' ? 'EAI_AGAIN' : 'ENOTFOUND';
 			throw Object.assign(new Error(`getaddrinfo ${code} ${host}`), { code });
@@ -128,7 +128,7 @@ describe('the app’s solve for a site’s check', () => {
 		expect(checked()).toEqual([{ host: 'www.novel.example', seen_at: expect.any(Number) }]);
 	});
 
-	it('is https-only when one of its own cookies is secure, and only then (c152)', async () => {
+	it('is https-only when one of its own cookies is secure, and only then', async () => {
 		// A Cookie header can't carry one cookie over http and another over https,
 		// so one secure cookie makes the whole jar https-only (novels/host.ts).
 		reply = () => ({
@@ -189,7 +189,7 @@ describe('the app’s solve for a site’s check', () => {
 		expect(solvingSince('novel.example')).toBeNull();
 	});
 
-	it('answers nothing when the solver fails, does not remember it, and writes no check (c334)', async () => {
+	it('answers nothing when the solver fails, does not remember it, and writes no check', async () => {
 		// A 200 carrying `status: 'error'` is a shape FlareSolverr does not send
 		// (it sends that body as an HTTP 500, below), but Byparr speaks the same
 		// protocol, and a proxy or a wrong NOVEL_SOLVER_URL answers 200 with HTML.
@@ -213,7 +213,7 @@ describe('the app’s solve for a site’s check', () => {
 		expect(checked()).toEqual([]);
 	});
 
-	it('answers nothing when the page it fetched was refused, and writes no check (c152)', async () => {
+	it('answers nothing when the page it fetched was refused, and writes no check', async () => {
 		// FlareSolverr's browser reached the site and the site still said 403:
 		// an answer that can carry cookies and a user agent, but no clearance.
 		reply = () => ({ status: 200, body: ok({ status: 403 }) });
@@ -234,7 +234,7 @@ describe('the app’s solve for a site’s check', () => {
 		expect(asked).toHaveLength(1);
 	});
 
-	it('does not remember a solver’s own failure, which FlareSolverr sends as an HTTP 500 (c152)', async () => {
+	it('does not remember a solver’s own failure, which FlareSolverr sends as an HTTP 500', async () => {
 		// Measured 2026-11-02: FlareSolverr 3.4.6 answers a solve it could not
 		// produce as `{"status":"error",...}` **with HTTP 500** (the capture is
 		// temp/fs-rrs.json, a 60.59 s round trip). `ask` throws on `!res.ok`, so
@@ -269,7 +269,7 @@ describe('the app’s solve for a site’s check', () => {
 		expect(asked).toHaveLength(1);
 	});
 
-	it('forgets one site’s memo when TRY AGAIN asks, and no other’s (c294)', async () => {
+	it('forgets one site’s memo when TRY AGAIN asks, and no other’s', async () => {
 		reply = () => ({ status: 200, body: ok({ status: 403 }) });
 		expect(await solveChallenge('https://www.novel.example/one')).toBeNull();
 		expect(await solveChallenge('https://other.example/one')).toBeNull();
@@ -312,13 +312,13 @@ const page = (response: string, solution: Record<string, unknown> = {}) =>
 const wrapped = (text: string, json = false) =>
 	`<html><head><meta name="color-scheme" content="light dark">${json ? '<meta charset="utf-8">' : ''}</head><body><pre${json ? '' : ' style="word-wrap: break-word; white-space: pre-wrap;"'}>${text}</pre>${json ? '<div class="json-formatter-container"></div>' : ''}</body></html>`;
 
-describe('a page through the solver’s browser (c335)', () => {
+describe('a page through the solver’s browser', () => {
 	// For a host whose check is bound to the browser that solved it, the host
 	// asks for the page, not a clearance. The stub answers as FlareSolverr 3.4.6
 	// does: the browser's DOM, its status, the URL it ended on after redirects,
 	// a JSON or text document wrapped in Chromium's <pre>, a picture as
 	// Chromium's image page, its own failure as an HTTP 500, and Chromium dying
-	// under load (c492) as "invalid session id".
+	// under load as "invalid session id".
 	const BODY = '<html><head></head><body><a href="next">Next</a></body></html>';
 
 	it('is the page the browser ended on, after its redirects, with that URL to resolve against', async () => {
@@ -397,7 +397,7 @@ describe('a page through the solver’s browser (c335)', () => {
 				{ url: 'https://www.novel.example/cover.jpg' }
 			)
 		});
-		// Marked fixed (c630): another solve ends at the same image page, so the
+		// Marked fixed: another solve ends at the same image page, so the
 		// host must not word this as a check that could not be passed.
 		expect(await fetchPage({ url: 'https://www.novel.example/cover.jpg' })).toEqual({
 			error:
@@ -440,7 +440,7 @@ describe('a page through the solver’s browser (c335)', () => {
 		});
 	});
 
-	it('asks once more when the solver’s browser died under it (c492), and says so when it dies twice', async () => {
+	it('asks once more when the solver’s browser died under it, and says so when it dies twice', async () => {
 		const died = () => ({
 			status: 500,
 			body: JSON.stringify({
@@ -495,7 +495,7 @@ describe('a page through the solver’s browser (c335)', () => {
 			'https://unknown.example/',
 			'file:///etc/passwd'
 		])
-			// Fixed (c630): a new solve is refused here again, before it starts.
+			// Fixed: a new solve is refused here again, before it starts.
 			expect(await fetchPage({ url }), url).toMatchObject({
 				error: expect.stringMatching(/^refused: /),
 				fixed: true
@@ -532,7 +532,7 @@ describe('a page through the solver’s browser (c335)', () => {
 		expect(checked()).toEqual([]);
 	});
 
-	it('calls a failed lookup the network’s, not a refusal and not a check (c630)', async () => {
+	it('calls a failed lookup the network’s, not a refusal and not a check', async () => {
 		// EAI_AGAIN comes out of `checkPublic`'s own lookup, in the same catch a
 		// local address lands in. It is neither: a retry can succeed, and the
 		// browser was never asked, so it is unsent rather than fixed.
@@ -548,7 +548,7 @@ describe('a page through the solver’s browser (c335)', () => {
 		expect(checked()).toEqual([]);
 	});
 
-	it('calls a failed lookup of the address the browser ended on the network’s, not a refusal (c662)', async () => {
+	it('calls a failed lookup of the address the browser ended on the network’s, not a refusal', async () => {
 		// This is the second `checkPublic`: the browser was asked and answered,
 		// and the lookup of the URL it ended on failed. A new solve is not the
 		// cure, but neither is the address permanently off the internet, so the

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 /**
- * A book's own origin (card c885; doc/BOOKS.md, "Where a book's origin lives").
+ * A book's own origin (doc/BOOKS.md, "Where a book's origin lives").
  * Its one-offs are made by the app's own ADD from a fake engine's gallery
  * source, not hand-seeded with the key they should have (wave 37's lesson), and
  * its downloads go through the real worker, backup and importer.
@@ -173,7 +173,7 @@ async function pair(a = NH, b = NH) {
 	return { one, two, seriesId, entryIds };
 }
 
-describe('grouping a one-off keeps its link (c885)', () => {
+describe('grouping a one-off keeps its link', () => {
 	it('starts from what ADD really writes: a doujin holding its source key', async () => {
 		const o = await addOneOff();
 		expect(row(o.id).origin_key).toBe(o.key);
@@ -220,7 +220,7 @@ describe('grouping a one-off keeps its link (c885)', () => {
 	});
 });
 
-describe('the series screen, once grouped (c885)', () => {
+describe('the series screen, once grouped', () => {
 	it('answers ok, each book queueable, and each reads online', async () => {
 		const { seriesId, entryIds } = await pair();
 		const d = engine.seriesDownloads(seriesId, asEntries(seriesId));
@@ -380,7 +380,7 @@ describe('the series screen, once grouped (c885)', () => {
 	});
 });
 
-describe('downloading a grouped book (c885)', () => {
+describe('downloading a grouped book', () => {
 	it('queues each book under its own key and source lane', async () => {
 		const { seriesId, entryIds, one, two } = await pair(NH, HI);
 		expect(engine.enqueue(seriesId, entryIds)).toEqual({ queued: 2, missing: 0 });
@@ -420,7 +420,7 @@ describe('downloading a grouped book (c885)', () => {
 	});
 });
 
-describe('UNGROUP and UNDO put the link back (c885)', () => {
+describe('UNGROUP and UNDO put the link back', () => {
 	/** A row to compare, field by field. */
 	const singleton = (id: number) => ({
 		key: row(id).origin_key,
@@ -582,7 +582,7 @@ describe('UNGROUP and UNDO put the link back (c885)', () => {
 	});
 });
 
-describe('a group’s path when the Mihon root is the device folder (c885, round 2)', () => {
+describe('a group’s path when the Mihon root is the device folder', () => {
 	const home = join(library, 'Mihon');
 	const deviceRoot = join(library, 'devices', 'tsundoku', 'Mihon');
 	const rootAt = (path: string) =>
@@ -683,7 +683,7 @@ describe('a group’s path when the Mihon root is the device folder (c885, round
 	});
 });
 
-describe('a queued download goes where its entry goes (c885, round 2)', () => {
+describe('a queued download goes where its entry goes', () => {
 	const queued = (entryId: number) => queueRows().find((r) => r.entryId === entryId);
 	const inQueue = (entryId: number) =>
 		engine.engineQueue().items.find((i) => i.chapterId === entryId);
@@ -834,7 +834,7 @@ describe('a queued download goes where its entry goes (c885, round 2)', () => {
 	});
 });
 
-describe('every other reader of a key (c885)', () => {
+describe('every other reader of a key', () => {
 	it('recognises a grouped book at its source: ADD answers the group and adds nothing', async () => {
 		const { one, seriesId } = await pair();
 		const count = db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number };
@@ -932,7 +932,7 @@ describe('every other reader of a key (c885)', () => {
 	});
 });
 
-describe('rung 76 (c885)', () => {
+describe('rung 76', () => {
 	it('adds the table and repairs nothing it cannot read', () => {
 		const conn = new Database(':memory:');
 		climb(conn, 75);

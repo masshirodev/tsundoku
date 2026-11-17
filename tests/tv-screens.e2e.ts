@@ -2,7 +2,7 @@ import { expect, test } from './fixtures';
 import { revealOn } from './helpers/reveal';
 
 /**
- * The TV's screens (c238; doc/TV.md, "The design"). Read-only: nothing here
+ * The TV's screens (doc/TV.md, "The design"). Read-only: nothing here
  * writes to the database the other projects share. The frame numbers are
  * pinned by library-layout, series-layout and the generated tv-*-frame specs;
  * these check what those cannot: the focus line, a sheet as a panel, search
@@ -20,7 +20,7 @@ test('the first arrow starts on CONTINUE; the second row of shelves names the co
 	const start = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
 	expect(start).toMatch(/^Resume /);
 
-	// ↓ to the shelf's tabs, ↓ to the KIND band (c436), ↓ into the grid: the
+	// ↓ to the shelf's tabs, ↓ to the KIND band, ↓ into the grid: the
 	// focus line appears under the pinned bar and names the focused cover
 	// (TV-Library, 3B).
 	await page.keyboard.press('ArrowDown');

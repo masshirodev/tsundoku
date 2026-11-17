@@ -19,7 +19,7 @@ const ratingOf = (id: number) =>
 /**
  * The row that holds a series' link, wherever its kind puts it: `series_links`
  * for a comic or a novel, `series_season_links` for an anime, whose link is
- * one season's (c240).
+ * one season's.
  */
 const linkRow = (id: number) =>
 	(db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(id) ??
@@ -85,7 +85,7 @@ const asked: string[] = [];
 const formatsAsked: string[] = [];
 const queriesAsked: string[] = [];
 /** AniList should never send one kind's entries for another's search; a test can
- * make it leak, to prove the client's own kind rule as a second belt (c298). */
+ * make it leak, to prove the client's own kind rule as a second belt. */
 let leakFormats = false;
 
 const fake: typeof fetch = async (_url, init) => {
@@ -294,7 +294,7 @@ describe('an anime', () => {
 		try {
 			// AniList holds the manga (MANGA) and the 2024 anime under one title,
 			// the manga first and exactly the series' own. Alone, it links nothing
-			// at all; beside the anime, the anime is the one (c298).
+			// at all; beside the anime, the anime is the one.
 			// The catalogue answers with the manga though it asked for anime: the
 			// client's own rule is the second belt, and it is what this pins.
 			leakFormats = true;
@@ -539,7 +539,7 @@ describe('Mihon’s MAL tracker', () => {
 		return id;
 	};
 
-	it('links at once, and an unrated series takes the score (c67: out of 10, as the score is)', () => {
+	it('links at once, and an unrated series takes the score (out of 10, as the score is)', () => {
 		const id = tracked('Tower of God');
 		cat.linkFromTracker(db, id, { id: 122663, score: 9 }, NOW);
 		expect(linkRow(id)).toMatchObject({ mal_id: 122663, via: 'mihon', filled_rating: 9 });
@@ -611,7 +611,7 @@ describe('Mihon’s MAL tracker', () => {
 		});
 	});
 
-	it('drops the old entry’s format when the tracker moves, so the resolve refills it (c298)', async () => {
+	it('drops the old entry’s format when the tracker moves, so the resolve refills it', async () => {
 		const id = idOf('Tower of God');
 		// A link the tracker made whose resolve left the wrong kind's format:
 		// this branch now trusts `format` for the send guard, the MAL list and
@@ -681,7 +681,7 @@ describe('a novel AniList lacks', () => {
 	});
 });
 
-describe('the season a field names (c240)', () => {
+describe('the season a field names', () => {
 	it('reads absent or empty as no season, never season 0, which is a real one', async () => {
 		const { seasonNamed } = await import('$lib/library/catalogue');
 		// What `FormData.get` and `URLSearchParams.get` give for a missing field.
@@ -695,7 +695,7 @@ describe('the season a field names (c240)', () => {
 	});
 });
 
-describe('UNDO on UNLINK’s band (c520)', () => {
+describe('UNDO on UNLINK’s band', () => {
 	const row = (id: number) =>
 		db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(id) as
 			Record<string, unknown> | undefined;
@@ -809,7 +809,7 @@ describe('UNDO on UNLINK’s band (c520)', () => {
 		expect(row(id)).toBeUndefined();
 	});
 
-	it('a band drawn before rung 74 still undoes, and its mirror is not put back (c467)', () => {
+	it('a band drawn before rung 74 still undoes, and its mirror is not put back', () => {
 		const id = animeSeries('Undo Pending Band');
 		try {
 			expect(
@@ -977,7 +977,7 @@ describe('UNDO on UNLINK’s band (c520)', () => {
 	});
 });
 
-describe('a comic’s link keeps its country and start year (c520, rung 70)', () => {
+describe('a comic’s link keeps its country and start year (rung 70)', () => {
 	const cols = (id: number) =>
 		db.prepare(`SELECT country, year FROM series_links WHERE series_id = ?`).get(id);
 

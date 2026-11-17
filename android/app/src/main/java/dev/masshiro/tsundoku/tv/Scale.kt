@@ -1,7 +1,7 @@
 package dev.masshiro.tsundoku.tv
 
 /**
- * The page's scale (c236; doc/TV.md, "Claims to check").
+ * The page's scale (doc/TV.md, "Claims to check").
  *
  * The handoff is drawn in a 960x540 CSS-pixel frame. The WebView lays the page
  * out at whatever width it is given, so the 1024px/1280px media queries would

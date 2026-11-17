@@ -27,7 +27,7 @@ val tvVersion: String =
 /**
  * Android's versionCode from the date version, YYYYMMDDNN, so every release is
  * newer to the installer than the one before and an update installs over it
- * (c614). `Versions.code` in the app is the same rule; VersionsTest pins the
+ *. `Versions.code` in the app is the same rule; VersionsTest pins the
  * two together. A name that is no date version is 1, as every build was.
  */
 fun versionCodeOf(name: String): Int {
@@ -57,7 +57,7 @@ android {
 	}
 
 	/*
-	 * Two apps from one project (c521; doc/ANDROID.md): the TV's, and the
+	 * Two apps from one project (doc/PHONE-APP.md): the TV's, and the
 	 * phone and tablet one. Every line of pairing is shared (src/main); what
 	 * differs is decided by Form.kt from FORM, and the little that is
 	 * manifest or theme lives in src/tv and src/mobile. The Kotlin package
@@ -124,9 +124,9 @@ dependencies {
 	implementation("androidx.activity:activity:1.11.0")
 	// WindowInsetsControllerCompat, for hiding the system UI around the page.
 	implementation("androidx.core:core-ktx:1.17.0")
-	// ed25519 for latest.json's signature (c614): Android 6 has none of its own.
+	// ed25519 for latest.json's signature: Android 6 has none of its own.
 	implementation("net.i2p.crypto:eddsa:0.3.0")
-	// WebViewAssetLoader (c549): the app's own page is served at an https
+	// WebViewAssetLoader: the app's own page is served at an https
 	// origin a message listener's origin rule can name, not from file://.
 	// 1.14.0 is what this machine's Gradle cache holds (doc/ANDROID.md).
 	implementation("androidx.webkit:webkit:1.14.0")

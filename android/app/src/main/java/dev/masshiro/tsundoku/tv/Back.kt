@@ -12,7 +12,7 @@ import java.net.URI
  * shelf tabs each leave an entry of their own. So:
  *
  * - the library (`/`, any shelf or sort) is the app's home: BACK leaves, on
- *   the second press (LeaveWindow.kt, c859: the first says so in a toast);
+ *   the second press (LeaveWindow.kt, the first says so in a toast);
  * - anywhere else BACK goes to the nearest earlier screen that is one, past
  *   the sign-in, pairing and set-up pages and the app's own first screens;
  * - with none, BACK leaves, on the second press too.

@@ -208,7 +208,7 @@ test('a chip leaves the screen’s other answers up: REFRESH’s band outlives a
 	test.setTimeout(90_000);
 	await add(page);
 	// REFRESH answers in `form`, drawn as its own band below ADDED TO THE LIBRARY.
-	// On a phone the DOWNLOAD row is behind DETAILS (c425): opened by its line, as
+	// On a phone the DOWNLOAD row is behind DETAILS: opened by its line, as
 	// the owner does, when the app's own media query folds it (tests/helpers/details-folds.ts).
 	if (await page.evaluate((query) => matchMedia(query).matches, DETAILS_FOLDS)) {
 		const line = page.locator('[data-row="details"]');

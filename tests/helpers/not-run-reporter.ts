@@ -2,7 +2,7 @@ import { relative } from 'node:path';
 import type { FullConfig, Reporter, Suite, TestCase } from '@playwright/test/reporter';
 
 /**
- * Says which tests did not run, and why, at the end of a run (c439).
+ * Says which tests did not run, and why, at the end of a run.
  *
  * Playwright's own summary gives a bare count ("12 did not run"), and wave
  * 19's gate read a run with `duplicates` and `gate` in that count as green

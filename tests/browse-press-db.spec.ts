@@ -22,7 +22,7 @@ const { isAdding } = await import('$lib/server/engine/adding');
 const press = await import('$lib/server/browse-press');
 
 /**
- * A SELECT press, the server's half (card c868; doc/BROWSE.md, "The press"),
+ * A SELECT press, the server's half (doc/BROWSE.md, "The press"),
  * on an in-memory library through the real writers and a fake engine: one
  * series added and queued as a preview's ADD AND DOWNLOAD would, a stale tick
  * skipped, a series being added skipped, failures in a word, ADDED HIDDEN for

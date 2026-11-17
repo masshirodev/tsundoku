@@ -2,7 +2,7 @@ import { devices } from '@playwright/test';
 import { test, expect, readerReady } from './fixtures';
 
 /**
- * D-pad focus (card c234, doc/FOCUS.md): arrow keys move focus by geometry,
+ * D-pad focus (doc/FOCUS.md): arrow keys move focus by geometry,
  * the mark is one ink frame, a sheet is a scope, and a trip back comes back to
  * what the screen was left from.
  *
@@ -132,7 +132,7 @@ test('an arrow starts focus and the mark is an ink frame', async ({ page }) => {
 });
 
 test('a keyboard’s Escape is not a climb: focus stays where it was', async ({ page }) => {
-	// BACK climbs on a TV only (doc/TV.md, c235). On a keyboard the layer
+	// BACK climbs on a TV only (doc/TV.md). On a keyboard the layer
 	// leaves Escape to whatever listens for it, so a tile keeps its focus.
 	await page.goto('/?shelf=all');
 	const tile = await gridFocus(page);
@@ -140,7 +140,7 @@ test('a keyboard’s Escape is not a climb: focus stays where it was', async ({ 
 	expect(after.id).toBe(tile.id);
 });
 
-test('a slider keeps the arrows along its axis and lets the others leave, with no attribute (c259)', async ({
+test('a slider keeps the arrows along its axis and lets the others leave, with no attribute', async ({
 	page
 }) => {
 	// The live layer on a real page, every device (the rule is not a TV's
@@ -306,7 +306,7 @@ test('library to series to reader, and back, by keyboard alone', async ({ page }
  * only repeat it at a smaller width. Incognito, so reading on to the end page
  * records nothing: series-layout asserts Hoshi's page on the shared database.
  */
-test.describe('the end page’s scrubber off a TV (c611)', () => {
+test.describe('the end page’s scrubber off a TV', () => {
 	// The device's context half, without `defaultBrowserType`: a spread of the
 	// whole device cannot sit in a describe (Playwright refuses one that would
 	// force a new worker), and the project already picks Chromium.

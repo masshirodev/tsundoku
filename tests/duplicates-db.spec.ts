@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // The cover pass is what a carried-out decision queues, off the request: this
-// spec counts the calls rather than making covers (c648).
+// spec counts the calls rather than making covers.
 const refresh = vi.hoisted(() => vi.fn(async () => ({ made: 0, kept: 0, none: 0, failed: 0 })));
 vi.mock('$lib/server/covers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/server/covers')>()),
@@ -162,7 +162,7 @@ describe('a chapter from two scanlators', () => {
 // ended, and every library load tried it again and queued a cover refresh,
 // because `touched` was filled before the try. A library that holds no such
 // pair any more gets it back at the review, undecided.
-describe('a decision the review cannot carry out (c648)', () => {
+describe('a decision the review cannot carry out', () => {
 	const idOf = (title: string) =>
 		(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
 	const bookOf = (seriesId: number) =>
@@ -283,7 +283,7 @@ describe('a decision the review cannot carry out (c648)', () => {
 		// KEEP moves the kept single into the other's series of books, which
 		// `moveBook` refuses when the two are in roots of a different kind
 		// (hidden and visible): the shelf it copies a moment earlier must not
-		// stay behind (c648).
+		// stay behind.
 		const hiddenRoot = ensureRoot(db, 'Hidden', '/nowhere/Hidden', true);
 		write(
 			plan([entry(1, '', { sourceUrl: '/keep/a', pageCount: 3 })], {

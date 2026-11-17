@@ -7,7 +7,7 @@ import { planMihon } from '$lib/import/mihon-plan';
 import type { MihonManga } from '$lib/import/mihon-backup';
 
 /**
- * The registry against the database (doc/KINDS.md; card c301): the CHECK that
+ * The registry against the database (doc/KINDS.md): the CHECK that
  * guards `series.kind` is the last line of defence, so a kind added to the
  * registry without a rung has to fail here rather than in production.
  *
@@ -117,7 +117,7 @@ describe('movable', () => {
 	it('is the kinds movableKind offers MOVE to, as it offered them at fb2bd3a7', () => {
 		// `movableKind` (src/lib/server/move.ts) is what `moveState`,
 		// `moveEligible`, `moveComparison` and `applyMove` ask, and since K4
-		// (c304) it reads `movable`. So this pins its answers to the ones it
+		// it reads `movable`. So this pins its answers to the ones it
 		// gave as a list of names, for every kind, rather than to the fact.
 		// c987 added the two video kinds the movies work brings; they move
 		// between sources as an anime does (MOVE_MAP maps both to 'anime').
@@ -135,7 +135,7 @@ describe('movable', () => {
 	});
 
 	/**
-	 * Wave 16's open question, decided in wave 17 (c304): a doujin with a
+	 * Wave 16's open question, decided in wave 17: a doujin with a
 	 * `mihon:` key does not move. A gallery source's series is a doujin and
 	 * keeps its Mihon key (`planMihon`, mihon-plan.ts), yet `movable` is false
 	 * for every doujin, so MOVE is not offered. Reached through the importer's
@@ -193,7 +193,7 @@ describe('movable', () => {
 
 describe('a doujin\u2019s catalogue', () => {
 	/**
-	 * Round 2 of wave 16 (c301): the audit said a doujin's catalogue was asked
+	 * Round 2 of wave 16: the audit said a doujin's catalogue was asked
 	 * by no door, having looked only at the owner-facing ones (LINKABLE,
 	 * linkState). The importer is a door too: `planMihon` keeps Mihon's MAL
 	 * tracker for a gallery source's doujin (`malLink`, mihon-plan.ts:414),

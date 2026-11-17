@@ -21,7 +21,7 @@ import {
 const q = (s: string) => new URLSearchParams(s);
 const f = (patch: Partial<Filters>): Filters => ({ ...NO_FILTERS, ...patch });
 
-describe('the filters in a URL (c68)', () => {
+describe('the filters in a URL', () => {
 	it('reads each parameter, and nothing malformed', () => {
 		expect(parseFilters(q('min=7&fav=0&lang=JA&added=2026-08-01&dl=1'), false)).toEqual(
 			f({ min: 7, fav: 0, lang: 'ja', added: '2026-08-01', dl: 1 })
@@ -144,7 +144,7 @@ describe('the shelves c436 retired: SERIES, ONE-OFF and each kind', () => {
 	});
 });
 
-describe('FORM (c436: SERIES and ONE-OFF, as a filter)', () => {
+describe('FORM (SERIES and ONE-OFF, as a filter)', () => {
 	it('is a filter in the URL, in words and in the count, and nothing else is a form', () => {
 		expect(parseFilters(q('form=series'), false).form).toBe('series');
 		expect(parseFilters(q('form=oneoff'), false).form).toBe('oneoff');
@@ -209,7 +209,7 @@ describe('FORM (c436: SERIES and ONE-OFF, as a filter)', () => {
 	});
 });
 
-describe('the KIND band (c436)', () => {
+describe('the KIND band', () => {
 	it('the library’s FILTER badge leaves the kind out: the band says it', () => {
 		const both = f({ kind: 'anime', min: 8 });
 		expect(activeCount(both)).toBe(2);

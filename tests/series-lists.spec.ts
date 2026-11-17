@@ -32,7 +32,7 @@ import type { SeasonTrack, Tracking } from '$lib/server/tracking';
 import type { RanobeSeries } from '$lib/server/ranobe-review';
 
 /**
- * The LISTS row's words and cells (card c424; doc/SERIES.md "LISTS"), for
+ * The LISTS row's words and cells (doc/SERIES.md "LISTS"), for
  * every state the brief names. The e2e files reach the states through the
  * app's doors; this pins the rules over their whole domain, which a screen
  * can't enumerate.
@@ -211,7 +211,7 @@ function seasonTrack(season: number, facts: TrackFacts[], o: Partial<SeasonTrack
 	} as SeasonTrack;
 }
 
-describe('a line not linked (1B, 1; c337)', () => {
+describe('a line not linked (1B, 1)', () => {
 	it('says what the last search did, and never credits a cover pass with it', () => {
 		const said = (l: Partial<LinkState>) =>
 			lines(input({ link: unlinked(l), tracking: tracking([]) }))[0].meta;
@@ -517,7 +517,7 @@ describe('Ranobe’s line (1B, 9; 1C, 10)', () => {
 	});
 });
 
-describe('an anime’s seasons (1C, 11, 12; c423)', () => {
+describe('an anime’s seasons (1C, 11, 12)', () => {
 	const watching = { status: 'reading' as const, progress: 8, score: 8 };
 	const done = { status: 'completed' as const, progress: 12, score: 7 };
 
@@ -658,7 +658,7 @@ describe('an anime’s seasons (1C, 11, 12; c423)', () => {
 		});
 		// EDIT opens the sheet on season 0, which the sheet never names.
 		expect(a.cells.map((c) => c.edit)).toEqual([{ list: 'anilist', season: 0 }]);
-		// FIND on the flat list's line names no season (the review's own rule, c423).
+		// FIND on the flat list's line names no season (the review's own rule).
 		const unl = { ...flat, link: unlinked(), seasons: [seasonRow(0, { link: null })] };
 		expect(lines(unl)[0].cells[0].href).toBe('/links?series=7');
 		// RNB on an anime keeps one cell (1C, 12).
@@ -674,7 +674,7 @@ describe('an anime’s seasons (1C, 11, 12; c423)', () => {
 		expect(foldTag([4])).toBe('S4');
 	});
 
-	it('the sheet names a season only on a show with several (c423)', () => {
+	it('the sheet names a season only on a show with several', () => {
 		expect(seasonWords(0, false)).toEqual({
 			subject: '',
 			scope: 'THE SHOW’S ENTRY ON BOTH CATALOGUES'
@@ -782,7 +782,7 @@ describe('entryStates', () => {
 	});
 });
 
-describe('AniList signed out, MAL signed in: MAL’s word leads (round 2)', () => {
+describe('AniList signed out, MAL signed in: MAL’s word leads', () => {
 	const watching = { status: 'reading' as const, progress: 8, score: null };
 	const done = { status: 'completed' as const, progress: 12, score: null };
 	const anilistOut = (o: Partial<TrackFacts> = {}) => fact('anilist', { signedIn: false, ...o });
@@ -856,7 +856,7 @@ describe('AniList signed out, MAL signed in: MAL’s word leads (round 2)', () =
 	});
 });
 
-describe('TRY AGAIN beside an expired sign-in (round 2, low)', () => {
+describe('TRY AGAIN beside an expired sign-in (low)', () => {
 	it('offers both when one list’s sign-in expired and another’s send did not answer', () => {
 		const [l] = lines(
 			input({
@@ -878,7 +878,7 @@ describe('TRY AGAIN beside an expired sign-in (round 2, low)', () => {
 });
 
 /*
- * DETAILS' folded line (c425; doc/SERIES.md "DETAILS"; series-phone 1C): its
+ * DETAILS' folded line (doc/SERIES.md "DETAILS", series-phone 1C): its
  * marks come from LISTS' own lines and SOURCE's trouble, so they are read off
  * `listsRow`'s real output here, not off hand-made lines.
  */
@@ -1081,7 +1081,7 @@ describe('DETAILS: the folded line (1C)', () => {
 	});
 });
 
-describe('a comic’s line says where its entry comes from, and its year (c520, 1B)', () => {
+describe('a comic’s line says where its entry comes from, and its year (1B)', () => {
 	it('names every country AniList gives a comic, and nothing else', () => {
 		// The whole domain: AniList's countryOfOrigin for MANGA is JP, KR, CN or TW.
 		expect(
@@ -1106,7 +1106,7 @@ describe('a comic’s line says where its entry comes from, and its year (c520, 
 	});
 });
 
-describe('a NEVER TRACKED source (c522)', () => {
+describe('a NEVER TRACKED source', () => {
 	const why = { l: NEVER_TRACKED_WHY, r: '', quiet: true, alert: false };
 
 	it('says why on a linked comic’s line, and offers no send: no EDIT, no TRY AGAIN', () => {
@@ -1182,7 +1182,7 @@ describe('a NEVER TRACKED source (c522)', () => {
 	});
 });
 
-// ---- a film's and a show's TMDB line (c989; the keys handoff, Board 2) ------------------------
+// ---- a film's and a show's TMDB line (the keys handoff, Board 2) ------------------------
 
 function tmdb(o: Partial<TmdbLinkState> = {}): TmdbLinkState {
 	return {
@@ -1218,7 +1218,7 @@ describe('the TMDB line', () => {
 		]);
 	});
 
-	it('never draws an AniList line for a film: TMDB’s, then the LIST line (c993)', () => {
+	it('never draws an AniList line for a film: TMDB’s, then the LIST line', () => {
 		expect(
 			lines(input({ kind: 'movie', tmdb: tmdb({ configured: false }) })).map((l) => l.tag)
 		).toEqual(['TMDB', 'LIST']);
@@ -1279,7 +1279,7 @@ describe('the TMDB line', () => {
 	});
 });
 
-describe('the LIST line (c993)', () => {
+describe('the LIST line', () => {
 	it('keeps a film’s watch in HISTORY while no tracker takes it, with SET UP →', () => {
 		const ls = lines(
 			input({ kind: 'movie', tmdb: tmdb({ configured: false }), watch: 'WATCHED 12 NOV' })

@@ -11,7 +11,7 @@ const library = await import('$lib/server/library');
 const { writeSeries } = await import('$lib/server/import/write');
 
 /**
- * MOVE as one transaction (doc/MOVE.md; card c139): what it re-keys, what it
+ * MOVE as one transaction (doc/MOVE.md): what it re-keys, what it
  * keeps, what it adds, what it leaves in the queue, and the way back. The
  * source answers are fabricated here; nothing reaches a network.
  */
@@ -478,7 +478,7 @@ describe('NO SERVER', () => {
 	});
 });
 
-describe('the sources MOVE asks (K4, c304)', () => {
+describe('the sources MOVE asks', () => {
 	/**
 	 * `moveSources` keeps the sources whose medium is the map kind's
 	 * (`sourceMedium`, engine/backend.ts), where it used to keep
@@ -521,7 +521,7 @@ describe('the sources MOVE asks (K4, c304)', () => {
 
 	/**
 	 * The test above checks the rule written out; this one asks `moveSources`
-	 * itself (c421), so a wrong medium or an inverted filter in move.ts goes
+	 * itself, so a wrong medium or an inverted filter in move.ts goes
 	 * red. One source of each family: a Mihon extension's (100, from
 	 * beforeAll), an Aniyomi one's and an LNReader plugin's, all installed and
 	 * asked inside reveal so no listing rule hides one.
@@ -556,7 +556,7 @@ describe('the sources MOVE asks (K4, c304)', () => {
 	});
 });
 
-describe('PASTE A LINK asks the medium too (K4, c304)', () => {
+describe('PASTE A LINK asks the medium too', () => {
 	/**
 	 * The move route's pasted address (`pastedSourceId`, series/[id]/move/
 	 * paste.server.ts) keeps the installed sources whose medium is the map
@@ -591,7 +591,7 @@ describe('PASTE A LINK asks the medium too (K4, c304)', () => {
 	});
 });
 
-describe('compares take turns per source, and a newer pick drops a waiting one (c539, c567)', () => {
+describe('compares take turns per source, and a newer pick drops a waiting one', () => {
 	const access = () => import('../src/routes/series/[id]/move/access.server');
 	/** An ask the test answers by hand, recording that it reached "the engine". */
 	function engine() {
@@ -745,7 +745,7 @@ describe('compares take turns per source, and a newer pick drops a waiting one (
 	});
 });
 
-// A cell linking to MOVE asks whether MOVE opens first (c999): the player's
+// A cell linking to MOVE asks whether MOVE opens first: the player's
 // ANOTHER SOURCE on a browsing record linked to MOVE's 404.
 describe('where MOVE opens', () => {
 	let records = 0;

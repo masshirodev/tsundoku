@@ -5,7 +5,7 @@ import { ANIME_SOURCE, engineCalls, resetEngine, SOURCES } from './browse-world'
  * + ADD TO LIBRARY and ADD AND DOWNLOAD from a preview replace the preview's
  * history entry instead of pushing one (c932, stage 1; doc/BROWSE.md,
  * doc/NAVIGATION.md): one swipe back from the new series lands on the catalog
- * the entry was found in, at the place it was left (c930), not on the preview
+ * the entry was found in, at the place it was left, not on the preview
  * a second time. It counts history steps, and the source's own calls on the
  * way back. Runs in the `browse` project against its fake engine; the TV's
  * BACK is in `tests/tv-browse-focus.e2e.ts`, the project with a remote.
@@ -142,9 +142,9 @@ const previewBack = (page: import('@playwright/test').Page) =>
 	page.locator('.preview a.back').first();
 
 /**
- * UNDO on the new series' band (c932): the preview it was added from replaces
+ * UNDO on the new series' band: the preview it was added from replaces
  * the series' history entry, so one swipe back is the catalog, and the
- * preview's ← still names that catalog rather than SOURCES (c262).
+ * preview's ← still names that catalog rather than SOURCES.
  */
 async function undoOntoThePreview(page: import('@playwright/test').Page) {
 	const stepsOnSeries = await page.evaluate(() => history.length);
@@ -216,7 +216,7 @@ test('UNDO after ADD: no entry of its own, the preview’s ← names the catalog
 	const before = await openListAt(page);
 	await openVisible(page);
 	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
-	// The preview knows the catalog it was opened from, and ← says so (c262).
+	// The preview knows the catalog it was opened from, and ← says so.
 	expect(
 		decodeURIComponent(new URL(page.url()).searchParams.get('from') ?? ''),
 		'the preview carries its origin'
@@ -267,7 +267,7 @@ test('ADD AND DOWNLOAD: the same one swipe, with what it queued on the band', as
 	await openVisible(page, 1 + (testInfo.repeatEachIndex % 6));
 	await expect(addButton(page)).toBeVisible();
 	await page.getByRole('button', { name: 'FIRST 3' }).click();
-	// Ours, asking first (card c205), and on top.
+	// Ours, asking first, and on top.
 	await expect(page.getByText('DOWNLOADING ADDS IT TO YOUR LIBRARY')).toBeVisible();
 	const stepsOnPreview = await page.evaluate(() => history.length);
 	await page.getByRole('button', { name: 'ADD AND DOWNLOAD' }).click();
@@ -345,7 +345,7 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 	expect(seen.tiles, 'the added-and-hidden result was never attached').not.toContain(added);
 
 	// The library back as it was: forward to the band's page, UNDO it there. The
-	// band's UNDO is the same one the series' band has (wave 46): it replaces the
+	// band's UNDO is the same one the series' band has: it replaces the
 	// landing's entry rather than pushing over it, and it hands the preview the
 	// catalog it was found in, so ← says BROWSE rather than SOURCES and one swipe
 	// back is the list at its place (c932's UNDO line, the hidden band).
@@ -371,7 +371,7 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 });
 
 /**
- * A shared link to a preview (c932's UNDO line, round 2): `/downloads/source/<id>`
+ * A shared link to a preview (c932's UNDO line): `/downloads/source/<id>`
  * opened in a fresh page, with no catalog behind it. ADD replaces the preview's
  * entry and UNDO replaces the series', so neither grows history; UNDO lands on
  * the preview with no `from=` invented -- its ← says SOURCES, which is true,
@@ -381,7 +381,7 @@ test('an ADD that hid the series lands on the source’s page, and one swipe bac
 test('a shared link to a preview: ADD and UNDO neither grows history, and the landing invents no origin', async ({
 	page
 }) => {
-	// The anime source's one search hit (c735): no other spec adds it.
+	// The anime source's one search hit: no other spec adds it.
 	const shared = `/downloads/source/${ANIME_SOURCE.id}~${Buffer.from('/show/search-hit').toString('base64url')}`;
 	const fresh = await page.context().newPage();
 	try {
@@ -430,7 +430,7 @@ test('a shared link to a preview: ADD and UNDO neither grows history, and the la
 });
 
 /**
- * The other half of the band's UNDO (wave 46): a shared link's ADD can hide the
+ * The other half of the band's UNDO: a shared link's ADD can hide the
  * series too, and then the band is BROWSE's. There is no catalog behind that
  * entry either, so UNDO hands the preview no `from=` — ← says SOURCES, one
  * swipe back leaves the app — and the recorded catalog is what keeps the two
@@ -455,7 +455,7 @@ test('a shared link’s ADD that hid the series: the band’s UNDO invents no ca
 			await expect(addButton(fresh)).toBeVisible();
 			const onPreview = await fresh.evaluate(() => history.length);
 			await addButton(fresh).click();
-			// The source is all but hidden now, so the band is BROWSE's (c435).
+			// The source is all but hidden now, so the band is BROWSE's.
 			await expect.poll(() => new URL(fresh.url()).searchParams.get('added')).toBe('hidden');
 			const undo = fresh
 				.locator('.band', { hasText: 'ADDED TO THE LIBRARY, AND HIDDEN' })
@@ -483,7 +483,7 @@ test('a shared link’s ADD that hid the series: the band’s UNDO invents no ca
 });
 
 /**
- * UNDO after an ADD from a search keeps the search's query (c932, wave 46): the
+ * UNDO after an ADD from a search keeps the search's query: the
  * preview reads its search origin from `q` alone (`downloads/source/[id]`'s
  * load), so `?from=/downloads/search?q=…` alone leaves ← on the bare search
  * page. The series' UNDO is the slot's own side of it: the preview gets the `q`

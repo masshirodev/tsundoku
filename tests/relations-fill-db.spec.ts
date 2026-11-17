@@ -183,7 +183,7 @@ afterEach(() => {
 	cat.setAnilistFetch(null);
 });
 
-describe('when the timer runs at all (c839)', () => {
+describe('when the timer runs at all', () => {
 	const url = 'http://127.0.0.1:1';
 	it.each([
 		['nothing set, the shipped case', {}, { first: fill.FIRST_FILL_MS, every: fill.FILL_EVERY_MS }],
@@ -222,7 +222,7 @@ describe('when the timer runs at all (c839)', () => {
 	});
 });
 
-describe('the ticks (c839)', () => {
+describe('the ticks', () => {
 	it('skips a tick that finds a pass running, and does not queue it', async () => {
 		let release!: (r: ReturnType<typeof idle>) => void;
 		const calls: number[] = [];
@@ -358,7 +358,7 @@ describe('the ticks (c839)', () => {
 	}, 60_000);
 });
 
-describe('the fill, past every limit (c839)', () => {
+describe('the fill, past every limit', () => {
 	it('gets every series its graph, a dead link costs the rest nothing, and then it asks nothing', async () => {
 		fresh();
 		// Dead first, so a failure that stayed at the front would be seen.
@@ -489,7 +489,7 @@ describe('the fill, past every limit (c839)', () => {
 	});
 });
 
-describe('Unreachable and a 429 (c839)', () => {
+describe('Unreachable and a 429', () => {
 	it('stops the pass, stamps nothing, and the next tick asks as if nothing happened', async () => {
 		fresh();
 		chain(100_000);
@@ -596,7 +596,7 @@ const holds = (id: number, season: number) =>
 		)
 		.run(id, season, NOW, `/f/${id}/${season}`, season);
 
-describe('AniList down as a whole (c839, round 2)', () => {
+describe('AniList down as a whole', () => {
 	const OUTAGES: [string, () => Response][] = [
 		['status 502 with an HTML body', html(502)],
 		[
@@ -827,7 +827,7 @@ describe('AniList down as a whole (c839, round 2)', () => {
 	});
 });
 
-describe('a series deleted during its own ask (c839, round 2)', () => {
+describe('a series deleted during its own ask', () => {
 	const gone = (id: number) => db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
 
 	it('an anime: the rest of the pass carries on, and nothing is an error', async () => {
@@ -870,7 +870,7 @@ describe('a series deleted during its own ask (c839, round 2)', () => {
 	});
 });
 
-describe('two passes at once (c839)', () => {
+describe('two passes at once', () => {
 	it('stands aside for a link pass in this process, and asks again once it is done', async () => {
 		fresh();
 		chain(100_000);
@@ -958,7 +958,7 @@ describe('two passes at once (c839)', () => {
 	});
 });
 
-describe('the doors: a second process and the running app (c839)', () => {
+describe('the doors: a second process and the running app', () => {
 	let anilist: Server;
 	let port = 0;
 	let child: ChildProcess | null = null;

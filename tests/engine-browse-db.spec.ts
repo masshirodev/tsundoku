@@ -21,7 +21,7 @@ const { forgetSourceUse } = await import('$lib/server/library-sources');
 const { keepPreferences, setPreference } = await import('$lib/server/engine/extensions');
 const browse = await import('$lib/server/engine/browse');
 
-// Browsing a source on the engine (doc/BROWSE.md, card c141).
+// Browsing a source on the engine (doc/BROWSE.md).
 
 const OPEN = '100';
 const HIDDEN = '200';
@@ -60,7 +60,7 @@ beforeAll(async () => {
 				.writeHead(200, { 'content-type': 'application/json' })
 				.end(JSON.stringify(challenges));
 		}
-		// A stubbed FlareSolverr (c152): a clearance for the novel site, slow
+		// A stubbed FlareSolverr: a clearance for the novel site, slow
 		// enough that a test can see the solve underway.
 		if (req.url === '/v1') {
 			let raw = '';
@@ -188,7 +188,7 @@ db.prepare(
 // A case that installs an extension or a novel plugin of its own (pt.livre,
 // the K3 anime one, shelfish, junction) takes it with it, and no case inherits
 // the fake engine's checks: the lists and counts above are the two
-// extensions' alone, whatever order the cases run in (c293).
+// extensions' alone, whatever order the cases run in.
 beforeEach(() => {
 	db.prepare(`DELETE FROM engine_sources WHERE pkg NOT IN ('en.open', 'en.hidden')`).run();
 	db.prepare(`DELETE FROM engine_extensions WHERE pkg NOT IN ('en.open', 'en.hidden')`).run();
@@ -354,7 +354,7 @@ describe('a site’s browser check', () => {
 		challenges = { solving: {}, solved: {} };
 	});
 
-	it('is a novel’s own, matched by its plugin’s site (c152)', async () => {
+	it('is a novel’s own, matched by its plugin’s site', async () => {
 		db.prepare(
 			`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
 			VALUES ('shelfish', 'Shelf Novels', 'https://www.novel.example/', 'en', '1.0.0', 'h', 0, 0, '')`
@@ -371,7 +371,7 @@ describe('a site’s browser check', () => {
 		challenges = { solving: {}, solved: {} };
 	});
 
-	it('is the app’s own solve while it runs, and the engine needn’t answer (c152)', async () => {
+	it('is the app’s own solve while it runs, and the engine needn’t answer', async () => {
 		// This test's own preconditions: no engine solve left by the test above.
 		challenges = { solving: {}, solved: {} };
 		// `shelfish` is the test above's; a second plugin so neither leans on the other.
@@ -432,7 +432,7 @@ describe('an extension with nothing in the owner’s languages', () => {
 	});
 });
 
-describe('BROWSE’s lists by family (K3, c303)', () => {
+describe('BROWSE’s lists by family', () => {
 	it('puts every source in its family’s list, as the old kind filters did', () => {
 		db.prepare(
 			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)

@@ -60,7 +60,7 @@ class AddressTest {
 	}
 
 	@Test
-	fun `the scheme's own port is dropped, as WebView's URL drops it (round 2)`() {
+	fun `the scheme's own port is dropped, as WebView's URL drops it`() {
 		assertEquals("https://lib.example.com", Address.originOf("https://lib.example.com:443/"))
 		assertEquals("http://192.168.1.23", Address.originOf("192.168.1.23:80"))
 		assertEquals("https://lib.example.com", Address.intentOrigin("https://lib.example.com:443/x"))
@@ -71,7 +71,7 @@ class AddressTest {
 	}
 
 	@Test
-	fun `a host and a scheme typed in capitals come back lower case (c548)`() {
+	fun `a host and a scheme typed in capitals come back lower case`() {
 		assertEquals("http://zen.local:42143", Address.originOf("http://Zen.local:42143"))
 		assertEquals("http://zen.local:42143", Address.originOf("Zen.LOCAL:42143/series/1"))
 		assertEquals("https://zen.tailnet.ts.net:8443", Address.originOf("HTTPS://ZEN.tailnet.ts.net:8443/"))
@@ -83,7 +83,7 @@ class AddressTest {
 	}
 
 	@Test
-	fun `originOf holds on its own output (c548)`() {
+	fun `originOf holds on its own output`() {
 		for (typed in listOf("HTTP://Zen.local:42143", "Zen.local:42143", "https://Lib.Example.com:443/x", "192.168.1.23:42143")) {
 			val once = Address.originOf(typed)
 			assertEquals(once, Address.originOf(once))

@@ -128,10 +128,10 @@ describe('the run two episodes share', () => {
 	});
 });
 
-// The owner's Ranma ½ (2024), 2026-11-03 (c384): every opening the fingerprint
+// The owner's Ranma ½ (2024), 2026-11-03: every opening the fingerprint
 // found was a third to a half of the song, and where it starts moved by 52 s
 // between episodes with their cold opens.
-describe('a whole opening, not a fragment of it (c384)', () => {
+describe('a whole opening, not a fragment of it', () => {
 	/** Flips enough bits that the point is past BIT_TOLERANCE: a point of noise. */
 	const spoil = (v: number) => (v ^ 0x00ff00ff) >>> 0;
 
@@ -241,7 +241,7 @@ describe('a whole opening, not a fragment of it (c384)', () => {
 	});
 });
 
-describe('the span an episode keeps of its pairs’ (c384)', () => {
+describe('the span an episode keeps of its pairs’', () => {
 	const at = (start: number, end: number) => ({ span: { start, end }, seconds: end - start });
 
 	it('takes the one most pairs agree on over a longer one only one pair found', () => {

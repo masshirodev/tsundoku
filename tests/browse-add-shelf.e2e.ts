@@ -12,7 +12,7 @@ import { revealOn } from './helpers/reveal';
  * (inside reveal, since it is hidden), a second tap takes it off, UNDO takes
  * the series and its shelves back, and a chip tapped after UNDO shelves
  * nothing. The series screen's own band (an ADD that is not hidden) is
- * another slot's file this wave (doc/handoff-notes/browse.md, wave 33).
+ * another slot's file this wave (doc/handoff-notes/browse.md).
  * In the `browse` project, on its own world (tests/helpers/tag-world.ts:
  * its own database, engine and preview), since it turns ADDED HIDDEN on,
  * makes shelves and adds series.
@@ -27,7 +27,7 @@ test.afterAll(async () => {
 	await world?.stop();
 });
 // Teardown has its own budget, so the switch goes back off even after a timed-out
-// case, and a failed put-back never hides the body's error (c649, c507).
+// case, and a failed put-back never hides the body's error.
 test.afterEach(async ({ page }) => {
 	const r = await page.request.post(url(`/browse/${SOURCE.id}/settings?/flag`), {
 		form: { flag: 'addedHidden', value: 'false' },

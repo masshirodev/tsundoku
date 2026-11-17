@@ -1,8 +1,8 @@
 import { expect, screenSettled, test } from './helpers/hydrated';
-test.use({ serviceWorkers: 'block' }); // the worker answers __data.json past page.route (c477)
+test.use({ serviceWorkers: 'block' }); // the worker answers __data.json past page.route
 
 /**
- * Motion in the real app (doc/MOTION.md, card c396): every tap is drawn and
+ * Motion in the real app (doc/MOTION.md): every tap is drawn and
  * held long enough to be seen, a pointer tints what it's over, a sheet leaves
  * the way it came, and a screen slides in. Read-only: it opens and closes, and
  * writes nothing. The decisions themselves are motion.spec.ts's.
@@ -76,7 +76,7 @@ test('a sheet leaves the way it came, and then is gone', async ({ page }, info) 
 	// (`src/lib/motion.ts`) as the element's own `animate()`, so its style is
 	// read right after that call. Polled from here, a loaded run found the
 	// sheet already gone, and a starved page may draw no frame inside the
-	// animation at all (c439, phone).
+	// animation at all (phone).
 	type Look = { drawn: boolean; taps: string };
 	await sheet.evaluate((el) => {
 		const w = window as unknown as { leaving: Look[] };
@@ -107,7 +107,7 @@ test('a sheet opened again before it was gone takes taps again', async ({ page }
 	// Closed, and opened again while it is still on its way out. The back is
 	// taken the first frame the close has left the address, not 40 ms after
 	// the tap: under load the close's navigation had not happened yet by then,
-	// so back left the library altogether (c439). It reports whether the
+	// so back left the library altogether. It reports whether the
 	// sheet was still drawn, leaving, when back went, which is this case's
 	// premise: had it gone already, this would be an ordinary second open.
 	const leaving = await page.evaluate(async () => {
@@ -149,7 +149,7 @@ test('a deeper screen slides in, and history slides it back out', async ({ page 
 	// loaded run either screen can take long enough that its outline showed and
 	// slid in first, and then the screen only fades over it.
 	// The back move lands once the library's data is in: measured in wave 25
-	// (c439), 40 copies at a load of 40-44, 0.2-4.1 s after the popstate
+	//, 40 copies at a load of 40-44, 0.2-4.1 s after the popstate
 	// (median 0.8 s), every one `back`, and the attribute always cleared at
 	// the popstate first, so the observer sees each move. The poll's default
 	// 5 s ran out at loads of 53-76 in wave 24 with only the forward move
@@ -169,7 +169,7 @@ test('a tap the moment a screen arrives lands on it', async ({ page }) => {
 	// Still sliding in, and already listening. `force`, because a plain click
 	// first waits for the cell to stop moving, which is the opposite of this
 	// case: under load the slide outlasted the 2 s it was given and the click
-	// never went (c439, desktop). The URL below is what proves it landed.
+	// never went (desktop). The URL below is what proves it landed.
 	await back.click({ force: true });
 	await page.waitForURL((url) => url.pathname === '/');
 });
@@ -185,7 +185,7 @@ test('a pointer tints what it is over, on a device that has one', async ({ page,
 
 /**
  * The tint replaces the background-image, so it must never land on a picture
- * (c486): hovering the series cover made it vanish, because the cover sets its
+ *: hovering the series cover made it vanish, because the cover sets its
  * picture with the `background:` shorthand and the rule only left out an
  * inline `background-image`.
  */
@@ -246,7 +246,7 @@ test('a pointer never tints a picture away: the series cover keeps its image', a
 });
 
 /**
- * A library tile hovers as one (c487): three buttons tinted on their own
+ * A library tile hovers as one: three buttons tinted on their own
  * grayed a patchwork of the tile. The tile is tinted whole, the rating keeps
  * its own tint across the tile's full width, and the cover keeps its picture.
  */
@@ -292,7 +292,7 @@ test('a library tile hovers as one, and its rating runs edge to edge', async ({
 });
 
 /**
- * The rating slider previews what a click would set (c494): every half from
+ * The rating slider previews what a click would set: every half from
  * the start to the pointer, or for FILTER's AT LEAST from the pointer to the
  * end. Each half reads as `on` (a real fill), `preview` (a light fill it
  * would add), `drop` (hatched: a fill it would take away) or `none`.
@@ -391,7 +391,7 @@ test('a slow screen: its outline is what slides in', async ({ page }) => {
 });
 
 /**
- * The scrim's box, against the viewport (c426). A screen that slid in must
+ * The scrim's box, against the viewport. A screen that slid in must
  * leave nothing behind it: an animation that kept filling its last frame held
  * `translate` on the screen, which made the screen the containing block of
  * every `position: fixed` inside it, so FILTER's scrim began a sidebar's width

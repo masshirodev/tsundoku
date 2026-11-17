@@ -11,8 +11,8 @@ import { E2E_TOKEN } from '../playwright.config';
 import { backup } from './helpers/mihon-fixture';
 
 /**
- * IMPORT A BACKUP end to end (c438; doc/IMPORT-BACKUP.md), and START SCAN on a
- * `Mihon/` with no backup in it (c268, c292). An import writes series, so
+ * IMPORT A BACKUP end to end (doc/IMPORT.md), and START SCAN on a
+ * `Mihon/` with no backup in it. An import writes series, so
  * this seeds and serves a database of its own on a free port (the
  * works-flow arrangement), with a library folder whose `Mihon/` is empty and
  * an import area of its own: no other spec sees what it brings in. As a
@@ -90,9 +90,7 @@ test.afterAll(() => {
 	rmSync(scratch, { recursive: true, force: true });
 });
 
-test('START SCAN on a Mihon folder with no backup says where it looked (c268, c292)', async ({
-	request
-}) => {
+test('START SCAN on a Mihon folder with no backup says where it looked', async ({ request }) => {
 	const res = await request.post('/?/scan', {
 		headers: { origin: base, 'x-sveltekit-action': 'true' },
 		form: {}

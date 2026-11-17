@@ -101,7 +101,7 @@ describe('a sure match', () => {
 		expect(candidateKind({ format: 'ONE_SHOT', country: 'JP' })).toBe('manga');
 		expect(candidateKind({ format: 'NOVEL', country: 'KR' })).toBe('novel');
 		expect(candidateKind({ format: 'MUSIC', country: 'JP' })).toBeNull();
-		// An anime, whatever its country (c298).
+		// An anime, whatever its country.
 		for (const format of ANIME_FORMATS)
 			expect(candidateKind({ format, country: 'JP' })).toBe('anime');
 	});
@@ -116,13 +116,13 @@ describe('a sure match', () => {
 			expect(sameKind('anime', k)).toBe(false);
 		}
 		expect(sameKind('manga', null)).toBe(false);
-		// A doujin is a comic, not a novel (round 2).
+		// A doujin is a comic, not a novel.
 		expect(sameKind('doujin', 'novel')).toBe(false);
 		expect(sameKind('doujin', 'manga')).toBe(true);
 		expect(sameKind('doujin', 'doujin')).toBe(true);
 	});
 
-	it('marks the same titles exact in the review’s chip as the pass matches them (round 2)', () => {
+	it('marks the same titles exact in the review’s chip as the pass matches them', () => {
 		const anime = cand({ anilistId: 40, title: 'Ranma ½', alts: [], format: 'TV' });
 		// The raw title names 2024; the chip must read it as the pass does.
 		expect(isExact(['Ranma ½ (2024)'], anime)).toBe(false);
@@ -235,7 +235,7 @@ describe('a pasted link', () => {
 });
 
 describe('an entry’s own page', () => {
-	it('is on the path of the series’ kind, at every door (c298)', () => {
+	it('is on the path of the series’ kind, at every door', () => {
 		expect(anilistUrl(30024, 'anime')).toBe('https://anilist.co/anime/30024');
 		expect(malUrl(23, 'anime')).toBe('https://myanimelist.net/anime/23');
 		// The default stays the manga path, which is what a comic and a novel read.
@@ -245,7 +245,7 @@ describe('an entry’s own page', () => {
 });
 
 describe('score to rating (Catalogue Links 1w)', () => {
-	it('keeps a score out of 10 as it is, rounded (c67)', () => {
+	it('keeps a score out of 10 as it is, rounded', () => {
 		expect(scoreToRating(9)).toBe(9);
 		expect(scoreToRating(10)).toBe(10);
 		expect(scoreToRating(8)).toBe(8);
@@ -336,7 +336,7 @@ describe('the review’s words', () => {
 	it('reads a candidate stored before episodes and season existed as having neither', () => {
 		// A row kept in link_candidates before `Candidate` grew the three keys
 		// parses with no key at all, and `!== null` would build a row from
-		// `undefined` (the live Trigun Stampede candidates, c298).
+		// `undefined` (the live Trigun Stampede candidates).
 		const legacy = cand({ format: 'TV', chapters: null }) as unknown as Record<string, unknown>;
 		delete legacy.episodes;
 		delete legacy.season;
@@ -416,7 +416,7 @@ describe('cleaning a title before it’s searched', () => {
 	});
 });
 
-describe('isAnime asks the kind registry (c240, wave 17)', async () => {
+describe('isAnime asks the kind registry', async () => {
 	const { isAnime } = await import('$lib/library/catalogue');
 	const { KINDS } = await import('$lib/library/kinds');
 	it('is true for exactly the kinds AniList lists as ANIME, over every kind', () => {

@@ -12,7 +12,7 @@ const history = await import('$lib/server/history');
 const time = await import('$lib/server/reading-time');
 
 /**
- * The reading-time summary (card c443; doc/READING-LOG.md, "Who reads it"):
+ * The reading-time summary (doc/READING-LOG.md, "Who reads it"):
  * by series, kind, day and series-day, hidden left out while reveal is off,
  * a 1970 row ignored, and rung 65's estimate of the anime watched before.
  *
@@ -96,7 +96,7 @@ function oracle(reveal: boolean): Raw[] {
 
 /**
  * The groups the summary must give: one wherever some time was read, with its
- * time and its first **timed** day (c483); a group holding no time is none.
+ * time and its first **timed** day; a group holding no time is none.
  */
 function sum(rows: Raw[], key: (r: Raw) => string) {
 	const out = new Map<string, { ms: number; since: string | null }>();

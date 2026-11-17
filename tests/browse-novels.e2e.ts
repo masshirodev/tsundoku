@@ -6,7 +6,7 @@ import { resetEngine } from './browse-world';
  * "Downloading"; card c150): added from BROWSE, two of its three chapters
  * downloaded through the real plugin host into its EPUB, imported onto the
  * series ADD made, read in the text reader up to the chapter that isn't
- * downloaded, and followed (c151). The plugin is tests/fixtures/lnreader/shelf.js, installed by
+ * downloaded, and followed. The plugin is tests/fixtures/lnreader/shelf.js, installed by
  * tests/browse-setup.ts; it needs no network.
  */
 
@@ -22,14 +22,14 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read on
 	await page.locator('.grid .tile', { hasText: 'The Quiet Shelf' }).click();
 	await expect(page).toHaveURL(/\/downloads\/source\/ln:shelf~/);
 	const add = page.getByRole('button', { name: /ADD TO LIBRARY/ });
-	// Reading first, adding beside it (c167): every chapter reads online.
+	// Reading first, adding beside it: every chapter reads online.
 	await expect(page.locator('.cta-go .cta')).toContainText('▶ READ CH. 1');
 	await expect(page.locator('.list .head')).toContainText('3 · ALL ONLINE');
 	await add.click();
 	await expect(page).toHaveURL(/\/series\/\d+\?added=/);
 	const series = page.url().replace(/\?.*$/, '');
 
-	// A novel's DOWNLOAD row: the same cells as a manga's, REFRESH and FOLLOW included (c151, c220).
+	// A novel's DOWNLOAD row: the same cells as a manga's, REFRESH and FOLLOW included.
 	const dl = page.locator('.dl-row');
 	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['FIRST 3', 'REFRESH', 'FOLLOW']);
 
@@ -40,7 +40,7 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read on
 		await row(t).locator('.dl-cell').click();
 		await expect(row(t).locator('.status .long')).toHaveText(/QUEUED|DOWNLOADING|IMPORTING/);
 	}
-	// Each batch attaches as the book is written (c170): no scan is asked for.
+	// Each batch attaches as the book is written: no scan is asked for.
 	await expect(async () => {
 		await page.goto(series);
 		await expect(row('Dust').locator('.status .long')).toHaveText('');
@@ -59,7 +59,7 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read on
 		await expect(page.locator('.blocks')).toContainText('Line 1 of chapter 2', { timeout: 500 });
 	}).toPass({ timeout: 15_000 });
 	await expect(page.locator('.blocks')).not.toContainText('chapter 1,');
-	// Chapter 3 isn't downloaded: it reads on, online, from the plugin (c167).
+	// Chapter 3 isn't downloaded: it reads on, online, from the plugin.
 	await expect(async () => {
 		await page.keyboard.press('ArrowRight');
 		await expect(page.locator('.blocks')).toContainText('Line 1 of chapter 3', { timeout: 500 });
@@ -85,7 +85,7 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read on
 
 	// SEARCH THE SOURCES finds it in the library, and an in-library hit is the
 	// series, not its preview — keeping the search as its origin, so its ← says
-	// SOURCES (c262, c152): the same rule BROWSE's tile follows.
+	// SOURCES: the same rule BROWSE's tile follows.
 	await page.goto('/downloads/search?q=quiet');
 	const hit = page.locator('a.hit', { hasText: 'The Quiet Shelf' });
 	await expect(hit.locator('.m')).toContainText('IN LIBRARY ·');

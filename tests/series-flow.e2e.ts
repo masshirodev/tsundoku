@@ -66,7 +66,7 @@ test('rating fills up to the choice, 0 clears it, and FAV toggles', async ({ pag
 
 /**
  * Hold the first POST of `?/<action>` until `release()` (or abort it, or
- * every one after the first), and count the answers the page got (c566).
+ * every one after the first), and count the answers the page got.
  * The held one reaches the server only once released, so on a page that sends
  * both taps at once the second is stored first: the order a slow network gives.
  */
@@ -107,7 +107,7 @@ async function holdFirst(
 	};
 }
 
-test('two quick FAV taps with the first save slow end on the second tap, after a reload too (c566)', async ({
+test('two quick FAV taps with the first save slow end on the second tap, after a reload too', async ({
 	page
 }) => {
 	await open(page, 'Return of the Mount Hua Sect');
@@ -130,7 +130,7 @@ test('two quick FAV taps with the first save slow end on the second tap, after a
 	await h.done();
 });
 
-test('three quick rating taps with the first slow store the third, and a lost first save is no band (c566)', async ({
+test('three quick rating taps with the first slow store the third, and a lost first save is no band', async ({
 	page
 }) => {
 	await open(page, 'Return of the Mount Hua Sect');
@@ -147,7 +147,7 @@ test('three quick rating taps with the first slow store the third, and a lost fi
 	await panel.getByRole('button', { name: 'Rate 3 of 10' }).click();
 	await pressed(3);
 	h.release();
-	// 8 was superseded before its turn: never sent (round 2), so two answers, not three.
+	// 8 was superseded before its turn: never sent, so two answers, not three.
 	await expect.poll(h.answered).toBe(2);
 	await pressed(3);
 	await page.reload();
@@ -172,7 +172,7 @@ test('three quick rating taps with the first slow store the third, and a lost fi
 	await page.unroute(isRate);
 });
 
-test('the last of two taps failing names what is stored now, and PUT BACK shows it (c566)', async ({
+test('the last of two taps failing names what is stored now, and PUT BACK shows it', async ({
 	page
 }) => {
 	await open(page, 'Return of the Mount Hua Sect');
@@ -197,12 +197,12 @@ test('the last of two taps failing names what is stored now, and PUT BACK shows 
 	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
 });
 
-test.describe('a tap during the earlier tap’s reload (c566, round 2)', () => {
-	// The service worker answers `__data.json` past `page.route` (c477), and
+test.describe('a tap during the earlier tap’s reload', () => {
+	// The service worker answers `__data.json` past `page.route`, and
 	// this case holds the page's reload by its `__data.json`.
 	test.use({ serviceWorkers: 'block' });
 
-	test('a tap whose save fails while the earlier tap reloads keeps its band, and PUT BACK shows what is stored (c566)', async ({
+	test('a tap whose save fails while the earlier tap reloads keeps its band, and PUT BACK shows what is stored', async ({
 		page
 	}) => {
 		await open(page, 'Return of the Mount Hua Sect');
@@ -280,7 +280,7 @@ test('tags are added from a suggestion and removed with ✕', async ({ page }) =
 	await expect(sheet.getByRole('button', { name: 'Remove genre:isekai' })).toBeVisible();
 	await sheet.getByRole('button', { name: 'DONE' }).click();
 	// By role: TAGS is drawn twice, one copy for each order of the rows, the
-	// other hidden by the layout (SeriesPanel's tagsGroup, c837).
+	// other hidden by the layout (SeriesPanel's tagsGroup).
 	await expect(
 		page.getByRole('region', { name: 'About this series' }).getByRole('link', { name: 'isekai' })
 	).toBeVisible();

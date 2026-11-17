@@ -7,7 +7,7 @@ import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
 /**
- * TMDB's key on SETTINGS › CATALOGUES (card c993; Keys-Key 3A–3F): a key
+ * TMDB's key on SETTINGS › CATALOGUES (Keys-Key 3A–3F): a key
  * TMDB refuses is never kept, one it takes is kept and shown by its last four
  * characters only, the band counts what it will look up, and REMOVE is asked
  * in the row. Its own preview with no key in the environment, and a fake TMDB
@@ -83,7 +83,7 @@ test.afterAll(async () => {
 	if (work) rmSync(work, { recursive: true, force: true });
 });
 
-test('ADD KEY: a wrong key is not kept, the right one is, and REMOVE asks in the row (c993)', async ({
+test('ADD KEY: a wrong key is not kept, the right one is, and REMOVE asks in the row', async ({
 	page
 }) => {
 	await page.goto(`${BASE}/settings?section=catalogues#tmdb`);

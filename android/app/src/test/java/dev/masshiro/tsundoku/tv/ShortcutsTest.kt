@@ -7,7 +7,7 @@ import java.net.URI
 import java.net.URLDecoder
 
 /**
- * A launcher shortcut per server (c287). FORGET's pure pieces are in
+ * A launcher shortcut per server. FORGET's pure pieces are in
  * ForgetTest.
  */
 class ShortcutsTest {

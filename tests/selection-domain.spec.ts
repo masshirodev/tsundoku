@@ -102,7 +102,7 @@ describe('workOf', () => {
 	});
 });
 
-describe('what FOLD reads (c651)', () => {
+describe('what FOLD reads', () => {
 	const card = {
 		id: 1,
 		title: 'T',
@@ -190,7 +190,7 @@ describe('refreshFacts', () => {
 	});
 });
 
-describe('drawnToNote (c740)', () => {
+describe('drawnToNote', () => {
 	const counted = () => {
 		let calls = 0;
 		const drawn = () => {
@@ -258,7 +258,7 @@ const part = (over: Partial<WorkPart> = {}): WorkPart => ({
 	...over
 });
 
-describe('pickedOfCard and pickedOfPart (c698): a search hit carries what GROUP and SHOW read', () => {
+describe('pickedOfCard and pickedOfPart: a search hit carries what GROUP and SHOW read', () => {
 	it('keeps a card’s facts, its GROUP row line and its Work', () => {
 		const p = pickedOfCard(card({ language: 'japanese' }), { id: 3, name: 'Saga' });
 		expect(p).toEqual({
@@ -291,7 +291,7 @@ describe('pickedOfCard and pickedOfPart (c698): a search hit carries what GROUP 
 	});
 });
 
-describe('workTicks and workTap (c698): a Work’s row ticks its parts', () => {
+describe('workTicks and workTap: a Work’s row ticks its parts', () => {
 	it('names every state, and a tap ticks the rest or unticks them all', () => {
 		const parts = [1, 2];
 		expect(workTicks(parts, new Set())).toEqual({ ticked: 0, total: 2, state: 'none' });
@@ -307,7 +307,7 @@ describe('workTicks and workTap (c698): a Work’s row ticks its parts', () => {
 	});
 });
 
-describe('carrySelection and takeCarried (c698): the selection between the library and the search', () => {
+describe('carrySelection and takeCarried: the selection between the library and the search', () => {
 	const g = globalThis as { window?: unknown };
 	afterEach(() => {
 		takeCarried('');
@@ -340,7 +340,7 @@ describe('carrySelection and takeCarried (c698): the selection between the libra
 	});
 });
 
-describe('pickedOfCards (c737): the by-id answer, as facts', () => {
+describe('pickedOfCards: the by-id answer, as facts', () => {
 	it('takes a series in no Work as itself and a Work tile’s wanted parts as parts', () => {
 		const face = card({ id: 20, title: 'Zelkova: Roots' });
 		const tile = {
@@ -360,7 +360,7 @@ describe('pickedOfCards (c737): the by-id answer, as facts', () => {
 	});
 });
 
-describe('UnseenFacts (c737): SELECT ALL’s unloaded series, read by id', () => {
+describe('UnseenFacts: SELECT ALL’s unloaded series, read by id', () => {
 	const later = () => {
 		const answers: ((v: FactsAnswer | null) => void)[] = [];
 		const asked: number[][] = [];
@@ -521,7 +521,7 @@ describe('UnseenFacts (c737): SELECT ALL’s unloaded series, read by id', () =>
 	});
 });
 
-describe('goneCount (c737): what SHOW says the read took out', () => {
+describe('goneCount: what SHOW says the read took out', () => {
 	it('counts an id named missing only while it is still out', () => {
 		const gone = new Set([3, 4]);
 		expect(goneCount([1, 3, 4], gone, new Set([1]), new Map())).toBe(2);
@@ -533,7 +533,7 @@ describe('goneCount (c737): what SHOW says the read took out', () => {
 	});
 });
 
-describe('readFacts (c737): the by-id read, in chunks', () => {
+describe('readFacts: the by-id read, in chunks', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
 	it('sends at most FACTS_MAX ids a POST, and joins what each answers', async () => {
@@ -542,7 +542,7 @@ describe('readFacts (c737): the by-id read, in chunks', () => {
 			'fetch',
 			vi.fn(async (url: string, init: RequestInit) => {
 				const { ids } = JSON.parse(String(init.body)) as { ids: number[] };
-				// The show row's own read (c283), asked beside the cards: no row has one here.
+				// The show row's own read, asked beside the cards: no row has one here.
 				if (String(url).endsWith('/series/facts')) return new Response('{}');
 				bodies.push(ids);
 				return new Response(
