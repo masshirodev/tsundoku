@@ -1,5 +1,7 @@
 # tsundoku
 
+[![ci](https://github.com/masshirodev/tsundoku/actions/workflows/ci.yml/badge.svg)](https://github.com/masshirodev/tsundoku/actions/workflows/ci.yml)
+
 積ん読 (_tsundoku_): buying books and letting them pile up unread.
 
 A self-hosted library for everything one household reads and watches: manga,
