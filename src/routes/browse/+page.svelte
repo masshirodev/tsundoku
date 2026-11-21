@@ -156,71 +156,6 @@
 	<!-- Without script nothing can fold RECENT back, so it offers nothing. -->
 	<noscript
 		><style>
-			/* The KIND band: the library's (src/routes/+page.svelte, .kinds), not pinned
-	   and with no FILTER at its end. Colours are tokens. */
-			.kinds {
-				position: sticky;
-				top: var(--header-h);
-				z-index: 7;
-				display: flex;
-				flex-shrink: 0;
-				height: 40px;
-				border-bottom: var(--hairline);
-				background: var(--surface-page);
-			}
-			.klabel {
-				display: flex;
-				align-items: center;
-				flex-shrink: 0;
-				padding: 0 14px 0 var(--pad);
-				border-right: var(--hairline);
-				font: 500 12px/1 var(--font-mono);
-				letter-spacing: 0.06em;
-				color: var(--text-2);
-				white-space: nowrap;
-			}
-			.kscroll {
-				display: flex;
-				flex: 1;
-				min-width: 0;
-				overflow-x: auto;
-				scrollbar-width: none;
-			}
-			.kscroll::-webkit-scrollbar {
-				display: none;
-			}
-			.kc {
-				display: flex;
-				align-items: center;
-				gap: 6px;
-				flex-shrink: 0;
-				padding: 0 10px;
-				border-right: var(--hairline);
-				color: var(--text-1);
-				font: 500 13px/1 var(--font-mono);
-				letter-spacing: 0.02em;
-				white-space: nowrap;
-				text-decoration: none;
-			}
-			.kc .n {
-				opacity: 0.6;
-			}
-			.kc.on,
-			.kc.on:hover,
-			.kc:active {
-				background: var(--surface-inverse);
-				color: var(--text-inverse);
-			}
-			@media (max-width: 599px) {
-				.klabel {
-					display: none;
-				}
-			}
-			@media (min-width: 600px) {
-				.kc {
-					padding: 0 14px;
-				}
-			}
 			[data-recent-toggle] {
 				display: none;
 			}
@@ -389,6 +324,73 @@
 {/if}
 
 <style>
+	/* The KIND band: the library's (src/routes/+page.svelte, .kinds), not pinned
+	   and with no FILTER at its end. Colours are tokens. Here, and never in the
+	   head's <noscript> style: while script runs a <noscript> is text, so rules
+	   put there left the band bare. */
+	.kinds {
+		position: sticky;
+		top: var(--header-h);
+		z-index: 7;
+		display: flex;
+		flex-shrink: 0;
+		height: 40px;
+		border-bottom: var(--hairline);
+		background: var(--surface-page);
+	}
+	.klabel {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		padding: 0 14px 0 var(--pad);
+		border-right: var(--hairline);
+		font: 500 12px/1 var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+		white-space: nowrap;
+	}
+	.kscroll {
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.kscroll::-webkit-scrollbar {
+		display: none;
+	}
+	.kc {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-shrink: 0;
+		padding: 0 10px;
+		border-right: var(--hairline);
+		color: var(--text-1);
+		font: 500 13px/1 var(--font-mono);
+		letter-spacing: 0.02em;
+		white-space: nowrap;
+		text-decoration: none;
+	}
+	.kc .n {
+		opacity: 0.6;
+	}
+	.kc.on,
+	.kc.on:hover,
+	.kc:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	@media (max-width: 599px) {
+		.klabel {
+			display: none;
+		}
+	}
+	@media (min-width: 600px) {
+		.kc {
+			padding: 0 14px;
+		}
+	}
 	/* Selecting: the bulk bar is pinned under the list, so the list ends above it. */
 	.screen.selecting {
 		padding-bottom: 120px;

@@ -137,6 +137,26 @@ test('the KIND band narrows BROWSE to one kind of source, and ALL brings every o
 	await expect(section('MANGA')).toBeVisible();
 });
 
+test('the KIND band is drawn the same on a load and on coming back from EXTENSIONS', async ({
+	page
+}) => {
+	const band = page.getByRole('navigation', { name: 'Kinds' });
+	// What a styled band is: one 40 px row of cells, the chosen one inverted.
+	const drawn = async () => {
+		await expect(band).toHaveCSS('display', 'flex');
+		await expect(band).toHaveCSS('height', '40px');
+		await expect(band.locator('.kc.on')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+	};
+
+	await page.goto('/browse');
+	await drawn();
+	await page.locator('a.cell.ext').click();
+	await page.waitForURL(/\/browse\/extensions/);
+	await page.goBack();
+	await page.waitForURL(/\/browse$/);
+	await drawn();
+});
+
 test('an episode plays from the preview without ADD, and the series stays off the shelves', async ({
 	page
 }) => {

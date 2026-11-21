@@ -114,6 +114,9 @@ test('BROWSE reached inside the app keeps the fold, both ways', async ({ page })
 	await expect(page).toHaveURL(/\/browse$/);
 	await expect(recentRows(page)).toBeVisible();
 	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true');
+	// The toggle's word is still drawn: the head's <noscript> rule that hides it
+	// is for a page without script, never one SvelteKit put in place.
+	await expect(shown(page)).toHaveText(['LAST BROWSED', 'HIDE ↑']);
 });
 
 test('another tab’s fold is not undone by this one’s stale mark', async ({ page, context }) => {
