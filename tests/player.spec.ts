@@ -78,10 +78,10 @@ describe('an episode', () => {
 		});
 	});
 
-	it('offers the next from its ending, or 30 s before the end', () => {
+	it('offers the next from its ending, or 5 s before the end', () => {
 		expect(offerNextAt(1440, 1290)).toBe(1290);
-		expect(offerNextAt(1440, null)).toBe(1410);
-		expect(offerNextAt(1440, 1500)).toBe(1410);
+		expect(offerNextAt(1440, null)).toBe(1435);
+		expect(offerNextAt(1440, 1500)).toBe(1435);
 	});
 
 	it('seeks 10 s a double-tap and 10 more each tap after', () => {

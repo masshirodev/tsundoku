@@ -63,16 +63,20 @@ export function openAt(e: {
 }
 
 /**
- * When the next episode offers itself: from the ending's start, or 30 s
- * before the end without timestamps.
+ * How long before the end the next episode offers itself without an ending's
+ * timestamps. 5 s, not 30: a portrait drama's episode is a minute or two, and
+ * 30 s was nearly half of one.
+ */
+export const OFFER_NEXT_LEAD_S = 5;
+
+/**
+ * When the next episode offers itself: from the ending's start, or
+ * `OFFER_NEXT_LEAD_S` before the end without timestamps.
  */
 export const offerNextAt = (durationS: number, endingAt: number | null) =>
 	endingAt !== null && endingAt > 0 && endingAt < durationS
 		? endingAt
-		: Math.max(0, durationS - 30);
-
-/** The NEXT page counts this long before playing (default 4); STAY stops it. */
-export const NEXT_COUNT_S = 5;
+		: Math.max(0, durationS - OFFER_NEXT_LEAD_S);
 /** A stall this long moves to the next server by itself (Player Waiting, "Servers fail all the time"). */
 export const STALL_S = 15;
 

@@ -239,7 +239,7 @@ in the second chapter it reads into. Each reader's
 | The strip's crossing (`goto` into the next chapter)    | a scroll still gliding        | yes     |
 | A paged turn landing (`next()` / `prev()` past an end) | the slide's 220 ms            | yes     |
 | A turn queued during a slide or a settle-back          | taken after the 220 ms        | yes     |
-| The player's countdown into the next episode           | a 1 s interval                | yes     |
+| The player's end flowing into the next episode         | the video's `ended`           | yes     |
 | An edition switch, CH. ←/→, CONTINUE ON, ▶ NEXT        | the user's own press, at once | no      |
 
 **An in-place write keeps the history entry's own URL too**.

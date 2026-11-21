@@ -272,13 +272,18 @@ test.describe('the player, tablet landscape', () => {
 		await expect(sheet).toHaveCSS('width', '520px');
 		await sheet.getByRole('button', { name: 'Close' }).click();
 
-		// The episode ends: the NEXT page counts, and STAY stops it where it is.
+		// The ending offers the next: STAY on its card keeps this episode's end,
+		// where the NEXT page waits with PLAY NOW and no countdown.
+		const card = player.locator('.endcard');
+		await expect(card).toContainText('Episode 10', { timeout: 20_000 });
+		await card.getByRole('button', { name: 'STAY' }).click();
 		const inter = player.locator('.inter');
-		await expect(inter).toContainText('PLAYS IN', { timeout: 20_000 });
-		await expect(inter).toContainText('Episode 10');
+		await expect(inter).toContainText('Episode 10', { timeout: 20_000 });
+		await expect(inter.getByRole('button', { name: 'PLAY NOW →' })).toBeVisible();
+		await expect(inter).not.toContainText('PLAYS IN');
+		await expect(inter.getByRole('button', { name: 'STAY' })).toHaveCount(0);
 		const at = page.url();
-		await inter.getByRole('button', { name: 'STAY' }).click();
-		await page.waitForTimeout(6000);
+		await page.waitForTimeout(3000);
 		expect(page.url()).toBe(at);
 		// A link cell keeps its padding as the button cells do (the reset outranked it).
 		await expect(inter.getByRole('link', { name: '← SERIES' })).toHaveCSS('padding-right', '24px');
@@ -317,16 +322,66 @@ test.describe('the player, tablet landscape', () => {
 		const finished = page.waitForResponse(
 			(r) => r.url().endsWith('/api/reading') && r.request().postDataJSON()?.kind === 'finish'
 		);
+		// Paused first: played on, the clip ends at 8 s and flows into the last
+		// episode, which SKIP ENDING (below) needs unwatched. The seek still
+		// reports the place, and so the finish.
 		await page.evaluate(() => {
 			const v = document.querySelector('video');
-			if (v) v.currentTime = 6.3;
+			if (v) {
+				v.pause();
+				v.currentTime = 6.3;
+			}
 		});
 		await finished;
-		const href = await player.getByRole('link', { name: '← SERIES' }).first().getAttribute('href');
-		await page.goto(href!);
+		// Paused, it never reaches the END page and its ← SERIES: back is the series.
+		await page.goBack();
+		await expect(page).toHaveURL(/\/series\/\d+/);
 		await expect(
 			list.locator('.entry', { hasText: "The Ferryman's Count" }).locator('.status')
 		).toHaveText('WATCHED');
+	});
+
+	test('an episode that ends flows into the next, with no countdown', async ({ page }) => {
+		test.setTimeout(90_000);
+		await page.goto('/');
+		await page.getByRole('link', { name: /^ANIME/ }).click();
+		await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
+		const list = page.getByRole('region', { name: 'Episodes' });
+		// Not the last episode's case: SKIP ENDING (below) plays that one, and an
+		// episode this flows into is left with a place of its own.
+		await list.locator('.entry', { hasText: 'A Letter from Hollin' }).locator('.entry-btn').click();
+		await expect(page).toHaveURL(/\/read\/\d+/);
+		const from = page.url();
+		const player = page.locator('.player');
+		const pp = player.locator('.cluster .pp');
+		await expect(pp).toBeVisible({ timeout: 20_000 });
+		await expect(async () => {
+			if ((await pp.getAttribute('aria-label')) === 'Play') await page.keyboard.press('Space');
+			expect(
+				await page.evaluate(() => (document.querySelector('video')?.currentTime ?? 0) > 0)
+			).toBe(true);
+		}).toPass({ timeout: 20_000 });
+		// The controls hide by themselves as it plays untouched.
+		await expect(player).not.toHaveClass(/\bchrome\b/, { timeout: 10_000 });
+		await page.evaluate(() => {
+			const v = document.querySelector('video');
+			if (v && v.duration) v.currentTime = v.duration - 0.3;
+		});
+		// The next episode opens as this one ends: no PLAYS IN page in between.
+		await expect(page).not.toHaveURL(from, { timeout: 15_000 });
+		await expect(page).toHaveURL(/\/read\/\d+/);
+		await expect(page.getByText(/PLAYS IN/)).toHaveCount(0);
+		// It starts as the last one left off: the controls stay hidden while it
+		// loads, not brought up over a picture nobody touched.
+		// Read at the moment, never retried: a retried "not shown" passes anyway
+		// once the controls' own 4 s hide has run.
+		for (let i = 0; i < 6; i++) {
+			expect(await player.evaluate((el) => el.classList.contains('chrome'))).toBe(false);
+			await page.waitForTimeout(250);
+		}
+		// Left at once: every episode here is an 8 s clip, so one left playing flows
+		// on through the rest, and SKIP ENDING (below) needs the last unwatched.
+		await page.goto('/');
 	});
 
 	test('SKIP ENDING marks the episode watched as it is pressed', async ({ page }) => {

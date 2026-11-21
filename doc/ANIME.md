@@ -857,9 +857,18 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   site's check named at once (`/api/browse/check/<source>`) with its known
   20–45 s range drawn as a scale, never a fill. The source service not
   answering is SOURCES NOT ANSWERING, without naming the engine.
-- **The next episode** offers itself from the ending's start (or 30 s before
-  the end): a card, STAY or PLAY NOW →. At the end, the NEXT page counts 5 s
-  and plays it; STAY stops it. **The last episode ends on END · LAST
+- **The next episode** offers itself from the ending's start (or 5 s before
+  the end without timestamps, `OFFER_NEXT_LEAD_S`; it was 30 s, nearly half
+  of a portrait drama's episode): a card, STAY or PLAY NOW →. **One episode
+  flows into the next**: at the end it plays at once, with no countdown (there
+  was a 5 s one until 2026.11.21). STAY on the card is the way to stop it, and
+  the end then waits on the NEXT page with PLAY NOW →. Nothing plays an
+  episode that cannot play, and nothing plays while the player is being left.
+  **The next episode starts with the controls as the last one left them**:
+  hidden if they were, through its loading and its first 3 s of picture
+  (a server failing over pauses it too, and that is not the viewer), until
+  the viewer touches it; reaching the end pauses the element, and that does
+  not bring the controls up either. **The last episode ends on END · LAST
   AVAILABLE**, not the reader's end-of-series page with RATING: the series
   screen has the rating, and the player has no rating anywhere else. In a
   Work the next part's card takes the next-episode card's place: from the

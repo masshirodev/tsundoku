@@ -1222,6 +1222,17 @@ test('the last episode ends on the Work: no countdown, and nothing plays by itse
 	await context.addCookies([{ name: 'tsundoku_incognito', value: '1', url: base }]);
 	await page.goto(`${base}/read/${animeEpisode}`);
 	await expect(page.locator('.player')).toBeVisible();
+	// The card comes up 5 s before the end (no ending's timestamps here): the
+	// clip is taken there rather than played, so it shows whether or not the
+	// browser starts it by itself.
+	await page.waitForFunction(() => (document.querySelector('video')?.duration ?? 0) > 0, null, {
+		timeout: 20_000
+	});
+	await page.evaluate(() => {
+		const v = document.querySelector('video')!;
+		v.pause();
+		v.currentTime = Math.max(0, v.duration - 2);
+	});
 	const card = page.locator('.upn');
 	await expect(card).toBeVisible({ timeout: 20_000 });
 	await expect(card).toContainText('NEXT IN THE WORK · READ');
@@ -1232,7 +1243,7 @@ test('the last episode ends on the Work: no countdown, and nothing plays by itse
 	await expect(card.locator('.b').first()).toHaveText('MANGA · 160 CH. · IN PROGRESS');
 	await expect(card.locator('.acc')).toContainText('▶ READ · CH. 1');
 	await expect(card.getByRole('link', { name: 'WORK' })).toBeVisible();
-	// The countdown is for episodes, never for another series.
+	// Nothing counts down or plays into another series.
 	await expect(card).not.toContainText('PLAYS IN');
 	const url = page.url();
 	await page.waitForTimeout(6000);

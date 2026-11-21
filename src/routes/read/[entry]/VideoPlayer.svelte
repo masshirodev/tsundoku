@@ -1,3 +1,12 @@
+<script lang="ts" module>
+	/**
+	 * Set by the episode handing over to the next one (`playNext`): whether its
+	 * controls were hidden. The next player is a new instance (the page keys it
+	 * by episode), so it is passed here and read once, as that player starts.
+	 */
+	let handOffQuiet = false;
+</script>
+
 <script lang="ts">
 	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
@@ -22,7 +31,6 @@
 		isTap,
 		leftLabel,
 		movedEnough,
-		NEXT_COUNT_S,
 		nextServer,
 		offerNextAt,
 		openAt,
@@ -145,8 +153,9 @@
 	/**
 	 * The Work's next part (doc/WORKS.md, W6). At the last episode the up-next
 	 * card the player already draws turns into this one, with the next part's
-	 * own verb -- a Work of an anime and its manga says READ -- and no
-	 * countdown: an episode's countdown never plays another series.
+	 * own verb -- a Work of an anime and its manga says READ -- and nothing
+	 * plays it by itself: an episode flows into the next episode, never into
+	 * another series.
 	 */
 	// svelte-ignore state_referenced_locally
 	const work = data.work ?? null;
@@ -285,7 +294,22 @@
 	}
 
 	// ---- chrome --------------------------------------------------------------------------------
-	let chrome = $state(true);
+	/**
+	 * Arrived from the episode before with its controls hidden: they stay
+	 * hidden while this one loads and starts, rather than coming up over a
+	 * picture nobody touched. The start's own pauses (a server failing over, a
+	 * reload) are not the viewer's either, so it lasts until the picture has
+	 * played `QUIET_START_S` (onTime) or the viewer shows the controls. Plain,
+	 * not state: the effect below reads it as it runs and must not run again
+	 * for clearing it.
+	 */
+	let quietStart = handOffQuiet;
+	// eslint-disable-next-line no-useless-assignment -- module state, read by the next player
+	handOffQuiet = false;
+	let chrome = $state(!quietStart);
+	const QUIET_START_S = 3;
+	/** Where this episode first played from, for `QUIET_START_S` (it may resume mid-way). */
+	let quietFrom: number | null = null;
 	let adding = $state(false);
 	let added = $state(false);
 	let sheet = $state(false);
@@ -294,7 +318,6 @@
 	let skipAlone = $state(true);
 	let seekFlash = $state<{ by: number; to: number } | null>(null);
 	let stay = $state(false);
-	let count = $state(NEXT_COUNT_S);
 	let mouse = $state(false);
 	/**
 	 * CURSOR: the player has no timer of its own. It has its own
@@ -312,6 +335,7 @@
 	let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function showChrome() {
+		quietStart = false;
 		chrome = true;
 		clearTimeout(hideTimer);
 		if (!paused && !sheet && !keysOpen)
@@ -884,6 +908,10 @@
 			reloadingTo = null;
 		}
 		time = video.currentTime;
+		if (quietStart && !video.paused) {
+			quietFrom ??= time;
+			if (time - quietFrom >= QUIET_START_S) quietStart = false;
+		}
 		watch.tick(Date.now(), time, {
 			rate: video.playbackRate,
 			watching: isWatching({
@@ -920,8 +948,11 @@
 			void send('finish');
 		}
 		phase = 'ended';
-		// It never plays by itself into an episode that can't play.
-		if (next && !stay && playable(next)) runCount();
+		// One episode flows into the next (doc/ANIME.md, "The next episode"): no
+		// countdown, STAY on the card is the way to stop it. Never into an
+		// episode that can't play, and not if the player is on its way out: the
+		// next episode would replace the navigation away with one back in.
+		if (next && !stay && playable(next) && !leavingReader()) playNext();
 	}
 
 	/**
@@ -943,27 +974,15 @@
 		).catch(() => undefined);
 	}
 
-	let countTimer: ReturnType<typeof setInterval> | undefined;
-	function runCount() {
-		count = NEXT_COUNT_S;
-		clearInterval(countTimer);
-		countTimer = setInterval(() => {
-			count -= 1;
-			if (count <= 0) {
-				clearInterval(countTimer);
-				// Not if the player is on its way out: the next episode would
-				// replace the navigation away with one back in.
-				if (!leavingReader()) playNext();
-			}
-		}, 1000);
-	}
 	function stayHere() {
 		stay = true;
-		clearInterval(countTimer);
 	}
 	function playNext() {
+		if (!next) return;
+		// The next episode starts with the controls as this one leaves them.
+		handOffQuiet = !chrome;
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
-		if (next) void goto(readHref(next.id), { replaceState: true });
+		void goto(readHref(next.id), { replaceState: true });
 	}
 	function playPrev() {
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
@@ -1614,7 +1633,7 @@
 		// A stop still waiting on hls.js's chunk must not open a preview on a gone player.
 		previewAsk++;
 		preview?.destroy();
-		for (const t of [waitTimer, checkTimer, stallTimer, countTimer]) clearInterval(t);
+		for (const t of [waitTimer, checkTimer, stallTimer]) clearInterval(t);
 		for (const t of [hideTimer, flashTimer, previewTimer]) clearTimeout(t);
 	});
 
@@ -1652,7 +1671,17 @@
 		void paused;
 		void sheet;
 		void keysOpen;
+		// Handed over quiet: nothing comes up while the picture loads and starts.
+		if (quietStart && !sheet && !keysOpen) {
+			chrome = false;
+			clearTimeout(hideTimer);
+			return;
+		}
 		if (!paused && !sheet && !keysOpen) showChrome();
+		// Reaching the end pauses the element too (`pause` comes before `ended`),
+		// but nobody paused it: the controls stay as they were, so the hand-over
+		// to the next episode (`playNext`) still knows whether they were hidden.
+		else if (paused && video?.ended && !sheet && !keysOpen) clearTimeout(hideTimer);
 		else {
 			chrome = true;
 			clearTimeout(hideTimer);
@@ -1760,8 +1789,8 @@
 
 {#snippet workCard()}
 	{#if workNext && work}
-		<!-- The Work's next part, where the end card is (Work-EndStates 3): no
-				     countdown, and nothing plays another series by itself. -->
+		<!-- The Work's next part, where the end card is (Work-EndStates 3):
+				     nothing plays another series by itself. -->
 		<section class="upn" aria-label="Next in the Work">
 			<div class="k">
 				<span>NEXT IN THE WORK · {kindVerb(workNext.kind)}</span>
@@ -2557,14 +2586,6 @@
 							: `Episode ${next?.number} plays once the workstation is reachable.`}
 					</div>
 				{/if}
-				{#if phase === 'ended' && next && !stay && playable(next)}
-					<div class="count">
-						<div class="c">PLAYS IN {count}</div>
-						<div class="bar">
-							<div style:width="{((NEXT_COUNT_S - count) / NEXT_COUNT_S) * 100}%"></div>
-						</div>
-					</div>
-				{/if}
 				{#if phase === 'ended' && !next && workNext && !workClosed}
 					<!-- The last episode of a Work ends on its next part, not only LIBRARY (W6). -->
 					<div class="work-end">{@render workCard()}</div>
@@ -2613,7 +2634,7 @@
 						onclick={() => ((freshTried = false), start(true))}>TRY AGAIN</button
 					>
 				{:else if phase === 'ended' && next && playable(next)}
-					{#if !stay}<button type="button" class="icell bl" onclick={stayHere}>STAY</button>{/if}
+					<!-- Reached after STAY (or while the next one opens): STAY is the card's, before the end. -->
 					<button type="button" class="icell acc" onclick={playNext}>PLAY NOW →</button>
 				{:else if phase === 'ended' || phase === 'offline'}
 					<a class="icell bl" href={libraryHref}>LIBRARY</a>
@@ -3709,25 +3730,6 @@
 	.scale .n60 {
 		right: 0;
 		top: 46px;
-	}
-	.count {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		max-width: 820px;
-	}
-	.count .c {
-		font: 500 16px var(--font-mono);
-		color: var(--accent);
-	}
-	.count .bar {
-		height: 2px;
-		background: var(--line-1);
-	}
-	.count .bar div {
-		height: 2px;
-		background: var(--accent);
-		transition: width 1s linear;
 	}
 	.prose {
 		font: 400 18px/1.5 var(--font-sans);
