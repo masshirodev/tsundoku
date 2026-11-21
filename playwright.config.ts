@@ -81,7 +81,8 @@ const TABLET_LANDSCAPE_ONLY = ['**/series-lists-frame.e2e.ts', '**/highlights-ma
 const PHONE_ONLY = [
 	'**/phone-app-pair.e2e.ts',
 	'**/phone-pair-route.e2e.ts',
-	'**/phone-app-reader.e2e.ts'
+	'**/phone-app-reader.e2e.ts',
+	'**/phone-app-zoom.e2e.ts'
 ];
 
 // The projects are the devices the design system names: the tablet the library

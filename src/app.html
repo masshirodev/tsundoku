@@ -14,6 +14,23 @@
 		<link rel="apple-touch-icon" href="%sveltekit.assets%/icons/apple-touch-icon.png" />
 		<meta name="mobile-web-app-capable" content="yes" />
 		<script>
+			// In the Android app the page itself cannot be scaled (doc/ANDROID.md,
+			// "Zoom is off"): the WebView's setSupportZoom(false) let a pinch scale
+			// every screen on the owner's phone anyway, and a viewport that pins the
+			// scale to 1 holds whatever the WebView's settings do. The readers'
+			// zoom is their own, drawn by the page, so it is untouched. A browser
+			// keeps its pinch: there it is the reader's way to enlarge the page.
+			// The token is the one catalog.ts's isTsundokuApp matches.
+			if (/Tsundoku(?:TV|App)\//i.test(navigator.userAgent)) {
+				document
+					.querySelector('meta[name="viewport"]')
+					?.setAttribute(
+						'content',
+						'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
+					);
+			}
+		</script>
+		<script>
 			// Waiting (doc/WAITING.md): the header's progress line fills only as a
 			// screen's data actually arrives. SvelteKit keeps its own reference to
 			// fetch when it starts, so the byte count is added here, before it

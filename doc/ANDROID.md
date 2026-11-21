@@ -25,8 +25,17 @@ tailnet; the app is for reading without a browser in between, and without the
 browser's habits, chiefly a pinch or a double tap scaling the whole page off
 its grid. Being native also buys what a page cannot do:
 
-- **Zoom is off.** Pinch and double tap do nothing (`setSupportZoom(false)`);
-  the app's own pages add `touch-action: manipulation`.
+- **Zoom is off.** Pinch and double tap do nothing. The WebView is told so
+  (`setSupportZoom(false)`), and the page says it too: in the app (the
+  `TsundokuApp/` or `TsundokuTV/` token in its user agent) `src/app.html`
+  pins the viewport to `minimum-scale=1, maximum-scale=1, user-scalable=no`
+  before anything draws. The setting alone is not enough on every WebView
+  build: the 2026.11.15 app could not be pinched on a Galaxy Z Fold6 but
+  pinched every screen on a Xiaomi Pad 5 running LineageOS, whose WebView is
+  LineageOS's own. A viewport whose scale is pinned holds on any Chromium.
+  The readers' zoom is untouched: it is the page's own (`--zoom`, drawn by
+  the reader, doc/READER.md "Zoom"), not the WebView's. A browser keeps its
+  pinch. `tests/phone-app-zoom.e2e.ts` pinches both.
 - **Screenshots are allowed.** The app does not set `FLAG_SECURE`, which
   [`PRIVACY.md`](PRIVACY.md) says a PWA can never promise anyway: Android's
   "this app doesn't allow screenshots" on every try costs more than the
@@ -1079,7 +1088,8 @@ way to find it ([Device checks](#device-checks)).
   https tailnet name.
 - **Fullscreen and immersive**: the system UI is hidden, and the theme has no
   action bar, so the page is the screen.
-- **Zoom off** (`setSupportZoom(false)`) on both flavours.
+- **Zoom off** on both flavours: `setSupportZoom(false)`, and the page's
+  viewport pinned to scale 1 ("Zoom is off", above).
 
 ## On a phone: the camera band and the keyboard
 
