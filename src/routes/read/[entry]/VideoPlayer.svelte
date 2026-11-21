@@ -1577,13 +1577,9 @@
 	async function full() {
 		try {
 			if (document.fullscreenElement) await document.exitFullscreen();
-			else {
-				await root?.requestFullscreen();
-				// FULL turns a portrait phone (Anime Calls, "Devices"): where the browser lets it.
-				await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })
-					.lock?.('landscape')
-					.catch(() => undefined);
-			}
+			// FULL never turns the phone (doc/ANIME.md, "Portrait"): held upright a
+			// portrait drama fills the screen; turned, a film does.
+			else await root?.requestFullscreen();
 		} catch {
 			// Not every browser allows it.
 		}

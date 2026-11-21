@@ -10,8 +10,9 @@ import { isTsundokuApp } from '$lib/settings/catalog';
  *
  * Nor in an installed app, which is full screen already — and not in
  * tsundoku's own Android app either (doc/ANDROID.md): its window is the
- * screen, and a fullscreen element there turns the phone to landscape for a
- * picture (MainActivity, turnForVideo), which is the last thing reading wants.
+ * screen, and a fullscreen element there is swapped in as a bare picture that
+ * turns with the phone (MainActivity, followPhoneForVideo), which is the last
+ * thing reading wants.
  */
 export function fullscreenOffered(where: {
 	/** `document.fullscreenEnabled`. */

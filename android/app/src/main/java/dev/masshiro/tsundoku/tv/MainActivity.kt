@@ -63,8 +63,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private var customCallback: WebChromeClient.CustomViewCallback? = null
 
 	/**
-	 * What [requestedOrientation] was before a fullscreen picture turned the
-	 * phone ([turnForVideo]), to put it back when the picture goes.
+	 * What [requestedOrientation] was before a fullscreen picture took the
+	 * phone's turning over ([followPhoneForVideo]), to put it back when the
+	 * picture goes.
 	 */
 	private var wasOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 	private val io = Executors.newSingleThreadExecutor()
@@ -608,7 +609,7 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				customCallback = callback
 				root.addView(view, frame())
 				webView.visibility = View.GONE
-				turnForVideo()
+				followPhoneForVideo()
 				hideSystemUi()
 			}
 
@@ -628,30 +629,31 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		customCallback = null
 		webView.visibility = View.VISIBLE
 		callback?.onCustomViewHidden()
-		endTurnForVideo()
+		endFollowPhoneForVideo()
 		hideSystemUi()
 	}
 
 	/**
-	 * A phone turns for a picture on the whole screen, as a browser's
-	 * fullscreen video does (doc/ANIME.md, "Portrait"). The page asks for it
-	 * (`screen.orientation.lock('landscape')`), which a WebView refuses with
-	 * `NotSupportedError — not available on this device`, so the app turns the
-	 * window instead. Never on a TV, which is landscape already (Form.kt).
+	 * A picture on the whole screen follows the way the phone is held
+	 * (doc/ANDROID.md, "A fullscreen picture"): upright stays portrait, so a
+	 * portrait drama fills the screen, and turned it is landscape. Never forced
+	 * to landscape: that turned every portrait drama on its side. Never on a
+	 * TV, which is landscape already (Form.kt).
 	 *
-	 * SENSOR_LANDSCAPE rather than USER_LANDSCAPE: Chrome's lock turns the
-	 * picture whatever the phone's auto-rotate says, and FULL is a deliberate
-	 * ask for landscape.
+	 * FULL_SENSOR rather than FULL_USER: with auto-rotate off the phone would
+	 * stay upright whatever way it is held, and a wide film watched sideways is
+	 * what fullscreen is for. Only while the picture is up; the window goes
+	 * back to the phone's own setting after.
 	 */
-	private fun turnForVideo() {
-		if (!form.turnsForVideo) return
+	private fun followPhoneForVideo() {
+		if (!form.followsPhoneForVideo) return
 		wasOrientation = requestedOrientation
-		requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+		requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
 	}
 
-	/** The picture is gone: back to however the phone was, so upright is portrait again. */
-	private fun endTurnForVideo() {
-		if (!form.turnsForVideo) return
+	/** The picture is gone: back to however the window was before it. */
+	private fun endFollowPhoneForVideo() {
+		if (!form.followsPhoneForVideo) return
 		requestedOrientation = wasOrientation
 	}
 

@@ -35,9 +35,9 @@ class FormTest {
 	}
 
 	@Test
-	fun `only the phone turns for a fullscreen picture`() {
-		assertTrue(Form.MOBILE.turnsForVideo)
-		assertFalse(Form.TV.turnsForVideo)
+	fun `only the phone's fullscreen picture follows the way it is held`() {
+		assertTrue(Form.MOBILE.followsPhoneForVideo)
+		assertFalse(Form.TV.followsPhoneForVideo)
 	}
 
 	@Test

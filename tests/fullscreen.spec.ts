@@ -3,9 +3,9 @@ import { fullscreenOffered } from '$lib/reader/fullscreen.svelte';
 
 // FULL SCREEN in the readers (doc/READER.md, "Full screen"): offered where the
 // browser can take the bars away, and only there. An installed app is the
-// screen already, and tsundoku's own Android app turns the phone for a
-// fullscreen video (MainActivity, turnForVideo), so reading there must not
-// ask for it.
+// screen already, and in tsundoku's own Android app a fullscreen element
+// swaps the page for a bare picture that turns with the phone (MainActivity,
+// followPhoneForVideo), so reading there must not ask for it.
 
 const plain = { enabled: true, userAgent: 'Mozilla/5.0 (Linux; Android 14)', installed: false };
 

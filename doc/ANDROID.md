@@ -71,15 +71,15 @@ the launch attempts, the server list, the bridge, BACK, and the pairing page
 from the flavour's `BuildConfig.FORM`, one tested function per difference
 (`FormTest`); an unknown value is the TV:
 
-| Decision                | TV                                       | Phone and tablet                      |
-| ----------------------- | ---------------------------------------- | ------------------------------------- |
-| The page width          | pinned to 960 CSS px (`Scale.kt`)        | the page's own `width=device-width`   |
-| Text size               | 100%, whatever the TV says               | Android's font size, capped at 130%   |
-| User agent              | `TsundokuTV/<version>`                   | `TsundokuApp/<version>`               |
-| Remote keys             | MENU and the media keys (`Keys.kt`)      | none: a finger and the keyboard       |
-| The cutout and keyboard | nothing to pad                           | padded natively (`Insets.kt`)         |
-| Raising the keyboard    | never for a page (it covers the buttons) | when a page focuses a field           |
-| A fullscreen picture    | never turns: a TV is landscape           | the app turns the window to landscape |
+| Decision                | TV                                       | Phone and tablet                    |
+| ----------------------- | ---------------------------------------- | ----------------------------------- |
+| The page width          | pinned to 960 CSS px (`Scale.kt`)        | the page's own `width=device-width` |
+| Text size               | 100%, whatever the TV says               | Android's font size, capped at 130% |
+| User agent              | `TsundokuTV/<version>`                   | `TsundokuApp/<version>`             |
+| Remote keys             | MENU and the media keys (`Keys.kt`)      | none: a finger and the keyboard     |
+| The cutout and keyboard | nothing to pad                           | padded natively (`Insets.kt`)       |
+| Raising the keyboard    | never for a page (it covers the buttons) | when a page focuses a field         |
+| A fullscreen picture    | never turns: a TV is landscape           | follows the way the phone is held   |
 
 The few things that are manifest or theme live in each flavour's folder, merged
 over `src/main`'s manifest: `src/tv` has the `LEANBACK_LAUNCHER` entry,
@@ -1153,22 +1153,20 @@ browser the variable is unset and both bars are 64 px and flush.
 
 ### A fullscreen picture
 
-The player's FULL in portrait asks the page to go fullscreen and then to turn
-the phone (`screen.orientation.lock('landscape')`). A WebView refuses the
-second half with `NotSupportedError — screen.orientation.lock() is not
-available on this device`, so on its own the element would go fullscreen inside
-a WebView that is already the whole screen while the phone stayed upright: the
-screen flashes black while the WebView is swapped for the picture, and almost
-nothing else changes.
+The player's FULL goes fullscreen and **never turns the phone**: a fullscreen
+picture follows the way the phone is held. Upright it stays portrait, so a
+portrait drama fills the screen; turned, a film is landscape. Until
+2026.11.21 FULL turned the phone to landscape whatever the picture, which laid
+every portrait drama on its side.
 
-So the activity turns the window itself when a fullscreen picture arrives
-(`Form.turnsForVideo`, `MainActivity.turnForVideo`): landscape either way up,
-because FULL is a deliberate ask, and back to whatever the phone was when the
-picture goes, so upright is portrait again. BACK takes the picture down first.
-On an emulator (Pixel 6, API 34, the `mobile` debug build) a page's
-`requestFullscreen()` called `onShowCustomView`, the window turned to
-`landscape-primary`, the page was never unloaded and fullscreen stayed held,
-and BACK hid the picture and put the window back to 1080×2400 portrait.
+In the app the WebView swaps itself for the picture (`onShowCustomView`), and
+the activity hands the window's turning to the sensor while the picture is up
+(`Form.followsPhoneForVideo`, `MainActivity.followPhoneForVideo`,
+`SCREEN_ORIENTATION_FULL_SENSOR`): the way the phone is held decides even with
+auto-rotate off, since a film watched sideways is what fullscreen is for. When
+the picture goes, the window goes back to the phone's own setting. BACK takes
+the picture down first. The page asks for no turn (`screen.orientation.lock`),
+which a WebView would refuse anyway (`NotSupportedError`).
 
 The readers' FULL SCREEN cell is **not offered in the app**
 (`fullscreenOffered`, `src/lib/reader/fullscreen.svelte.ts`, by
