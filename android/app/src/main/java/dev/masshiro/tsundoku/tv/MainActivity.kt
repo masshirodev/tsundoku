@@ -2,7 +2,6 @@ package dev.masshiro.tsundoku.tv
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -59,15 +58,6 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private lateinit var root: FrameLayout
 	private lateinit var bridge: PairingBridge
 	private lateinit var servers: Servers
-	private var customView: View? = null
-	private var customCallback: WebChromeClient.CustomViewCallback? = null
-
-	/**
-	 * What [requestedOrientation] was before a fullscreen picture took the
-	 * phone's turning over ([followPhoneForVideo]), to put it back when the
-	 * picture goes.
-	 */
-	private var wasOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 	private val io = Executors.newSingleThreadExecutor()
 
 	/** The updater's own thread: a download never holds up the launch's probe. */
@@ -138,13 +128,6 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private val back =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				// A video gone fullscreen is a view over the page, not the
-				// page's: BACK takes the picture down first, as on a phone.
-				if (customView != null) {
-					hideCustomView()
-					backHeld = false
-					return
-				}
 				val at = SystemClock.uptimeMillis()
 				val held = backHeld
 				backHeld = false
@@ -597,65 +580,20 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		Insets.parseColor(css)?.let(::paintSurface)
 	}
 
+	/**
+	 * The window is the screen already: the system UI is hidden and the page
+	 * fills it, so a fullscreen picture has nothing to add. The page asks for
+	 * none here — the readers' FULL SCREEN and the player's FULL are offered
+	 * only where a browser's frame is around them (`fullscreenOffered`,
+	 * src/lib/reader/fullscreen.svelte.ts) — and anything that asks anyway is
+	 * handed straight back rather than the WebView swapping itself for a bare
+	 * picture that only flashes black (doc/ANDROID.md, "A fullscreen picture").
+	 */
 	private fun chrome() =
 		object : WebChromeClient() {
-			/** A video gone fullscreen: the picture, nothing of the app. */
-			override fun onShowCustomView(view: View, callback: CustomViewCallback) {
-				if (customView != null) {
-					callback.onCustomViewHidden()
-					return
-				}
-				customView = view
-				customCallback = callback
-				root.addView(view, frame())
-				webView.visibility = View.GONE
-				followPhoneForVideo()
-				hideSystemUi()
-			}
-
-			override fun onHideCustomView() = hideCustomView()
+			override fun onShowCustomView(view: View, callback: CustomViewCallback) =
+				callback.onCustomViewHidden()
 		}
-
-	/**
-	 * The fullscreen picture taken down, by the page (onHideCustomView) or by
-	 * BACK. `onCustomViewHidden` tells the page it left fullscreen; it may call
-	 * onHideCustomView again, which then finds nothing to do.
-	 */
-	private fun hideCustomView() {
-		val view = customView ?: return
-		val callback = customCallback
-		root.removeView(view)
-		customView = null
-		customCallback = null
-		webView.visibility = View.VISIBLE
-		callback?.onCustomViewHidden()
-		endFollowPhoneForVideo()
-		hideSystemUi()
-	}
-
-	/**
-	 * A picture on the whole screen follows the way the phone is held
-	 * (doc/ANDROID.md, "A fullscreen picture"): upright stays portrait, so a
-	 * portrait drama fills the screen, and turned it is landscape. Never forced
-	 * to landscape: that turned every portrait drama on its side. Never on a
-	 * TV, which is landscape already (Form.kt).
-	 *
-	 * FULL_SENSOR rather than FULL_USER: with auto-rotate off the phone would
-	 * stay upright whatever way it is held, and a wide film watched sideways is
-	 * what fullscreen is for. Only while the picture is up; the window goes
-	 * back to the phone's own setting after.
-	 */
-	private fun followPhoneForVideo() {
-		if (!form.followsPhoneForVideo) return
-		wasOrientation = requestedOrientation
-		requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
-	}
-
-	/** The picture is gone: back to however the window was before it. */
-	private fun endFollowPhoneForVideo() {
-		if (!form.followsPhoneForVideo) return
-		requestedOrientation = wasOrientation
-	}
 
 	private fun frame() = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 

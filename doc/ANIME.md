@@ -878,10 +878,10 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   ([`WORKS.md`](WORKS.md), "The end of a series").
 - **Portrait** (any device held upright, a phone or a tablet) puts the
   picture on top, the controls always shown beneath it, and UP NEXT below;
-  FULL goes full screen and **never turns the phone**: the picture follows the
-  way the phone is held, so upright a portrait drama fills the screen and
-  turned a film does. No `screen.orientation.lock`; in tsundoku's Android app
-  the picture turns with the phone even with auto-rotate off
+  FULL takes a browser's bars away and **never turns the phone**: the picture
+  follows the way the phone is held, so turned, a film is landscape. No
+  `screen.orientation.lock`; tsundoku's own Android app's window is the screen
+  already, so FULL is not offered there at all
   ([`ANDROID.md`](ANDROID.md), "A fullscreen picture"). **The scrubber under
   the picture seeks**: a tap goes there, a drag follows the finger with the
   time under it shown over the picture, and the whole 44px row is the

@@ -75,6 +75,7 @@
 	import { keepEpisodesAhead } from '$lib/cache/device';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { tv } from '$lib/device.svelte';
+	import { fullscreen } from '$lib/reader/fullscreen.svelte';
 	import { focusScope, registerBack } from '$lib/focus';
 	import { isFocusable } from '$lib/focus/dom';
 
@@ -1594,6 +1595,9 @@
 	/** The bar's own start: ▶❚❚. */
 	const barStart = () => root?.querySelector<HTMLElement>('.cells [data-focus-start]') ?? null;
 	async function full() {
+		// Offered only where a browser's frame is around the page (fullscreenOffered):
+		// in the app the window is the screen, and there is nothing to take away.
+		if (!fullscreen.available) return;
 		try {
 			if (document.fullscreenElement) await document.exitFullscreen();
 			// FULL never turns the phone (doc/ANIME.md, "Portrait"): held upright a
@@ -2060,7 +2064,9 @@
 				</div>
 			</div>
 			{@render addCell('cell add')}
-			<button type="button" class="cell desk" onclick={full}>FULL SCREEN · F</button>
+			{#if fullscreen.available}
+				<button type="button" class="cell desk" onclick={full}>FULL SCREEN · F</button>
+			{/if}
 		</header>
 
 		<footer class="bottom" data-focus-skip={!tv.current || chrome ? undefined : ''}>
@@ -2255,7 +2261,9 @@
 				<a class="back" href={seriesHref} aria-label="Back to the series" use:backLink>←</a>
 				<div class="m">{place}</div>
 				{@render addCell('padd')}
-				<button type="button" onclick={full}>FULL</button>
+				{#if fullscreen.available}
+					<button type="button" onclick={full}>FULL</button>
+				{/if}
 			</div>
 			<!-- The scrubber under the picture: the bar's own handlers and
 			     slider role, measured on this track. It sits outside the scrolling

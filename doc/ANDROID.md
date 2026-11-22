@@ -79,7 +79,6 @@ from the flavour's `BuildConfig.FORM`, one tested function per difference
 | Remote keys             | MENU and the media keys (`Keys.kt`)      | none: a finger and the keyboard     |
 | The cutout and keyboard | nothing to pad                           | padded natively (`Insets.kt`)       |
 | Raising the keyboard    | never for a page (it covers the buttons) | when a page focuses a field         |
-| A fullscreen picture    | never turns: a TV is landscape           | follows the way the phone is held   |
 
 The few things that are manifest or theme live in each flavour's folder, merged
 over `src/main`'s manifest: `src/tv` has the `LEANBACK_LAUNCHER` entry,
@@ -1003,9 +1002,9 @@ closes it. On a TV the app never calls `showSoftInput`.
 ## BACK
 
 BACK goes through `OnBackPressedDispatcher`, never the deprecated override (not
-an option at `targetSdk` 36). A fullscreen picture is taken down first. Then
-`window.tsundokuBack()` is asked (a sheet, a climb); `true` means the page took
-it. Then `Back.kt`: the library is home, and elsewhere `Back.steps` goes back to
+an option at `targetSdk` 36). `window.tsundokuBack()` is asked (a sheet, a
+climb); `true` means the page took it. Then `Back.kt`: the library is home, and
+elsewhere `Back.steps` goes back to
 the nearest earlier screen worth returning to, past sign-in, pairing, set-up
 and the app's own first screens. A plain `canGoBack()`/`goBack()` would never
 leave: the history can hold the sign-in page, and going back to it sends a
@@ -1079,10 +1078,10 @@ way to find it ([Device checks](#device-checks)).
   the web app's own screens at 130% are checked by `tests/text-zoom.e2e.ts`
   ([`SERIES.md`](SERIES.md), "At a larger text size"). On a TV it is 100%,
   whatever the TV says.
-- **Video**: `onShowCustomView`/`onHideCustomView` put the fullscreen picture
-  over the app, hiding the WebView, and BACK takes the picture down before it
-  asks the page; `mediaPlaybackRequiresUserGesture = false` starts playback
-  without an OK press.
+- **Video**: `mediaPlaybackRequiresUserGesture = false` starts playback
+  without an OK press, and a page's ask for a fullscreen element is handed
+  straight back rather than the WebView swapping itself for a black picture
+  ("A fullscreen picture", below).
 - **Cleartext**: `network_security_config.xml` allows plain http (a home
   address has no certificate) and still checks the system's anchors for an
   https tailnet name.
@@ -1153,26 +1152,26 @@ browser the variable is unset and both bars are 64 px and flush.
 
 ### A fullscreen picture
 
-The player's FULL goes fullscreen and **never turns the phone**: a fullscreen
-picture follows the way the phone is held. Upright it stays portrait, so a
-portrait drama fills the screen; turned, a film is landscape. Until
-2026.11.21 FULL turned the phone to landscape whatever the picture, which laid
-every portrait drama on its side.
+FULL, in the readers and in the player, is offered only where a browser's frame
+is around the page (`fullscreenOffered`, `src/lib/reader/fullscreen.svelte.ts`).
+An installed copy is the screen already, and so is this app: the system UI is
+hidden and the page fills the window, so there is no frame for FULL to take
+away. The control is therefore **not drawn in the app at all**, and the page
+never asks for a fullscreen element there.
 
-In the app the WebView swaps itself for the picture (`onShowCustomView`), and
-the activity hands the window's turning to the sensor while the picture is up
-(`Form.followsPhoneForVideo`, `MainActivity.followPhoneForVideo`,
-`SCREEN_ORIENTATION_FULL_SENSOR`): the way the phone is held decides even with
-auto-rotate off, since a film watched sideways is what fullscreen is for. When
-the picture goes, the window goes back to the phone's own setting. BACK takes
-the picture down first. The page asks for no turn (`screen.orientation.lock`),
-which a WebView would refuse anyway (`NotSupportedError`).
+Anything that asks anyway is handed straight back
+(`MainActivity.chrome`: `callback.onCustomViewHidden()`), rather than the
+WebView hiding itself and showing the element as a bare picture: with nothing
+to resize, that picture is a black screen. Until 2026.11.21 the app took the
+ask and turned the phone to landscape for it, which laid every portrait drama
+on its side; it then followed the phone's sensor instead, and FULL showed
+nothing but a black flash. Either way the window is the screen already, so
+there is nothing a fullscreen element can add.
 
-The readers' FULL SCREEN cell is **not offered in the app**
-(`fullscreenOffered`, `src/lib/reader/fullscreen.svelte.ts`, by
-`isTsundokuApp`): the window is the screen already, and an element fullscreen
-there would turn the phone mid-read. It is still offered in a browser over the
-home Wi-Fi ([`READER.md`](READER.md), "Full screen").
+In a browser the element keeps the phone's own orientation: FULL never turns it
+(`screen.orientation.lock` is not called, and a WebView would refuse it anyway
+with `NotSupportedError`). Turned, a film is landscape
+([`ANIME.md`](ANIME.md), "Portrait").
 
 ## Limits
 
@@ -1242,8 +1241,7 @@ count).
 What has been seen on a device: on an Android 11 TV, focusing the address
 screen's field opens the number pad over the buttons and BACK closes it; on a
 phone, the app installs and pairs, the page sits below the camera band, and zoom
-is off; on an emulator, the fullscreen turn ([above](#a-fullscreen-picture)).
-Everything else below is built and tested off the device only.
+is off. Everything else below is built and tested off the device only.
 
 ### BACK
 
@@ -1472,9 +1470,10 @@ stays) and the name arrives from the library instead.
 - **The reader under the camera**: `edge()`, `SHORT_EDGES` and the
   `--app-inset-*` variables are unit- and browser-tested; a page drawn into a
   real cutout is not.
-- **The fullscreen turn on a real phone**: whether its WebView ever implements
-  `screen.orientation.lock` (the app does not depend on it), and how the swap
-  looks at 412×834.
+- **A fullscreen ask in the app**: the page never makes one
+  (`fullscreenOffered`), and `tests/browse-player-portrait.e2e.ts` pins that
+  FULL is not drawn for the app's user agent; a WebView handing a real ask back
+  is built, not seen on a device.
 - **The friend's SETTINGS panel by eye**: its arrangement is asserted
   (`friend-wifi.e2e.ts`: the address above, the digits and the QR side by side,
   the QR's 182 px), not looked at on a screen.
@@ -1671,8 +1670,8 @@ has the projects):
   (the TV's `Android TV · app` label) follow SETTINGS' words.
 - `tests/app-ua.spec.ts`: the user agent, `appDevice`, and the DEVICES label
   and cell.
-- `tests/fullscreen.spec.ts`: when the readers offer FULL SCREEN, and when they
-  must not (an installed app, the Android app).
+- `tests/fullscreen.spec.ts`: when the readers and the player offer FULL, and
+  when they must not (an installed app, the Android app).
 - `tests/phone-app-pair.e2e.ts`: the app's own pages with a stand-in bridge
   saying `mobile`, at 360×780, 1280×800, 800×1280 and 780×360, with the layout's
   measurements, the pinned buttons riding a shorter viewport (the keyboard),

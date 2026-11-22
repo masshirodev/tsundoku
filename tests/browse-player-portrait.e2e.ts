@@ -1,10 +1,11 @@
 import { test, expect } from './fixtures';
-import type { Page } from '@playwright/test';
+import { devices, type Page } from '@playwright/test';
 
 /**
  * The player in portrait on a phone (doc/ANIME.md "The player"): the
  * scrubber under the picture seeks on a tap and follows a drag, shows the time
  * under the finger while it drags, and a drag never scrolls what is below.
+ * FULL takes a browser's bars away, and is not offered in tsundoku's own app.
  * On the browse server's "Tsukiakari no Ryokōsha", whose episodes are the
  * fixture's 8 s clip (tests/browse-setup.ts).
  */
@@ -122,4 +123,28 @@ test('the portrait scrubber seeks on a tap and follows a drag, without scrolling
 		page: window.scrollY
 	}));
 	expect(after).toEqual(before);
+});
+
+test('FULL takes the browser’s bars away in a browser, and gives them back', async ({ page }) => {
+	test.setTimeout(60_000);
+	const controls = await openPlayer(page);
+	const full = controls.getByRole('button', { name: 'FULL' });
+	await expect(full).toBeVisible();
+	await full.click();
+	await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+	await full.click();
+	await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+});
+
+test.describe('in tsundoku’s Android app', () => {
+	// The app's window is the screen, so FULL has no browser's frame to take
+	// away, and the WebView would swap the page for a bare picture that only
+	// flashes black (doc/ANDROID.md, "A fullscreen picture"). The readers hide
+	// their FULL SCREEN cell the same way.
+	test.use({ userAgent: `${devices['Pixel 7'].userAgent} TsundokuApp/2026.11.21` });
+
+	test('FULL is not offered', async ({ page }) => {
+		const controls = await openPlayer(page);
+		await expect(controls.getByRole('button', { name: /FULL/ })).toHaveCount(0);
+	});
 });

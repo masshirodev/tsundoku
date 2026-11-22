@@ -35,12 +35,6 @@ class FormTest {
 	}
 
 	@Test
-	fun `only the phone's fullscreen picture follows the way it is held`() {
-		assertTrue(Form.MOBILE.followsPhoneForVideo)
-		assertFalse(Form.TV.followsPhoneForVideo)
-	}
-
-	@Test
 	fun `only the phone raises the keyboard for a page, never the TV`() {
 		assertTrue(Form.MOBILE.raisesKeyboard)
 		assertFalse(Form.TV.raisesKeyboard)

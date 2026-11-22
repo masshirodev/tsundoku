@@ -48,15 +48,6 @@ enum class Form(val id: String) {
 		get() = this == MOBILE
 
 	/**
-	 * A fullscreen picture follows the way the phone is held, auto-rotate on
-	 * or off: upright stays portrait (a portrait drama fills the screen), and
-	 * turning the phone turns the picture (MainActivity, followPhoneForVideo).
-	 * A TV is landscape already and never turns.
-	 */
-	val followsPhoneForVideo: Boolean
-		get() = this == MOBILE
-
-	/**
 	 * The token appended to the WebView's own user agent. The server reads it
 	 * (`isTsundokuApp`, src/lib/settings/catalog.ts): `TsundokuTV` names a
 	 * device a TV, `TsundokuApp` says the app over a phone's or tablet's screen.

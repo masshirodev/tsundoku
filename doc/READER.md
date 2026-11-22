@@ -744,10 +744,11 @@ loses the frame. Offered only where the browser can
 (`document.fullscreenEnabled`: Android's browsers, desktops; not an iPhone's
 Safari, which allows it for video only), not in an installed app, which is
 full screen already, and not in tsundoku's own Android app either: its window
-is the screen, and a fullscreen element there turns the phone to landscape for
-a picture ([`ANDROID.md`](ANDROID.md)), which reading does not want.
-Decided after hydration: the server can't know (`fullscreenOffered`, counted
-by `tests/fullscreen.spec.ts`).
+is the screen, so there is no frame to take away, and asking the WebView for
+one only swaps the page for a black picture ([`ANDROID.md`](ANDROID.md), "A
+fullscreen picture"). The player's FULL asks the same question
+([`ANIME.md`](ANIME.md), "Portrait"). Decided after hydration: the server
+can't know (`fullscreenOffered`, counted by `tests/fullscreen.spec.ts`).
 
 **A phone's bottom row scrolls.** At 360 px its cells are wider than the
 screen: on the text reader FULL SCREEN would be off the right edge at 100%
