@@ -1,0 +1,3 @@
+The player: in the phone and tablet app, FULL is no longer there. The app's window is the whole screen already, and tapping FULL there only flashed black.
+
+In a browser, FULL still takes the browser's bars away, and the picture still follows the way you hold the phone.
