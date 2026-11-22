@@ -1,0 +1,11 @@
+The phone and tablet app: a pinch no longer zooms the app's screens, on any tablet. The readers' own zoom is unchanged.
+The player: FULL follows the way you hold the phone. Held upright, a portrait drama stays upright; turn the phone and the picture turns with it, even with auto-rotate off.
+The player: one episode goes straight into the next, with no countdown. The next episode's card shows 5 seconds before the end, or where the ending starts, and STAY on it keeps you where you are. Controls you had hidden stay hidden.
+BROWSE: the KIND band above the sources is a row of tabs again, not plain text.
+Reading online: each page is fetched from the source only once, however many times you turn back to it.
+Sources behind a browser check (FlareSolverr) work again on Linux systems with a newer NSS, Arch among them: every check failed with "the browser has closed the connection".
+Reading offline: what you read while away is no longer lost when the computer answers with an error as you come back.
+On a phone in light mode, the browser's bar above the page is light too.
+Hidden series: hiding a series also takes it off a phone's or tablet's offline copy, and only tsundoku itself can turn REVEAL on.
+Sources, extensions and novel plugins can reach only addresses on the internet, never your own network or computer, and what they send back is read up to a limit. A source hosted on your own network no longer loads.
+A zip or backup file that claims to hold more than it does is refused.
