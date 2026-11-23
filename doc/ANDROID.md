@@ -33,9 +33,12 @@ its grid. Being native also buys what a page cannot do:
   build: the 2026.11.15 app could not be pinched on a Galaxy Z Fold6 but
   pinched every screen on a Xiaomi Pad 5 running LineageOS, whose WebView is
   LineageOS's own. A viewport whose scale is pinned holds on any Chromium.
-  The readers' zoom is untouched: it is the page's own (`--zoom`, drawn by
+  The pairing page the APK ships (`android/app/src/main/assets/pair`) pins
+  its own in the file, with no user-agent check: it only ever opens in the
+  app. The readers' zoom is untouched: it is the page's own (`--zoom`, drawn by
   the reader, doc/READER.md "Zoom"), not the WebView's. A browser keeps its
-  pinch. `tests/phone-app-zoom.e2e.ts` pinches both.
+  pinch. `tests/phone-app-zoom.e2e.ts` pinches all three: the app, the
+  pairing page, and a browser.
 - **Screenshots are allowed.** The app does not set `FLAG_SECURE`, which
   [`PRIVACY.md`](PRIVACY.md) says a PWA can never promise anyway: Android's
   "this app doesn't allow screenshots" on every try costs more than the

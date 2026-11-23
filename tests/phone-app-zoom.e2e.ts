@@ -1,4 +1,6 @@
 import { devices, type Page } from '@playwright/test';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { expect, test } from './fixtures';
 
 /**
@@ -43,6 +45,23 @@ test.describe('in the app', () => {
 		expect(content).toContain('minimum-scale=1');
 		expect(content).toContain('user-scalable=no');
 		expect(content).toContain('viewport-fit=cover');
+		expect(await pinchOut(page)).toBe(1);
+	});
+});
+
+test.describe('the pairing page the APK ships', () => {
+	// android/app/src/main/assets/pair: opened only inside the app, so it pins
+	// its own scale in the file, whatever the user agent.
+	const pairPage = pathToFileURL(
+		join(process.cwd(), 'android/app/src/main/assets/pair/index.html')
+	).href;
+
+	test('its viewport cannot be scaled, and a pinch leaves it at 1', async ({ page }) => {
+		await page.goto(pairPage);
+		const content = await viewport(page);
+		expect(content).toContain('maximum-scale=1');
+		expect(content).toContain('minimum-scale=1');
+		expect(content).toContain('user-scalable=no');
 		expect(await pinchOut(page)).toBe(1);
 	});
 });

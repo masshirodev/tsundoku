@@ -2,7 +2,15 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!--
+			Pinned to scale 1 here, with no user-agent check: this page only ever
+			opens inside the app, and some WebView builds pinch a page whatever
+			setSupportZoom says (doc/ANDROID.md, "Zoom is off").
+		-->
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no"
+		/>
 		<title>Pair this TV · tsundoku</title>
 		<script>
 			/*
