@@ -5,7 +5,8 @@ import { devices, type Page } from '@playwright/test';
  * The player in portrait on a phone (doc/ANIME.md "The player"): the
  * scrubber under the picture seeks on a tap and follows a drag, shows the time
  * under the finger while it drags, and a drag never scrolls what is below.
- * FULL takes a browser's bars away, and is not offered in tsundoku's own app.
+ * FULL is the picture alone, the episode list and controls beneath it gone: a
+ * browser's fullscreen, and in tsundoku's own app the page's own fill.
  * On the browse server's "Tsukiakari no Ryokōsha", whose episodes are the
  * fixture's 8 s clip (tests/browse-setup.ts).
  */
@@ -125,26 +126,72 @@ test('the portrait scrubber seeks on a tap and follows a drag, without scrolling
 	expect(after).toEqual(before);
 });
 
-test('FULL takes the browser’s bars away in a browser, and gives them back', async ({ page }) => {
+/** FULL is the picture alone: portrait's controls and UP NEXT are gone, and the picture fills the screen. */
+async function expectFilled(page: Page, controls: ReturnType<Page['getByRole']>) {
+	await expect(page.locator('.player')).toHaveClass(/\bfilled\b/);
+	await expect(controls).toBeHidden();
+	await expect(page.getByRole('region', { name: 'Next in the Work' })).toBeHidden();
+	const stage = (await page.locator('.stage').boundingBox())!;
+	const view = page.viewportSize()!;
+	expect(stage.y).toBe(0);
+	expect(stage.height).toBe(view.height);
+}
+
+test('FULL takes the browser’s bars away in a browser, the picture alone, and gives them back', async ({
+	page
+}) => {
 	test.setTimeout(60_000);
 	const controls = await openPlayer(page);
 	const full = controls.getByRole('button', { name: 'FULL' });
 	await expect(full).toBeVisible();
 	await full.click();
 	await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
-	await full.click();
+	await expectFilled(page, controls);
+	await page.keyboard.press('f');
 	await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+	await expect(controls).toBeVisible();
 });
 
 test.describe('in tsundoku’s Android app', () => {
-	// The app's window is the screen, so FULL has no browser's frame to take
-	// away, and the WebView would swap the page for a bare picture that only
-	// flashes black (doc/ANDROID.md, "A fullscreen picture"). The readers hide
-	// their FULL SCREEN cell the same way.
-	test.use({ userAgent: `${devices['Pixel 7'].userAgent} TsundokuApp/2026.11.21` });
+	// The app's window is the screen, and a fullscreen element there is a bare
+	// picture the WebView swaps itself for, which only flashes black
+	// (doc/ANDROID.md, "A fullscreen picture"). So FULL is the page's own there:
+	// the picture fills the window, and the WebView is never asked.
+	test.use({ userAgent: `${devices['Pixel 7'].userAgent} TsundokuApp/2026.11.23` });
 
-	test('FULL is not offered', async ({ page }) => {
+	test('FULL fills the window with the picture alone, never asking for fullscreen', async ({
+		page
+	}) => {
+		test.setTimeout(60_000);
 		const controls = await openPlayer(page);
-		await expect(controls.getByRole('button', { name: /FULL/ })).toHaveCount(0);
+		await page.evaluate(() => {
+			(window as unknown as { asked: number }).asked = 0;
+			Element.prototype.requestFullscreen = async function () {
+				(window as unknown as { asked: number }).asked++;
+			};
+		});
+		await controls.getByRole('button', { name: 'FULL' }).click();
+		await expectFilled(page, controls);
+		expect(await page.evaluate(() => (window as unknown as { asked: number }).asked)).toBe(0);
+		// The way back is drawn over the picture, on a touch screen too, with the
+		// controls the tap on FULL brought up.
+		const exit = page.getByRole('button', { name: 'EXIT FULL · F' });
+		await expect(exit).toBeVisible();
+		await exit.click();
+		await expect(controls).toBeVisible();
+		// The app's BACK (MainActivity, BACK_JS) takes FULL down before it leaves
+		// the player, and so does Escape on a keyboard.
+		await controls.getByRole('button', { name: 'FULL' }).click();
+		await expectFilled(page, controls);
+		const took = await page.evaluate(() =>
+			(window as unknown as { tsundokuBack: () => boolean }).tsundokuBack()
+		);
+		expect(took).toBe(true);
+		await expect(controls).toBeVisible();
+		await controls.getByRole('button', { name: 'FULL' }).click();
+		await expectFilled(page, controls);
+		await page.keyboard.press('Escape');
+		await expect(controls).toBeVisible();
+		await expect(page).toHaveURL(/\/read\/\d+/);
 	});
 });

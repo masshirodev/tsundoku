@@ -13,6 +13,8 @@ import { isTsundokuApp } from '$lib/settings/catalog';
  * tsundoku's own Android app either (doc/ANDROID.md): its window is the
  * screen, so FULL has no frame to take away, and a fullscreen element there
  * is a bare picture the WebView swaps itself for, which only flashes black.
+ * The player's FULL is drawn there anyway, as the page's own fill rather than
+ * a fullscreen element (VideoPlayer, `appFull`).
  */
 export function fullscreenOffered(where: {
 	/** `document.fullscreenEnabled`. */

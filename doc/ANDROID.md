@@ -1152,12 +1152,19 @@ browser the variable is unset and both bars are 64 px and flush.
 
 ### A fullscreen picture
 
-FULL, in the readers and in the player, is offered only where a browser's frame
-is around the page (`fullscreenOffered`, `src/lib/reader/fullscreen.svelte.ts`).
-An installed copy is the screen already, and so is this app: the system UI is
-hidden and the page fills the window, so there is no frame for FULL to take
-away. The control is therefore **not drawn in the app at all**, and the page
-never asks for a fullscreen element there.
+The page never asks this app for a fullscreen element. The readers' FULL
+SCREEN is offered only where a browser's frame is around the page
+(`fullscreenOffered`, `src/lib/reader/fullscreen.svelte.ts`): this app's
+system UI is hidden and the page fills the window, so there is no frame to
+take away, and the cell is not drawn here.
+
+The player's FULL is drawn here, because in portrait it has something to take
+away besides a frame: the controls and UP NEXT under the picture. In the app it
+is the page's own (`appFull` in `VideoPlayer.svelte`): the player lays itself
+out as it does turned, the picture filling the window, and BACK takes it down
+before it leaves the player ([`ANIME.md`](ANIME.md), "Portrait"). From
+2026.11.22 to 2026.11.23 FULL was not drawn in the app at all, which left no
+way to watch upright with the picture alone.
 
 Anything that asks anyway is handed straight back
 (`MainActivity.chrome`: `callback.onCustomViewHidden()`), rather than the

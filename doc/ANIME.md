@@ -878,11 +878,17 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   ([`WORKS.md`](WORKS.md), "The end of a series").
 - **Portrait** (any device held upright, a phone or a tablet) puts the
   picture on top, the controls always shown beneath it, and UP NEXT below;
-  FULL takes a browser's bars away and **never turns the phone**: the picture
-  follows the way the phone is held, so turned, a film is landscape. No
-  `screen.orientation.lock`; tsundoku's own Android app's window is the screen
-  already, so FULL is not offered there at all
-  ([`ANDROID.md`](ANDROID.md), "A fullscreen picture"). **The scrubber under
+  **FULL is the picture alone**: the controls beneath it and UP NEXT step
+  aside, the picture fills the screen, and the player draws as it does turned,
+  its bar over the picture on a tap, with **EXIT FULL** in the top bar (on a
+  touch screen too, where the landscape FULL SCREEN cell is otherwise not
+  drawn). In a browser that is the player as the fullscreen element, the
+  browser's bars gone with it; in tsundoku's own Android app it is the page's
+  own (`appFull` in the player), the WebView never asked, BACK and Escape take
+  it down before they leave the player, and one episode flowing into the next
+  stays full ([`ANDROID.md`](ANDROID.md), "A fullscreen picture"). FULL
+  **never turns the phone**: the picture follows the way the phone is held,
+  so turned, a film is landscape. No `screen.orientation.lock`. **The scrubber under
   the picture seeks**: a tap goes there, a drag follows the finger with the
   time under it shown over the picture, and the whole 44px row is the
   target, not the 4px line. It is a slider like the bar's (`role="slider"`,

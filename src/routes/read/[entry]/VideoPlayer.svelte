@@ -5,6 +5,12 @@
 	 * by episode), so it is passed here and read once, as that player starts.
 	 */
 	let handOffQuiet = false;
+	/**
+	 * The same hand-over for FULL in tsundoku's Android app (`appFull`): one
+	 * episode flowing into the next stays full, as a browser's fullscreen
+	 * element would were it not a new player.
+	 */
+	let handOffFull = false;
 </script>
 
 <script lang="ts">
@@ -76,6 +82,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { tv } from '$lib/device.svelte';
 	import { fullscreen } from '$lib/reader/fullscreen.svelte';
+	import { isTsundokuApp } from '$lib/settings/catalog';
 	import { focusScope, registerBack } from '$lib/focus';
 	import { isFocusable } from '$lib/focus/dom';
 
@@ -358,6 +365,11 @@
 			}
 			if (sheet) {
 				sheet = false;
+				return true;
+			}
+			// FULL comes down before the player is left, on any device.
+			if (appFull) {
+				appFull = false;
 				return true;
 			}
 			if (chrome && phase === 'playing') {
@@ -982,6 +994,7 @@
 		if (!next) return;
 		// The next episode starts with the controls as this one leaves them.
 		handOffQuiet = !chrome;
+		handOffFull = appFull;
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
 		void goto(readHref(next.id), { replaceState: true });
 	}
@@ -1455,6 +1468,7 @@
 		else if (k === '?') keysOpen = true;
 		else if (k === 'Escape') {
 			if (document.fullscreenElement) void document.exitFullscreen();
+			else if (appFull) appFull = false;
 			else goBackTo(seriesHref);
 		} else return;
 		e.preventDefault();
@@ -1594,9 +1608,30 @@
 	let root = $state<HTMLElement | null>(null);
 	/** The bar's own start: ▶❚❚. */
 	const barStart = () => root?.querySelector<HTMLElement>('.cells [data-focus-start]') ?? null;
+	/**
+	 * Inside tsundoku's Android app. Its window is the screen already, and a
+	 * fullscreen element there is a bare picture the WebView swaps itself for,
+	 * which only flashes black (doc/ANDROID.md, "A fullscreen picture"); so FULL
+	 * there is the page's own: the picture fills the window, nothing under it.
+	 * Read after hydration, as the server can't know.
+	 */
+	let inApp = $state(false);
+	/** FULL in the app (`inApp`): the page's own, never the WebView's. */
+	let appFull = $state(false);
+	const fullOffered = $derived(fullscreen.available || inApp);
+	/**
+	 * FULL is on, either way: the picture alone, without portrait's controls
+	 * and UP NEXT beneath it (doc/ANIME.md, "Portrait"). The player is the only
+	 * element this page makes fullscreen, so the document's answer is its.
+	 */
+	const filled = $derived(appFull || fullscreen.on);
 	async function full() {
-		// Offered only where a browser's frame is around the page (fullscreenOffered):
-		// in the app the window is the screen, and there is nothing to take away.
+		if (inApp) {
+			appFull = !appFull;
+			showChrome();
+			return;
+		}
+		// Elsewhere, offered only where a browser's frame is around the page (fullscreenOffered).
 		if (!fullscreen.available) return;
 		try {
 			if (document.fullscreenElement) await document.exitFullscreen();
@@ -1615,6 +1650,9 @@
 		volume = cleanVolume(load<unknown>(VOLUME_KEY, 1));
 		if (video) video.volume = volume;
 		device = navigator.language;
+		inApp = isTsundokuApp(navigator.userAgent);
+		appFull = inApp && handOffFull;
+		handOffFull = false;
 		mouse = matchMedia('(pointer: fine)').matches;
 		cursorOn = playerCursorOn();
 		pipable = canPip();
@@ -1828,6 +1866,7 @@
 	class="player"
 	class:hidden-series={data.series.hidden}
 	class:chrome
+	class:filled
 	class:cursor-idle={cursorIdle}
 	bind:this={root}
 	role="presentation"
@@ -2064,8 +2103,12 @@
 				</div>
 			</div>
 			{@render addCell('cell add')}
-			{#if fullscreen.available}
-				<button type="button" class="cell desk" onclick={full}>FULL SCREEN · F</button>
+			{#if fullOffered}
+				<!-- Shown on a touch screen too while FULL is on: it is the way back
+				     to portrait's controls there. -->
+				<button type="button" class="cell desk full" onclick={full}
+					>{filled ? 'EXIT FULL · F' : 'FULL SCREEN · F'}</button
+				>
 			{/if}
 		</header>
 
@@ -2261,7 +2304,7 @@
 				<a class="back" href={seriesHref} aria-label="Back to the series" use:backLink>←</a>
 				<div class="m">{place}</div>
 				{@render addCell('padd')}
-				{#if fullscreen.available}
+				{#if fullOffered}
 					<button type="button" onclick={full}>FULL</button>
 				{/if}
 			</div>
@@ -3793,28 +3836,27 @@
 	.portrait {
 		display: none;
 	}
+	/* FULL is the picture alone: the portrait layout steps aside while it is on,
+	   and the player draws as it does turned, its controls over the picture. */
 	@media (orientation: portrait) {
-		.stage {
+		.player:not(.filled) .stage {
 			top: 56px;
 			bottom: auto;
 			height: calc(100vw * 9 / 16);
 		}
-		.cluster,
-		.top,
-		.bottom,
-		.endcard,
-		.player > .upn {
+		.player:not(.filled) :is(.cluster, .top, .bottom, .endcard),
+		.player:not(.filled) > .upn {
 			display: none;
 		}
-		.subs,
-		.player.chrome .subs {
+		.player:not(.filled) .subs,
+		.player.chrome:not(.filled) .subs {
 			bottom: 8px;
 		}
-		.line {
+		.player:not(.filled) .line {
 			font-size: 14px;
 		}
 		/* A layer of its own over the picture, letting taps through to it. */
-		.portrait {
+		.player:not(.filled) .portrait {
 			display: block;
 			position: absolute;
 			inset: 0;
@@ -3823,11 +3865,27 @@
 		.portrait > * {
 			pointer-events: auto;
 		}
-		.skip,
-		.player.chrome .skip {
+		.player:not(.filled) .skip,
+		.player.chrome:not(.filled) .skip {
 			right: 12px;
 			bottom: auto;
 			top: calc(56px + 100vw * 9 / 16 - 56px - 12px);
+		}
+	}
+	.player.filled .desk.full {
+		display: flex;
+	}
+	/* Upright and full, the top bar is a phone's width: the short line, as a
+	   phone turned (max-height: 499px) has. */
+	@media (orientation: portrait) and (max-width: 699px) {
+		.player.filled .top .long {
+			display: none;
+		}
+		.player.filled .top .short {
+			display: inline;
+		}
+		.player.filled .top .names {
+			min-width: 0;
 		}
 	}
 	.pbar {
