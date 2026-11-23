@@ -1,0 +1,5 @@
+Sites that show a "checking your browser" page load again on Linux. FlareSolverr's own Chrome got stuck on that page there, so tsundoku now has it use the Chromium or Google Chrome installed on your computer. If you have neither, install one from your system's packages (for example `sudo pacman -S chromium` or `sudo apt install chromium`) and start tsundoku again.
+
+SAVE A REPORT (SETTINGS › LIBRARY) now keeps every key and sign-in out of the file you send, not only two of them: your TMDB key, your AniList and MyAnimeList sign-ins, and the rest.
+
+The phone and tablet app: the pairing screen can no longer be pinched out of shape.
