@@ -1,0 +1,3 @@
+The player: FULL is back in the phone and tablet app. It now shows the picture alone, filling the screen, without the controls and UP NEXT under it; tap the picture for the controls, and EXIT FULL in the top bar (or BACK) brings the list back. One episode going into the next stays full.
+
+In a browser, FULL held upright now shows the picture alone as well, and still takes the browser's bars away.
