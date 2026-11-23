@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { pipeline, Readable } from 'node:stream';
 import { serveMedia, serveSubtitle, StreamError } from './streams.ts';
+import { rememberSecret } from '../secrets.ts';
 
 /**
  * The loopback proxy ffmpeg reads through (doc/ANIME.md, "Downloading"):
@@ -17,6 +18,8 @@ let proxy: { server: Server; port: number; secret: string } | null = null;
 export async function loopback(): Promise<{ port: number; secret: string }> {
 	if (proxy) return proxy;
 	const secret = randomBytes(24).toString('base64url');
+	// ffmpeg's arguments carry it, and a failed run's log can quote them.
+	rememberSecret(secret);
 	const server = createServer(async (req, res) => {
 		if (req.headers['x-tsundoku'] !== secret) return res.writeHead(403).end();
 		const m = /^\/api\/anime\/(media|subtitle)\/([A-Za-z0-9_-]{32})$/.exec(req.url ?? '');

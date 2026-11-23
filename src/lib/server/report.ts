@@ -10,6 +10,7 @@ import { updateView } from './updates.ts';
 import { HIDDEN_SQL } from './visibility.ts';
 import { wifiStatus } from './wifi.ts';
 import { scrub, type Scrub } from './report-scrub.ts';
+import { knownSecrets } from './secrets.ts';
 
 /**
  * SAVE A REPORT (SETTINGS › 05 — LIBRARY; doc/LOGS.md): one text
@@ -47,7 +48,7 @@ function scrubbing(): Scrub {
 	const home = dataPaths().home;
 	const user = process.env.USERPROFILE ?? process.env.HOME ?? '';
 	return {
-		secrets: [env.TSUNDOKU_TOKEN, env.ENGINE_TOKEN].filter((x): x is string => !!x),
+		secrets: knownSecrets(),
 		hidden: [...hidden.flatMap((h) => [h.title, h.path]), ...hiddenRoots.map((r) => r.path)].filter(
 			Boolean
 		),

@@ -18,6 +18,14 @@ install's own, kept in the database's `settings` table beside the trackers'
 OAuth tokens, and shown only by its last four characters. The environment's
 `TMDB_API_RC_TOKEN` or `TMDB_API_KEY` always wins over it.
 
+**A new secret goes on the list.** `src/lib/server/secrets.ts` is the one
+list of what the app keeps secret, and SAVE A REPORT takes every value on it
+out ([`LOGS.md`](LOGS.md)): a new secret variable joins `SECRET_ENV`, and a
+new secret the app stores joins `knownSecrets()`. `tests/secrets.spec.ts`
+fails on a `*_TOKEN`, `*_SECRET`, `*_KEY` or `*_PASSWORD` variable read
+anywhere in `src/` and missing from `SECRET_ENV`; a stored one has no such
+check, so it is on whoever adds it.
+
 **The keys, the non-secret ones too:**
 
 | Key                                 | What for                                                                                                                               |

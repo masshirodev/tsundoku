@@ -64,8 +64,13 @@ sends it however they like.
 aren't trusted to be clean: the whole report goes through `scrub`
 (`src/lib/server/report-scrub.ts`) on the way out.
 
-- Tokens this install knows (`TSUNDOKU_TOKEN`, `ENGINE_TOKEN`), session and
-  pairing cookies, pairing links, bearer tokens: `[secret]`, `/pair/[code]`.
+- Every secret this install knows, asked of `knownSecrets()`
+  (`src/lib/server/secrets.ts`): the environment's (`SECRET_ENV`, the secret
+  rows of [`SECRETS.md`](SECRETS.md)), the TMDB key saved in SETTINGS, the
+  trackers' OAuth tokens, a friend's login secret and the session cookie made
+  from it, and the loopback proxy's header. Then session and pairing cookies,
+  pairing links and bearer tokens whatever their values: `[secret]`,
+  `/pair/[code]`.
 - Every hidden series' title and folder (the app's own `HIDDEN_SQL`) and every
   hidden root's folder: `[hidden]`, case-blind, longest first.
 - The data folder and the user's home: `<data>`, `<user>`, with either slash.
@@ -76,6 +81,9 @@ computer's logs.
 ## Tests
 
 `tests/launcher-log.spec.ts` (stamping, half lines, rotation),
-`tests/report.spec.ts` (the scrubbing), and `tests/friend-report.e2e.ts`: a
+`tests/report.spec.ts` (the scrubbing), `tests/secrets.spec.ts` (a report
+built over a log that prints every secret the install knows carries none of
+them, and `SECRET_ENV` names every `*_TOKEN`, `*_SECRET`, `*_KEY` and
+`*_PASSWORD` variable the source reads), and `tests/friend-report.e2e.ts`: a
 log carrying a hidden title, a pairing code, a cookie and the data folder's
 path, saved from SETTINGS as a report that carries none of them.
