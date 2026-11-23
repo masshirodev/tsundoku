@@ -1,6 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -11,6 +13,7 @@ process.env.ENGINE_STORE = store;
 const { getDb } = await import('$lib/server/db');
 const ext = await import('$lib/server/engine/extensions');
 const { handleOf } = await import('$lib/server/engine/client');
+const { NotPublicError } = await import('$lib/server/net-guard');
 const { zip } = await import('$lib/server/zip-write');
 type Fetcher = import('$lib/server/engine/extensions').Fetcher;
 type Loader = import('$lib/server/engine/extensions').Loader;
@@ -237,6 +240,60 @@ describe('installing', () => {
 		});
 		expect(ext.installed()[0].failed).toBe('No Injekt instance for ProtoBuf');
 		expect(ext.extensionFor('2522335540328470744')).toBeNull();
+	});
+});
+
+describe('a repository on the reader’s own network (doc/EXTENSION-ENGINE.md)', () => {
+	/** A self-hosted repository on loopback, read through the real fetch, whose index names [apkUrl]. */
+	async function ownRepo(apkUrl: (origin: string, port: number) => string) {
+		const asked: string[] = [];
+		let origin = '';
+		let port = 0;
+		const server = createServer((req, res) => {
+			asked.push(req.url ?? '');
+			const body: Record<string, unknown> = {
+				'/repo.json': repoJson(),
+				'/index.json': index({
+					...listing(2, 'webtoons.apk'),
+					resources: { apkUrl: apkUrl(origin, port), iconUrl: '', jarUrl: '' }
+				})
+			};
+			if (req.url === '/webtoons.apk') return res.end(Buffer.from(webtoons));
+			if (req.url && req.url in body) return res.end(JSON.stringify(body[req.url]));
+			res.writeHead(404).end();
+		});
+		await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+		port = (server.address() as AddressInfo).port;
+		origin = `http://127.0.0.1:${port}`;
+		return { server, origin, asked };
+	}
+
+	it('reads the index and installs the APK it serves from the address the reader typed', async () => {
+		const { server, origin, asked } = await ownRepo((o) => `${o}/webtoons.apk`);
+		try {
+			await ext.addRepo(`${origin}/index.json`);
+			await ext.install(PKG, Date.now(), undefined, loader);
+			expect(asked).toEqual(['/repo.json', '/index.json', '/webtoons.apk']);
+			expect(loads).toHaveLength(1);
+		} finally {
+			server.close();
+		}
+	});
+
+	it('refuses an APK its index names on another local address, such as a mapped IPv6 one', async () => {
+		const { server, origin, asked } = await ownRepo(
+			(_, port) => `http://[::ffff:127.0.0.1]:${port}/webtoons.apk`
+		);
+		try {
+			await ext.addRepo(`${origin}/index.json`);
+			await expect(ext.install(PKG, Date.now(), undefined, loader)).rejects.toBeInstanceOf(
+				NotPublicError
+			);
+			expect(asked).not.toContain('/webtoons.apk');
+			expect(loads).toEqual([]);
+		} finally {
+			server.close();
+		}
 	});
 });
 

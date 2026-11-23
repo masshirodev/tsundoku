@@ -11,6 +11,7 @@ process.env.NOVEL_STORE = store;
 const { getDb } = await import('$lib/server/db');
 const plugins = await import('$lib/server/novels/plugins');
 const solver = await import('$lib/server/novels/solver');
+const { NotPublicError } = await import('$lib/server/net-guard');
 const { parseIndex, langCode, newer, repoUrl, isNovelRepoAddress, NovelRepoError } =
 	await import('$lib/library/lnreader-index');
 type Fetcher = import('$lib/server/novels/plugins').Fetcher;
@@ -142,7 +143,7 @@ describe('a plugin', () => {
 		await plugins.installPlugin(
 			'royalroad',
 			2_000,
-			async (u) => fetcher(u),
+			async (u, t) => fetcher(u, t),
 			async () => ({
 				name: 'Royal Road',
 				version: '2.3.5'
@@ -193,4 +194,45 @@ describe('the host the app builds', () => {
 		expect(opts.refusedMs).toBeUndefined();
 		expect(opts.allow).toBeUndefined();
 	});
+});
+
+describe('a plugin’s file, on the reader’s own network (doc/EXTENSION-ENGINE.md)', () => {
+	// A repository on the reader's own server, added from a typed address. The
+	// plugin's file is fetched for real: nothing listens on port 1, so getting
+	// past the guard ends in a refused connection, never in NotPublicError.
+	const OWN = 'https://127.0.0.1:1/plugins.min.json';
+	async function addOwn(pluginUrl: string) {
+		files = { [OWN]: JSON.stringify([{ ...entry('royalroad', '2.3.4'), url: pluginUrl }]) };
+		await plugins.addNovelRepo(OWN, Date.now(), fetcher);
+	}
+
+	it('fetches a plugin served from the repository’s own address', async () => {
+		await addOwn('https://127.0.0.1:1/royalroad.js');
+		const e = await plugins
+			.installPlugin('royalroad', Date.now(), undefined, loader)
+			.catch((x) => x);
+		expect(e).toBeInstanceOf(Error);
+		expect(e).not.toBeInstanceOf(NotPublicError);
+		expect(loads).toEqual([]);
+	});
+
+	it('refuses a plugin its index names on another local address, such as a mapped IPv6 one', async () => {
+		await addOwn('https://[::ffff:127.0.0.1]:1/royalroad.js');
+		await expect(
+			plugins.installPlugin('royalroad', Date.now(), undefined, loader)
+		).rejects.toBeInstanceOf(NotPublicError);
+		expect(loads).toEqual([]);
+	});
+
+	it('refuses a plugin on a local address when its repository is on the internet', async () => {
+		await addOwnFrom(REPO, 'https://192.168.1.10/royalroad.js');
+		await expect(
+			plugins.installPlugin('royalroad', Date.now(), undefined, loader)
+		).rejects.toBeInstanceOf(NotPublicError);
+	});
+
+	async function addOwnFrom(repo: string, pluginUrl: string) {
+		files = { [repo]: JSON.stringify([{ ...entry('royalroad', '2.3.4'), url: pluginUrl }]) };
+		await plugins.addNovelRepo(repo, Date.now(), fetcher);
+	}
 });

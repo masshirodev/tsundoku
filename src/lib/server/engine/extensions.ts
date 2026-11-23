@@ -17,7 +17,7 @@ import {
 } from './repo-index.ts';
 import { dataPaths } from '../data-dirs.ts';
 import { apkUsesWebView } from './apk-webview.ts';
-import { readCapped, readCappedText } from '../net-guard.ts';
+import { originOf, readCapped, readCappedText, trustingFetch } from '../net-guard.ts';
 
 /**
  * Repositories, installed extensions and their sources' preferences
@@ -53,8 +53,15 @@ export class UntrustedError extends Error {
 	}
 }
 
-/** What fetching needs; injectable so the rules can be tested without a network. */
-export type Fetcher = (url: string) => Promise<{
+/**
+ * What fetching needs; injectable so the rules can be tested without a network.
+ * [trusted] is the origin of the repository address the user typed: only
+ * there may a fetch reach their own network (`trustingFetch`).
+ */
+export type Fetcher = (
+	url: string,
+	trusted: string | null
+) => Promise<{
 	ok: boolean;
 	status: number;
 	json(): Promise<unknown>;
@@ -67,8 +74,8 @@ export type Fetcher = (url: string) => Promise<{
 const MAX_INDEX_BYTES = 32 * 1024 * 1024;
 const MAX_APK_BYTES = 128 * 1024 * 1024;
 
-const netFetch: Fetcher = async (url) => {
-	const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+const netFetch: Fetcher = async (url, trusted) => {
+	const res = await trustingFetch(url, trusted, { signal: AbortSignal.timeout(60_000) });
 	return {
 		ok: res.ok,
 		status: res.status,
@@ -142,8 +149,8 @@ export const refillWebViewFlags = () => {
 export type Loader = (apk: Uint8Array) => Promise<{ handle: string; info: ExtensionInfo }>;
 const engineLoader: Loader = (apk) => engineLoad<ExtensionInfo>(apk);
 
-async function getJson(fetcher: Fetcher, url: string): Promise<unknown> {
-	const res = await fetcher(url);
+async function getJson(fetcher: Fetcher, url: string, trusted: string | null): Promise<unknown> {
+	const res = await fetcher(url, trusted);
 	if (!res.ok) throw new RepoError(`${url} answered ${res.status}`);
 	return res.json().catch(() => {
 		throw new RepoError(`${url} isn't JSON`);
@@ -161,10 +168,11 @@ export async function previewRepo(
 	fetcher: Fetcher = netFetch
 ): Promise<RepoPreview> {
 	const base = repoBase(address);
-	const meta = parseRepoJson(await getJson(fetcher, base + 'repo.json'));
+	const trusted = originOf(base);
+	const meta = parseRepoJson(await getJson(fetcher, base + 'repo.json', trusted));
 	let listings: Listing[];
 	try {
-		const v2 = parseIndexV2(await getJson(fetcher, base + 'index.json'));
+		const v2 = parseIndexV2(await getJson(fetcher, base + 'index.json', trusted));
 		// The index carries the key too; one that disagrees with repo.json is
 		// someone else's index under this repository's name.
 		if (v2.fingerprint && v2.fingerprint !== meta.fingerprint)
@@ -172,7 +180,7 @@ export async function previewRepo(
 		listings = v2.listings;
 	} catch (e) {
 		if (e instanceof UntrustedError) throw e;
-		listings = parseIndexLegacy(await getJson(fetcher, base + 'index.min.json'), base);
+		listings = parseIndexLegacy(await getJson(fetcher, base + 'index.min.json', trusted), base);
 	}
 	return { ...meta, base, listings };
 }
@@ -317,15 +325,21 @@ export function listings(db: Database.Database = getDb()): (Listing & { repoId: 
 export function findListing(
 	pkg: string,
 	db: Database.Database
-): (Listing & { repoId: number; fingerprint: string }) | null {
+): (Listing & { repoId: number; fingerprint: string; repoBase: string }) | null {
 	const row = db
 		.prepare(
-			`SELECT l.repo_id, l.listing, r.fingerprint FROM engine_listings l JOIN engine_repos r ON r.id = l.repo_id
+			`SELECT l.repo_id, l.listing, r.fingerprint, r.base FROM engine_listings l JOIN engine_repos r ON r.id = l.repo_id
 			WHERE l.pkg = ? ORDER BY r.failed_at IS NOT NULL, r.id LIMIT 1`
 		)
-		.get(pkg) as { repo_id: number; listing: string; fingerprint: string } | undefined;
+		.get(pkg) as
+		{ repo_id: number; listing: string; fingerprint: string; base: string } | undefined;
 	return row
-		? { ...(JSON.parse(row.listing) as Listing), repoId: row.repo_id, fingerprint: row.fingerprint }
+		? {
+				...(JSON.parse(row.listing) as Listing),
+				repoId: row.repo_id,
+				fingerprint: row.fingerprint,
+				repoBase: row.base
+			}
 		: null;
 }
 
@@ -356,7 +370,7 @@ export async function install(
 ): Promise<void> {
 	let listing = findListing(pkg, db);
 	if (!listing) throw new RepoError(`No repository lists ${pkg}`);
-	let res = await fetcher(listing.apkUrl);
+	let res = await fetcher(listing.apkUrl, originOf(listing.repoBase));
 	// The index this install read can be days old, and a repository deletes an
 	// APK when it publishes the next version: MoviesMod 16.4 answered 404 once
 	// the repository had 16.5. Read that
@@ -368,7 +382,7 @@ export async function install(
 		if (!fresh) throw new RepoError(`No repository lists ${pkg} any more`);
 		if (fresh.apkUrl !== gone) {
 			listing = fresh;
-			res = await fetcher(listing.apkUrl);
+			res = await fetcher(listing.apkUrl, originOf(listing.repoBase));
 		}
 	}
 	if (!res.ok) throw new RepoError(`${listing.apkUrl} answered ${res.status}`);

@@ -474,6 +474,33 @@ screens):
 12. **Following.** The engine has no library, no schedule and no database;
     checking followed series for new chapters is tsundoku's.
 
+### Repositories on your own network
+
+A repository's index, an APK, and an LNReader plugin's file are fetched
+through the address guard (`trustingFetch`, `src/lib/server/net-guard.ts`),
+as pages, covers and streams are: every hop, redirects included, must be on
+the internet, checked both when the address is read and when the socket
+connects, and the body is read to a limit (`readCapped`). An index can name
+any address, so without the guard a repository could aim tsundoku at the
+workstation's own ports or the tailnet.
+
+**One exception: the repository the reader typed.** A repository can be the
+reader's own server on the home network (an extension repository on
+loopback may even be plain `http`, `repoBase`). So a hop on **the origin of
+the address typed in BROWSE › EXTENSIONS** (scheme, host and port, compared
+exactly) may be local. That lets the index and whatever it serves from that
+same host load. Anything the index names on another host, another port, or
+the same machine spelled another way (`[::ffff:127.0.0.1]` for `127.0.0.1`),
+and any redirect away from the typed origin, is checked as any other address
+and refused when it is local. Repositories are only ever added from that
+form, so the trusted origin is always one the reader chose.
+
+Tests: `tests/net-guard.spec.ts` ("a repository on the reader's own
+network"), and, through the real fetch, `tests/engine-extensions-db.spec.ts`
+(a loopback repository installs the APK it serves itself, and its index's
+mapped-IPv6 APK is refused) and `tests/novel-plugins-db.spec.ts` (the same
+for a plugin's file, and a local plugin from a repository on the internet).
+
 ## The sources, through the engine
 
 ### Mihon manga

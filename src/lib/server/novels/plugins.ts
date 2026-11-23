@@ -14,7 +14,7 @@ import {
 import { NovelHost, type HostOptions } from './host.ts';
 import { fetchPage, solveChallenge } from './solver.ts';
 import { dataPaths } from '../data-dirs.ts';
-import { readCappedText } from '../net-guard.ts';
+import { originOf, readCappedText, trustingFetch } from '../net-guard.ts';
 import { NO_EXT_FILTERS, searchMatches, type ExtFilters } from '../../library/ext-filters.ts';
 
 /**
@@ -51,7 +51,14 @@ export function novelHost(): NovelHost {
 	return host;
 }
 
-export type Fetcher = (url: string) => Promise<{
+/**
+ * [trusted] is the origin of the repository address the user typed: only
+ * there may a fetch reach their own network (`trustingFetch`).
+ */
+export type Fetcher = (
+	url: string,
+	trusted: string | null
+) => Promise<{
 	ok: boolean;
 	status: number;
 	text(): Promise<string>;
@@ -59,13 +66,13 @@ export type Fetcher = (url: string) => Promise<{
 /** An index or a plugin is text of a few hundred kilobytes: past this it is something else. */
 const MAX_TEXT_BYTES = 32 * 1024 * 1024;
 
-const netFetch: Fetcher = async (url) => {
-	const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+const netFetch: Fetcher = async (url, trusted) => {
+	const res = await trustingFetch(url, trusted, { signal: AbortSignal.timeout(60_000) });
 	return { ok: res.ok, status: res.status, text: () => readCappedText(res, MAX_TEXT_BYTES) };
 };
 
 async function getIndex(url: string, fetcher: Fetcher): Promise<NovelListing[]> {
-	const res = await fetcher(url);
+	const res = await fetcher(url, originOf(url));
 	if (!res.ok) throw new NovelRepoError(`${url} answered ${res.status}`);
 	let json: unknown;
 	try {
@@ -231,7 +238,9 @@ export async function installPlugin(
 ): Promise<void> {
 	const listing = findNovelListing(id, db);
 	if (!listing) throw new NovelRepoError(`No repository lists ${id}`);
-	const res = await fetcher(listing.url);
+	const repo = db.prepare(`SELECT url FROM novel_repos WHERE id = ?`).get(listing.repoId) as
+		{ url: string } | undefined;
+	const res = await fetcher(listing.url, repo ? originOf(repo.url) : null);
 	if (!res.ok) throw new NovelRepoError(`${listing.url} answered ${res.status}`);
 	const code = await res.text();
 	const hash = createHash('sha256').update(code).digest('hex');

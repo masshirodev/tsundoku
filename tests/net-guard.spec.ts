@@ -45,7 +45,8 @@ const {
 	publicLookup,
 	readCapped,
 	readCappedText,
-	TooLargeError
+	TooLargeError,
+	trustingFetch
 } = await import('$lib/server/net-guard');
 
 afterEach(() => vi.unstubAllGlobals());
@@ -260,5 +261,65 @@ describe('a body read to a limit', () => {
 		const liar = chunked(10, 1024);
 		const res = new Response(liar.res.body, { headers: { 'content-length': '10' } });
 		await expect(readCapped(res, 4096)).rejects.toBeInstanceOf(TooLargeError);
+	});
+});
+
+describe('a repository on the reader’s own network (trustingFetch)', () => {
+	async function serve(handler: Parameters<typeof createServer>[1]) {
+		const server = createServer(handler);
+		await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+		const { port } = server.address() as AddressInfo;
+		return { server, port, origin: `http://127.0.0.1:${port}` };
+	}
+
+	it('reaches a local address only on the origin the reader typed', async () => {
+		const asked: string[] = [];
+		const { server, origin } = await serve((req, res) => {
+			asked.push(req.url ?? '');
+			res.end('the index');
+		});
+		try {
+			const res = await trustingFetch(`${origin}/index.min.json`, origin);
+			expect(await res.text()).toBe('the index');
+			// Nothing trusted, or another origin trusted: the internet only.
+			await expect(trustingFetch(`${origin}/index.min.json`, null)).rejects.toBeInstanceOf(
+				NotPublicError
+			);
+			await expect(
+				trustingFetch(`${origin}/index.min.json`, 'http://127.0.0.1:1')
+			).rejects.toBeInstanceOf(NotPublicError);
+			expect(asked).toEqual(['/index.min.json']);
+		} finally {
+			server.close();
+		}
+	});
+
+	it('refuses the same machine under another spelling, such as a mapped IPv6 address', async () => {
+		const asked: string[] = [];
+		const { server, port, origin } = await serve((req, res) => {
+			asked.push(req.url ?? '');
+			res.end('the workstation');
+		});
+		try {
+			await expect(
+				trustingFetch(`http://[::ffff:127.0.0.1]:${port}/apk`, origin)
+			).rejects.toBeInstanceOf(NotPublicError);
+			expect(asked).toEqual([]);
+		} finally {
+			server.close();
+		}
+	});
+
+	it('refuses a redirect from the trusted origin to any other local address', async () => {
+		const { server, origin } = await serve((req, res) => {
+			res.writeHead(302, { location: 'http://inside.example/secret' }).end();
+		});
+		try {
+			await expect(trustingFetch(`${origin}/index.json`, origin)).rejects.toBeInstanceOf(
+				NotPublicError
+			);
+		} finally {
+			server.close();
+		}
 	});
 });

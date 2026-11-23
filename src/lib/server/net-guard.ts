@@ -200,16 +200,51 @@ export async function publicFetchAt(
 	url: string,
 	init: RequestInit = {}
 ): Promise<{ res: Response; url: string }> {
+	return guardedFetchAt(url, init, null);
+}
+
+/** The origin of [address] (scheme, host and port), or null for anything that isn't one. */
+export function originOf(address: string): string | null {
+	try {
+		const o = new URL(address).origin;
+		return o === 'null' ? null : o;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * publicFetch, except that a hop on [trusted] may reach a local address. For
+ * a repository the user typed in BROWSE › EXTENSIONS, which may be their own
+ * server (doc/EXTENSION-ENGINE.md, "Repositories on your own network"):
+ * [trusted] is that address's origin, so the index and what it serves from
+ * the same host load, while an address the index names on any other host,
+ * or a redirect to one, still has to be on the internet.
+ */
+export async function trustingFetch(
+	url: string,
+	trusted: string | null,
+	init: RequestInit = {}
+): Promise<Response> {
+	return (await guardedFetchAt(url, init, trusted)).res;
+}
+
+async function guardedFetchAt(
+	url: string,
+	init: RequestInit,
+	trusted: string | null
+): Promise<{ res: Response; url: string }> {
 	let at = url;
 	for (let hop = 0; hop < 6; hop++) {
-		await checkPublic(at);
+		const local = trusted !== null && originOf(at) === trusted;
+		if (!local) await checkPublic(at);
 		let res: Response;
 		try {
 			// The dispatcher is a Node fetch option the DOM's RequestInit doesn't name.
 			res = await fetch(at, {
 				...init,
 				redirect: 'manual',
-				dispatcher: publicDispatcher()
+				...(local ? {} : { dispatcher: publicDispatcher() })
 			} as RequestInit);
 		} catch (e) {
 			throw refusal(e);
