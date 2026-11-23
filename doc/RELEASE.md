@@ -269,7 +269,12 @@ The launcher is `launcher/launch.ts`, run with the bundle's Node. It:
    and Chrome aborts on the first certificate it checks (`FATAL:
 nss_error=-5925`, a SIGABRT core per solve), so every HTTPS solve answers
    "the browser has closed the connection"; a solve of example.com reproduces
-   it in one request;
+   it in one request. Last, it sets FlareSolverr's own Chromium aside as
+   `_internal/chrome/chrome.bundled-off` and writes a wrapper there that runs
+   the system's Chromium or Chrome (`solverBrowser`), because the bundled
+   one never clears Cloudflare's check; with no system browser it puts the
+   bundled one back ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md), "The
+   solver's browser");
 5. starts the app (`TSUNDOKU_SERVE=local`,
    `TSUNDOKU_SNAPSHOT=off`, the database in the data folder, the engine's
    and ffmpeg's addresses), and opens the browser once it answers

@@ -133,6 +133,11 @@ it into your data folder (above), so there's a flaresolverr folder in it,
 and quit and start tsundoku again. It stays there through updates and
 reinstalls.
 
+On Linux, also install Chromium or Google Chrome from your system's
+packages (for example `sudo pacman -S chromium`, or `sudo apt install
+chromium`). The Chrome FlareSolverr carries gets stuck on that page on
+Linux, so tsundoku has it use yours whenever one is installed.
+
 
 Sources that need a browser of their own
 ----------------------------------------

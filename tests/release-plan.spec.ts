@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	chromiumPath,
@@ -8,8 +11,11 @@ import {
 	plan,
 	SOLVER_NSS,
 	solverAt,
+	solverBrowser,
 	solverSetAside,
-	switchPath
+	solverWrapper,
+	switchPath,
+	systemBrowser
 } from '../ops/release/launcher/plan.ts';
 
 const base = { engineToken: 'eng', solverDir: null };
@@ -221,6 +227,84 @@ describe('updates (doc/UPDATES.md)', () => {
 			nss.map((from) => ({ from, to: `${from}.bundled-off` }))
 		);
 		expect(SOLVER_NSS).toEqual(expect.arrayContaining(['libnss3.so', 'libnssutil3.so']));
+	});
+});
+
+describe('FlareSolverr’s browser (doc/EXTENSION-ENGINE.md, "The solver’s browser")', () => {
+	const dir = '/h/flaresolverr';
+	const chrome = `${dir}/_internal/chrome/chrome`;
+	const off = `${chrome}.bundled-off`;
+	const env = { PATH: '/home/ami/.local/bin:/usr/bin:/bin' };
+	const has =
+		(...files: string[]) =>
+		(f: string) =>
+			files.includes(f);
+
+	it('finds a system Chromium first, then Chrome, along PATH, absolute folders only', () => {
+		expect(systemBrowser(env, has('/usr/bin/google-chrome-stable', '/usr/bin/chromium'))).toBe(
+			'/usr/bin/chromium'
+		);
+		expect(systemBrowser(env, has('/usr/bin/google-chrome-stable'))).toBe(
+			'/usr/bin/google-chrome-stable'
+		);
+		expect(systemBrowser(env, has('/home/ami/.local/bin/chromium', '/usr/bin/chromium'))).toBe(
+			'/home/ami/.local/bin/chromium'
+		);
+		expect(systemBrowser({ PATH: 'bin:/usr/bin' }, has('bin/chromium'))).toBeNull();
+		expect(systemBrowser({}, has('/usr/bin/chromium'))).toBeNull();
+	});
+
+	it('sets its own Chromium aside once, for the system’s, on Linux only', () => {
+		expect(solverBrowser(dir, 'linux', env, has(chrome, '/usr/bin/chromium'))).toEqual({
+			use: 'system',
+			browser: '/usr/bin/chromium',
+			chrome,
+			aside: { from: chrome, to: off }
+		});
+		// A later start: already aside, the wrapper rewritten, nothing renamed.
+		expect(solverBrowser(dir, 'linux', env, has(chrome, off, '/usr/bin/chromium'))).toEqual({
+			use: 'system',
+			browser: '/usr/bin/chromium',
+			chrome,
+			aside: null
+		});
+		expect(solverBrowser('C:/h/flaresolverr', 'win32', env, () => true)).toBeNull();
+	});
+
+	it('puts its own Chromium back when the system has none, and leaves it alone otherwise', () => {
+		expect(solverBrowser(dir, 'linux', env, has(chrome, off))).toEqual({
+			use: 'bundled',
+			restore: { from: off, to: chrome }
+		});
+		expect(solverBrowser(dir, 'linux', env, has(chrome))).toEqual({
+			use: 'bundled',
+			restore: null
+		});
+		// A build with no Chromium of its own: nothing to decide.
+		expect(solverBrowser(dir, 'linux', env, has('/usr/bin/chromium'))).toBeNull();
+	});
+
+	it('writes a wrapper that runs the browser with the library path the solver started with', () => {
+		const tmp = mkdtempSync(join(tmpdir(), 'solver-wrapper-'));
+		try {
+			// A browser whose path needs quoting, that says what it was given.
+			const browser = join(tmp, "it's chromium");
+			writeFileSync(browser, '#!/bin/sh\necho "lib=${LD_LIBRARY_PATH-unset} args=$*"\n');
+			chmodSync(browser, 0o755);
+			const wrapper = join(tmp, 'chrome');
+			writeFileSync(wrapper, solverWrapper(browser));
+			chmodSync(wrapper, 0o755);
+			const run = (extra: Record<string, string>) =>
+				spawnSync(wrapper, ['--version', 'a b'], {
+					env: { PATH: '/usr/bin:/bin', LD_LIBRARY_PATH: '/h/flaresolverr/_internal', ...extra },
+					encoding: 'utf8'
+				}).stdout.trim();
+			// PyInstaller's own folder never reaches the browser.
+			expect(run({})).toBe('lib=unset args=--version a b');
+			expect(run({ LD_LIBRARY_PATH_ORIG: '/opt/own' })).toBe('lib=/opt/own args=--version a b');
+		} finally {
+			rmSync(tmp, { recursive: true, force: true });
+		}
 	});
 });
 

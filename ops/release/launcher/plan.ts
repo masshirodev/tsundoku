@@ -197,6 +197,86 @@ export const SOLVER_NSS = [
 	'libplds4.so'
 ];
 
+/**
+ * The browsers FlareSolverr's Linux build may borrow from the system, in the
+ * order they are looked for. Both were measured clearing Cloudflare's check
+ * (doc/EXTENSION-ENGINE.md, "The solver's browser").
+ */
+export const SOLVER_BROWSERS = [
+	'chromium',
+	'chromium-browser',
+	'google-chrome-stable',
+	'google-chrome'
+];
+
+/** A system browser on `PATH`, by `SOLVER_BROWSERS`' order, or null. */
+export function systemBrowser(env: Env, exists: (file: string) => boolean): string | null {
+	const dirs = (env.PATH ?? '').split(':').filter((d) => d.startsWith('/'));
+	for (const name of SOLVER_BROWSERS)
+		for (const dir of dirs) {
+			const file = path.posix.join(dir, name);
+			if (exists(file)) return file;
+		}
+	return null;
+}
+
+/**
+ * What stands at `_internal/chrome/chrome` when the system's browser is used:
+ * a script that runs it. The library path goes back to what the solver was
+ * started with (PyInstaller keeps it as `LD_LIBRARY_PATH_ORIG`), because the
+ * bundle's own libraries, first on it for every program the solver starts,
+ * break a system Chromium (Arch's dies on harfbuzz's `hb_calloc`).
+ */
+export function solverWrapper(browser: string): string {
+	const quoted = `'${browser.replaceAll("'", `'\\''`)}'`;
+	return [
+		'#!/bin/sh',
+		"# Written by tsundoku's launcher at every start (solverBrowser, plan.ts):",
+		"# FlareSolverr's own Chromium is set aside as chrome.bundled-off.",
+		'if [ -n "${LD_LIBRARY_PATH_ORIG+x}" ]; then',
+		'\tLD_LIBRARY_PATH=$LD_LIBRARY_PATH_ORIG',
+		'\texport LD_LIBRARY_PATH',
+		'else',
+		'\tunset LD_LIBRARY_PATH',
+		'fi',
+		`exec ${quoted} "$@"`,
+		''
+	].join('\n');
+}
+
+export type SolverBrowser =
+	| { use: 'system'; browser: string; chrome: string; aside: { from: string; to: string } | null }
+	| { use: 'bundled'; restore: { from: string; to: string } | null };
+
+/**
+ * Which Chromium FlareSolverr drives on Linux. Its own (a `.0` snapshot
+ * build: 142.0.7444.0 in 3.4.6, 153.0.8010.0 in 3.5.2) reaches Cloudflare's
+ * "Just a moment..." page and never clears it, where the same FlareSolverr
+ * driving a packaged Chromium or Chrome clears it in about 20 s. FlareSolverr
+ * has no setting for its browser: it runs `_internal/chrome/chrome` whenever
+ * that file is there. So with a system browser, the bundled one is set aside
+ * once and a wrapper (`solverWrapper`) stands in its place, rewritten at every
+ * start so a browser moved or replaced is followed; with none, the bundled one
+ * is put back. Null where there is nothing to decide: not Linux, or a build
+ * with no Chromium of its own.
+ */
+export function solverBrowser(
+	solverDir: string,
+	platform: NodeJS.Platform,
+	env: Env,
+	exists: (file: string) => boolean
+): SolverBrowser | null {
+	if (platform !== 'linux') return null;
+	const chrome = path.posix.join(solverDir, '_internal', 'chrome', 'chrome');
+	const off = `${chrome}.bundled-off`;
+	const isAside = exists(off);
+	if (!isAside && !exists(chrome)) return null;
+	const browser = systemBrowser(env, exists);
+	if (browser)
+		return { use: 'system', browser, chrome, aside: isAside ? null : { from: chrome, to: off } };
+	return { use: 'bundled', restore: isAside ? { from: off, to: chrome } : null };
+}
+
 // ---- the WebView switch (doc/EXTENSION-ENGINE.md, "Cloudflare and WebView extensions") ----
 
 /**

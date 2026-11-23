@@ -113,6 +113,44 @@ another host, or one from a redirect's host, is dropped. Its cookies carry
 sends it over `http:`. `site_checks` gets the host on success, so BROWSE knows a
 first visit waits ([`BROWSE.md`](BROWSE.md), "A site's check").
 
+### The solver's browser
+
+**On Linux, a release's FlareSolverr drives the system's Chromium or Chrome,
+not its own.** The Chromium FlareSolverr's Linux build carries is a `.0`
+snapshot (142.0.7444.0 in 3.4.6, 153.0.8010.0 in 3.5.2) that reaches
+Cloudflare's "Just a moment..." page and never clears it. Measured on the
+workstation on 2026-11-23, solving `https://kumaraw.com/`, each row its own
+`HOME` so no two share undetected-chromedriver's driver cache:
+
+| FlareSolverr, browser                                        | Result                                            |
+| ------------------------------------------------------------ | ------------------------------------------------- |
+| 3.4.6 bundle, its own Chromium 142.0.7444.0 (the release)    | timeout at 60 s, every time                       |
+| 3.4.6 bundle, its own Chromium, the bundle's libraries off   | timeout at 60 s, twice: the browser, not the libs |
+| 3.5.2 bundle, its own Chromium 153.0.8010.0                  | timeout at 60 s, three times out of three         |
+| 3.4.6 bundle, Arch's Chromium 153.0.8010.36                  | solved, 22–27 s, `cf_clearance` set               |
+| 3.4.6 bundle, Google Chrome 153.0.8010.36                    | solved, 19–26 s                                   |
+| 3.4.6 bundle, the launcher's wrapper over Arch's Chromium    | solved, 27–29 s, three out of three               |
+| `ghcr.io/flaresolverr/flaresolverr:v3.4.6` (Debian Chromium) | solved, 15–17 s, every time                       |
+
+FlareSolverr has no setting for its browser: it runs
+`_internal/chrome/chrome` whenever that file is there, and searches `PATH`
+only when it isn't. Setting the file aside alone is not enough, because its
+PyInstaller build puts `_internal` first on `LD_LIBRARY_PATH` for every
+program it starts, and a system Chromium loading those libraries dies
+(Arch's: `libharfbuzz-subset.so.0: undefined symbol: hb_calloc`). So the
+launcher (`solverBrowser`, `ops/release/launcher/plan.ts`) renames the
+bundled one to `chrome.bundled-off` and writes a wrapper in its place that
+puts the library path back and runs the first of `chromium`,
+`chromium-browser`, `google-chrome-stable` and `google-chrome` on `PATH`.
+It rewrites the wrapper at every start, and puts the bundled Chromium back
+when the system has none, which leaves challenged sources failing as
+before; the friends' README asks Linux users to install one.
+
+FlareSolverr downloads a ChromeDriver for the browser's major version when it
+starts, so a system browser updated while tsundoku runs is only picked up at
+the next start. Windows keeps its bundled Chrome: whether that one clears the
+check is not measured yet.
+
 ## Why a fork of M-Extension-Server
 
 M-Extension-Server is essentially Suwayomi's AndroidCompat plus a current copy

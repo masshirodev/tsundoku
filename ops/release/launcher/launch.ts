@@ -22,12 +22,14 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import {
 	existsSync,
+	chmodSync,
 	mkdirSync,
 	readFileSync,
 	renameSync,
 	rmSync,
 	unwatchFile,
-	watchFile
+	watchFile,
+	writeFileSync
 } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,7 +44,16 @@ import { ensureSetting, newToken } from '../app/src/lib/server/first-run.ts';
 import { clearLogin, readLogin } from '../app/src/lib/server/login.ts';
 import { readSwitch } from '../app/src/lib/server/engine/webview-switch.ts';
 import { Log } from './log.ts';
-import { opener, plan, solverAt, solverSetAside, switchPath, type Proc } from './plan.ts';
+import {
+	opener,
+	plan,
+	solverAt,
+	solverBrowser,
+	solverSetAside,
+	solverWrapper,
+	switchPath,
+	type Proc
+} from './plan.ts';
 import { CommandReader, eventLine, type TrayEvent } from './tray.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -354,6 +365,23 @@ if (p.solver && solverDir) {
 		} catch (e) {
 			console.log(`  FlareSolverr: couldn't set ${from} aside: ${(e as Error).message}`);
 		}
+	}
+	const choice = solverBrowser(solverDir, process.platform, process.env, existsSync);
+	try {
+		if (choice?.use === 'system') {
+			if (choice.aside) renameSync(choice.aside.from, choice.aside.to);
+			writeFileSync(choice.chrome, solverWrapper(choice.browser), { mode: 0o755 });
+			chmodSync(choice.chrome, 0o755);
+			console.log(`  FlareSolverr: drives the system's ${choice.browser}, not its own Chromium.`);
+		} else if (choice?.use === 'bundled' && choice.restore) {
+			rmSync(choice.restore.to, { force: true });
+			renameSync(choice.restore.from, choice.restore.to);
+			console.log(
+				`  FlareSolverr: no Chromium or Chrome on this system, so its own is back (it won't clear Cloudflare's check).`
+			);
+		}
+	} catch (e) {
+		console.log(`  FlareSolverr: couldn't choose its browser: ${(e as Error).message}`);
 	}
 	const solver = p.solver;
 	helper(() => solver);
