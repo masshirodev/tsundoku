@@ -2324,12 +2324,19 @@ test.describe('the empty library’s GET STARTED asks again', () => {
 
 		// Left, client-side (the effect torn down, not a fresh page): nothing
 		// asks from /search, by the interval or by focus.
+		// Counted from the landing: an ask the library still had out when the
+		// link was tapped is overtaken by the navigation, and SvelteKit keeps
+		// its key marked, so /search's own data request re-reads the layout
+		// once (`x-sveltekit-invalidated=1`). That is the library's ask carried
+		// over, not one from /search, and on a loaded box it was the red.
 		await page.getByRole('link', { name: 'Search' }).click();
 		await page.waitForURL(/\/search/);
+		const landed = seen.length;
 		await page.clock.runFor(11_000);
+		const fromSearch = seen.slice(landed);
 		await page.getByRole('link', { name: 'Back to library' }).click();
 		await expect(four(page)).toBeVisible();
-		expect(seen.filter((u) => new URL(u).pathname.startsWith('/search'))).toEqual([]);
+		expect(fromSearch.filter((u) => new URL(u).pathname.startsWith('/search'))).toEqual([]);
 
 		// Back on the list it asks again; the library fills, and the ask that
 		// brings the grid is the last one.
