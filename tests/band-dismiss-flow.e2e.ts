@@ -435,6 +435,50 @@ test('the stored band: two tabs, one row, and a new import brings a new band', a
 	}
 });
 
+/**
+ * IMPORT FINISHED's ✕ is a stored band's, not a form answer: it clears the
+ * band on the workstation and leaves the page's `form` alone. It used plain
+ * `use:enhance`, so its own answer became the new `form` and took a HIDE
+ * band on screen with it, UNDO and all.
+ */
+test('IMPORT FINISHED’s ✕ leaves a HIDE band on screen, and its UNDO', async ({ page }) => {
+	const db = new Database(dbPath);
+	const now = Date.now();
+	db.prepare(
+		`INSERT INTO scan_jobs (started_at, finished_at, source_label, series_found) VALUES (?, ?, 'MIHON', 3)`
+	).run(now - 60_000, now - 1_000);
+	db.close();
+	await page.goto(`${BASE}/?shelf=all`);
+	const finished = page.locator('.band.act:visible', { hasText: 'IMPORT FINISHED' });
+	await expect(finished).toBeVisible();
+	// HIDE over one series, as the bulk bar posts it: the answer is the band.
+	await page.evaluate((id) => {
+		const f = document.createElement('form');
+		f.method = 'POST';
+		f.action = '?/hideAll';
+		f.innerHTML = `<input type="hidden" name="id" value="${id}">`;
+		document.body.append(f);
+		f.submit();
+	}, seriesId);
+	const hidden = band(page, 'HIDDEN · 1 SERIES');
+	await expect(hidden).toBeVisible();
+	await expect(finished).toBeVisible();
+
+	await x(finished).click();
+	await expect(finished).toHaveCount(0);
+	await page.waitForLoadState('networkidle');
+	await expect(hidden).toBeVisible();
+	// And its UNDO still works: the series is shown again.
+	await hidden.getByRole('button', { name: 'UNDO' }).click();
+	await expect(hidden).toHaveCount(0);
+	const after = new Database(dbPath, { readonly: true });
+	const row = after.prepare(`SELECT hidden FROM series WHERE id = ?`).get(seriesId) as {
+		hidden: number;
+	};
+	after.close();
+	expect(row.hidden).toBe(0);
+});
+
 /** A quote on the first series, through the columns `tests/highlights-flow.e2e.ts` writes. */
 function putHighlight(quote: string): number {
 	const db = new Database(dbPath);

@@ -1069,6 +1069,17 @@
 	const batch = $derived(
 		latest && 'refreshed' in latest ? (latest.refreshed as RefreshBatch) : null
 	);
+	/**
+	 * IMPORT FINISHED's ✕ (doc/BANDS.md): the band is the workstation's, so
+	 * the page is read again and the answer never becomes `form`, where it
+	 * would take a form-answer band on screen (a HIDE, its UNDO) with it.
+	 */
+	const keepForm: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			if (result.type === 'success') await invalidateAll();
+			else await update();
+		};
 	/** The bar's bulk forms: the answer lands in `form`, and the ticks stay. */
 	const keepAfterBulk: SubmitFunction =
 		() =>
@@ -2203,8 +2214,11 @@
 					<input type="hidden" name="scan" value={data.scan?.id} />
 					<button type="submit">TIDY NEW →</button>
 				</form>
-				<!-- TIDY NEW also goes to the NEW shelf; this only clears the band. -->
-				<form method="POST" action="?/dismissScan" use:enhance>
+				<!-- TIDY NEW also goes to the NEW shelf; this only clears the band.
+				     A stored band's ✕, not a form answer: its answer is not applied
+				     as `form`, which would retire a HIDE band on screen, UNDO and all.
+				     The page is read again, so the band goes as the workstation says. -->
+				<form method="POST" action="?/dismissScan" use:enhance={keepForm}>
 					<input type="hidden" name="scan" value={data.scan?.id} />
 					<input type="hidden" name="stay" value="1" />
 					<button type="submit" aria-label={m.band_dismiss()}>✕</button>

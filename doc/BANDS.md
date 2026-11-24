@@ -103,9 +103,14 @@ to an existing one (`?/ungroup` against `?/undoAdd`), no other ✕ may remove
 **`IMPORT FINISHED` and the default shelf.** With no `?shelf=` in the URL the
 library's default is the NEW shelf only while the import is current
 (`scan ? 'new' : 'all'`), so its ✕ ends that view: at a bare `/` the grid goes
-from JUST IMPORTED on NEW to ALL, without a navigation. That is the one thing a
-✕ changes besides the band (measured in `band-dismiss-flow`'s stored-band
-case). A library opened with `?shelf=` stays on it.
+from JUST IMPORTED on NEW to ALL, without a navigation (measured in
+`band-dismiss-flow`'s stored-band case). A library opened with `?shelf=` stays
+on it. What else a ✕ changes depends on where its band lives (the table
+above): a URL band's ✕ navigates and so clears a form answer too, while this
+stored band's ✕ leaves the page's `form` alone. Its answer is never applied as
+`form` (`keepForm`, which reads the page again instead), so a HIDE band on
+screen keeps its UNDO (`band-dismiss-flow`, "IMPORT FINISHED's ✕ leaves a HIDE
+band on screen").
 
 ### Says what is true now: no ✕
 
