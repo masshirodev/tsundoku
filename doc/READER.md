@@ -180,7 +180,13 @@ A turned-to page is already there, not a box saying "P. 15".
   mounts a new element for the page turned to, and the image's load event
   comes a task after the element, which would draw the loading box for a frame
   on every turn back. `PageImage` looks at the image when it mounts and shows
-  it straight away if it is already complete.
+  it straight away if it is already complete. A page read online is held as
+  a `blob:` URL whose bytes are already in the tab, but on a slow device (or a
+  loaded test box) its decode can still miss the first frame, so such a page is
+  never drawn as its loading box at all: the image is shown while it decodes.
+  The strip's guess (`data-guessing`) and the OCR rings still wait for the
+  image itself. `tests/browse-online.e2e.ts`' "turning back and forth" case
+  watches every frame for the box.
 - **Near a chapter's end** (its last two screens), the next chapter's first
   two pages are fetched too, so going on past the end page doesn't wait
   either. Not while offline.

@@ -98,6 +98,15 @@
 		src && attempt ? `${src}${src.includes('?') ? '&' : '?'}retry=${attempt}` : src
 	);
 	const status = $derived(refused ? 'failed' : src === null ? 'loading' : shown);
+	/**
+	 * The reader's own copy of a page read online (a `blob:` URL), not yet
+	 * decoded: its bytes are already here, so it is drawn as the image, never
+	 * as the loading box. A page turned back to is a new element whose decode
+	 * misses the first frame on a slow device, and that frame showed the box
+	 * for a page just read. Only the picture is drawn early: the strip's guess
+	 * and the rings still wait for the image itself.
+	 */
+	const inHand = $derived(status === 'loading' && !!src && src.startsWith('blob:'));
 
 	/**
 	 * The image arrived. Also asked at mount: a page turned back to is a new
@@ -166,7 +175,7 @@
 		alt="Page {number}"
 		loading={lazy ? 'lazy' : undefined}
 		draggable="false"
-		class:hidden={status !== 'loaded'}
+		class:hidden={status !== 'loaded' && !inHand}
 		use:complete
 		onload={(e) => arrived(e.currentTarget as HTMLImageElement)}
 		onerror={() => (shown = 'failed')}
@@ -198,7 +207,7 @@
 			{/each}
 		{/if}
 	</div>
-	{#if status === 'loading'}
+	{#if status === 'loading' && !inHand}
 		<div class="loading" class:online aria-hidden="true">
 			<div class="n">{online ? `${name} · ON ITS WAY` : name}</div>
 			<div class="bar"><div></div></div>
