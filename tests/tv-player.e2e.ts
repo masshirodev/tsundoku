@@ -344,11 +344,16 @@ test('KEYS: the pad walks to the last row, and it is wholly on the panel', async
 	// And back up: the first row comes back into view under the head.
 	for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowUp');
 	await expect(rows.first()).toBeFocused();
-	const first = await rows.first().evaluate((r) => {
-		const head = r.closest('.sheet')!.querySelector('.shead')!.getBoundingClientRect();
-		return r.getBoundingClientRect().top - head.bottom;
-	});
-	expect(Math.abs(first)).toBeLessThanOrEqual(1);
+	// Polled, as `fits` is: read once on a starved worker, the rows had not
+	// come back yet (56 px under the head, once in a loaded run).
+	await expect
+		.poll(() =>
+			rows.first().evaluate((r) => {
+				const head = r.closest('.sheet')!.querySelector('.shead')!.getBoundingClientRect();
+				return Math.abs(r.getBoundingClientRect().top - head.bottom);
+			})
+		)
+		.toBeLessThanOrEqual(1);
 	// The rows are a scroller of their own, not only stops a focus can drag
 	// into view: a wheel over them moves them (it never moves `hidden`), as a
 	// short desktop window or a finger needs.
