@@ -67,7 +67,9 @@ Per destination:
   the real `SeriesPanel` in its `outline` mode:
   - cover, title, kind, rating, FAV and the list's counts are real;
   - rating and FAV already work;
-  - alternate titles, the rows below and the list are outlined;
+  - alternate titles, the rows below and the list are outlined, the rows in
+    the order the screen lands them: TAGS first where nothing folds, after the
+    direction row and SHELVES in the fold (`tests/series-outline.e2e.ts`);
   - ▶ CONTINUE is drawn without its chapter and doesn't open until the chapter
     is known, so it can't open the wrong one.
 

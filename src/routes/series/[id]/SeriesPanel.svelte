@@ -1086,7 +1086,7 @@
 	     first paint is right, and `display: none` takes the other out of Tab, the
 	     focus layer and the screen reader. Neither copy holds an id, a `bind:this`
 	     or a focus scope, and their state is this component's. -->
-	<div class="o o2 fold-only">{@render bandsGroup()}</div>
+	<div class="o o2 fold-only">{@render bandsGroup(true)}</div>
 
 	{#if !outline}
 		<div class="o o4 fold-only">{@render shelvesGroup()}</div>
@@ -1174,7 +1174,7 @@
 			{/if}
 			<div class="o o8 screen-only">{@render tagsGroup()}</div>
 		{/if}
-		<div class="o o2 screen-only">{@render bandsGroup()}</div>
+		<div class="o o2 screen-only">{@render bandsGroup(false)}</div>
 		<div class="o o3">
 			{#if !outline && editions && opening}
 				<!-- LANGUAGE: which edition it opens in. The default language clears the book's own choice. -->
@@ -1509,7 +1509,7 @@
 	</div>
 </section>
 
-{#snippet bandsGroup()}
+{#snippet bandsGroup(folded: boolean)}
 	{#if !outline && noVideo}
 		<!-- NO VIDEO (doc/MOVE.md; Migrate-Start): the MIGHT BE ONE SERIES idiom,
 		     under CONTINUE. NOT NOW hides it until a new failure. -->
@@ -1529,7 +1529,10 @@
 	{/if}
 
 	{#if outline}
-		{#each [directionRowLabel(series.kind), 'SHELVES', 'TAGS', 'FILE'] as label, i (label)}
+		<!-- The rows in the order the screen lands them: where nothing folds TAGS
+		     comes first, above the direction row and SHELVES (its own copy is
+		     under ABOUT); in the fold it comes after them. -->
+		{#each folded ? [directionRowLabel(series.kind), 'SHELVES', 'TAGS', 'FILE'] : ['TAGS', directionRowLabel(series.kind), 'SHELVES', 'FILE'] as label, i (label)}
 			<div class="row out-row" aria-hidden="true">
 				<div class="label">{label}</div>
 				<div class="out-lines"><i style:width={['34%', '52%', '74%', '60%'][i]}></i></div>
