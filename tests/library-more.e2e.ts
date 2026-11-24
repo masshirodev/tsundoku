@@ -89,6 +89,25 @@ test('a page that lands with the bottom on screen in the same task still asks fo
 		.toEqual([9, 18]);
 });
 
+/**
+ * A page size that leaves at least one series past `pages` pages on the
+ * library as it stands. The device projects share one database with the flow
+ * specs, which delete, group and hide series before these cases run (ALL went
+ * from the seed's 31 to 21 in a whole run), so a fixed size that needs more
+ * than the flows leave ends the list early and the held page is never asked.
+ * Capped at 7, the size these cases were written at.
+ */
+async function sizeFor(page: Page, pages: number) {
+	const res = await page.request.get('/api/library?shelf=all&sort=title&offset=0&limit=1000');
+	const { series } = (await res.json()) as { series: unknown[] };
+	const size = Math.min(7, Math.floor((series.length - 1) / pages));
+	expect(
+		size,
+		`${series.length} series on ALL: too few for ${pages} short pages`
+	).toBeGreaterThanOrEqual(3);
+	return size;
+}
+
 const isPageRead = (u: URL) => u.pathname === '/api/library' && !u.searchParams.has('ids');
 const toBottom = (page: Page) =>
 	page.evaluate(() =>
@@ -185,14 +204,15 @@ test.describe('each trigger, on its own', () => {
 		// An observer that never speaks: a real change is still its to report
 		// during a re-read, so only the frame-by-frame check is what this holds.
 		await silentObserver(page);
-		const SIZE = 7;
-		// The page past the two kept out: it would make the re-read's limit 16, or
-		// end the list, depending on who reaches the bottom first on a loaded box.
-		const third = (u: URL) => isPageRead(u) && u.searchParams.get('offset') === '21';
+		const SIZE = await sizeFor(page, 3);
+		// The page past the two kept out: it would make the re-read's limit
+		// larger, or end the list, depending on who reaches the bottom first on a
+		// loaded box.
+		const third = (u: URL) => isPageRead(u) && u.searchParams.get('offset') === String(3 * SIZE);
 		await page.route(third, () => undefined);
 		const offsets = await onGrid(page, SIZE);
-		// Two pages past the first, so the re-read (limit 14) is told from a page (limit 7).
-		for (const want of [14, 21]) {
+		// Two pages past the first, so the re-read (two pages' limit) is told from a page.
+		for (const want of [2 * SIZE, 3 * SIZE]) {
 			await toBottom(page);
 			await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(want);
 		}
@@ -205,13 +225,15 @@ test.describe('each trigger, on its own', () => {
 		let release = () => {};
 		const held = new Promise<void>((r) => (release = r));
 		await page.route(
-			(u) => isPageRead(u) && u.searchParams.get('limit') === '14',
+			(u) => isPageRead(u) && u.searchParams.get('limit') === String(2 * SIZE),
 			async (route) => {
 				await held;
 				await route.continue();
 			}
 		);
-		const reread = page.waitForRequest((r) => new URL(r.url()).searchParams.get('limit') === '14');
+		const reread = page.waitForRequest(
+			(r) => new URL(r.url()).searchParams.get('limit') === String(2 * SIZE)
+		);
 		await page.goBack();
 		await page.waitForURL((u) => u.pathname === '/');
 		await reread;
@@ -219,32 +241,36 @@ test.describe('each trigger, on its own', () => {
 		await page.evaluate(() => new Promise(requestAnimationFrame));
 		await page.waitForTimeout(300);
 		expect(
-			offsets.filter((o) => o >= 21),
+			offsets.filter((o) => o >= 3 * SIZE),
 			'no next page while the re-read is out'
 		).toEqual([]);
 		release();
 		await expect
-			.poll(() => offsets.filter((o) => o >= 21), { message: 'the settle asked', timeout: 8000 })
-			.toEqual([21]);
+			.poll(() => offsets.filter((o) => o >= 3 * SIZE), {
+				message: 'the settle asked',
+				timeout: 8000
+			})
+			.toEqual([3 * SIZE]);
 	});
 });
 
 test('a page out when a snapshot comes back does not keep the flag for ever', async ({ page }) => {
+	const SIZE = await sizeFor(page, 3);
 	// The first page's tiles short, so the screen coming back asks for a page
 	// by itself, and the snapshot's bump drops that answer.
-	await page.addInitScript(() => {
+	await page.addInitScript((first) => {
 		const sheet = new CSSStyleSheet();
-		sheet.replaceSync('.grid .tile:nth-child(n+8) { height: 4000px; }');
+		sheet.replaceSync(`.grid .tile:nth-child(n+${first + 1}) { height: 4000px; }`);
 		document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-	});
-	await shortPages(page, 7);
+	}, SIZE);
+	await shortPages(page, SIZE);
 	const offsets = pageRequests(page);
-	const third = (u: URL) => isPageRead(u) && u.searchParams.get('offset') === '21';
+	const third = (u: URL) => isPageRead(u) && u.searchParams.get('offset') === String(3 * SIZE);
 	await page.route(third, () => undefined);
 	await page.goto('/?sort=title');
-	await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(14);
+	await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(2 * SIZE);
 	await toBottom(page);
-	await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(21);
+	await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(3 * SIZE);
 	await page.locator('.grid .tile .open').first().click();
 	await page.waitForURL(/\/series\/\d+/);
 	await page.unroute(third);
@@ -255,12 +281,14 @@ test('a page out when a snapshot comes back does not keep the flag for ever', as
 	const out: Route[] = [];
 	await page.route(
 		(u) =>
-			isPageRead(u) && u.searchParams.get('offset') === '7' && u.searchParams.get('limit') === '7',
+			isPageRead(u) &&
+			u.searchParams.get('offset') === String(SIZE) &&
+			u.searchParams.get('limit') === String(SIZE),
 		(route) => void out.push(route) // kept out past the restore, so its bump drops the answer
 	);
 	await page.goBack();
 	await page.waitForURL((u) => u.pathname === '/');
-	await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(21);
+	await expect.poll(() => page.locator('.grid .tile').count()).toBeGreaterThanOrEqual(3 * SIZE);
 	// A dropped answer is no help to the flag; it only ever frees one still current.
 	for (const route of out) await route.continue().catch(() => undefined);
 	// To the end by hand, again each poll: `settleScroll` keeps putting the page
@@ -269,11 +297,11 @@ test('a page out when a snapshot comes back does not keep the flag for ever', as
 		.poll(
 			async () => {
 				await toBottom(page);
-				return offsets.filter((o) => o === 21);
+				return offsets.filter((o) => o === 3 * SIZE);
 			},
 			{ message: 'the next page', timeout: 8000 }
 		)
-		.toEqual([21]);
+		.toEqual([3 * SIZE]);
 });
 
 test.describe('a page that never answers', () => {
