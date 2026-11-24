@@ -358,3 +358,24 @@ describe('the WebView switch (doc/EXTENSION-ENGINE.md, "Cloudflare and WebView e
 		expect(chromiumPath(home, 'win32')).toBe(`${home}\\engine\\app\\webview\\chromium`);
 	});
 });
+
+// bind.ts' SERVER_ENV is what an update's installer takes out of the environment
+// it hands the next start (withoutServerEnv), so the next server never inherits
+// this one's. A list someone has to remember drifts: the launcher had come to
+// set ENGINE_WEBVIEW_SWITCH and ENGINE_WEBVIEW_DIR without them in it. So every
+// variable the launcher gives the server, on any platform and with every
+// option, is in it.
+describe('what the launcher gives the server', () => {
+	it('is all in SERVER_ENV, so an update never hands it on', async () => {
+		const { SERVER_ENV } = await import('../src/lib/server/bind');
+		const given = new Set<string>();
+		for (const platform of ['linux', 'win32', 'darwin'] as const)
+			for (const env of [{}, { TSUNDOKU_TOKEN: 't', FFMPEG: '/f', DATABASE_PATH: '/d' }])
+				for (const extra of [{}, { installed: true, webview: true, solverDir: '/s' }]) {
+					const p = plan({ ...base, root: '/t', home: '/h', env, platform, ...extra });
+					for (const k of Object.keys(p.server.env ?? {})) given.add(k);
+				}
+		expect(given.size).toBeGreaterThan(10);
+		expect([...given].filter((k) => !(SERVER_ENV as readonly string[]).includes(k))).toEqual([]);
+	});
+});

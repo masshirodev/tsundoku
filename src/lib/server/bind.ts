@@ -291,6 +291,10 @@ export const SERVER_ENV = [
 	'ENGINE_URL',
 	'ENGINE_TOKEN',
 	'ENGINE_SOLVER_URL',
+	// SETTINGS' WEBVIEW switch and Chromium's folder, the launcher's to set:
+	// tests/release-plan.spec.ts holds every variable it gives the server here.
+	'ENGINE_WEBVIEW_SWITCH',
+	'ENGINE_WEBVIEW_DIR',
 	// The address a signed-in user's AniList token is posted to: only the
 	// e2e's stand-in sets it, and it must never be inherited.
 	'TSUNDOKU_ANILIST_URL',

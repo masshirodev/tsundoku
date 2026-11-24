@@ -622,7 +622,7 @@ async function suggestEdition(work: string, lang: string, now: number): Promise<
 		...(suggestConfigured() ? { as: 'suggest' as const } : {}),
 		key: `tsundoku-edition-${work}-${lang}-${now}`,
 		body: {
-			reason: `From Tsundoku: the owner reads this work in ${lang}${
+			reason: `From Tsundoku: this work is read here in ${lang}${
 				volumes.length
 					? `, volumes ${[...new Set(volumes)].sort((a, b) => Number(a) - Number(b)).join(', ')}`
 					: ''

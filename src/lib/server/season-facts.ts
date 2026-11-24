@@ -315,10 +315,13 @@ function firstBookKey(seriesId: number, db: Database.Database): string | null {
 export class SeasonFactError extends Error {}
 
 /**
- * The one function that writes a row: a season's facts, whole. Only its
- * specs call it; it is here so the rule
- * the table cannot hold, that one source entry is one series, is never a rule
- * each writer has to remember.
+ * A season's facts, whole, with the rule the table cannot hold checked first:
+ * one source entry is one series. The writer for a season set by hand
+ * (SEASONS · EDIT, c284), which nothing on a screen does yet, so only its
+ * specs call it. The two writers that exist (`mergeSeasons` and take-one-out
+ * in books.ts) write rows themselves: each moves a key, in one transaction,
+ * after the series that held it is gone, so the rule holds there by
+ * construction, and a check would see the series being emptied as the other.
  */
 export function putSeasonFact(
 	fact: {
