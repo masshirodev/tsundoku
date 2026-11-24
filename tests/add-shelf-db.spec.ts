@@ -12,8 +12,15 @@ const flags = await import('$lib/server/engine/source-flags');
 const { addToLibrary, sourceMangaId, undoAdd } = await import('$lib/server/engine/backend');
 const { createCollection, seriesDetail } = await import('$lib/server/library');
 const { keyOf } = await import('$lib/library/downloads');
-const { addedBand, addedLanding, bandShelves, newShelfAdded, shelveAdded, SHELVE_GONE } =
-	await import('../src/routes/browse/added.server');
+const {
+	addedBand,
+	addedLanding,
+	bandShelves,
+	BAND_UNKNOWN,
+	newShelfAdded,
+	shelveAdded,
+	SHELVE_GONE
+} = await import('../src/routes/browse/added.server');
 
 /**
  * PUT ON A SHELF on the ADDED band (doc/BROWSE.md, "Shelves in the
@@ -215,6 +222,27 @@ describe('+ NEW SHELF on the band', () => {
 		expect(shelvesOf(d.seriesId)).toEqual([r.collection]);
 	});
 
+	// A browser or an extension set to no-referrer sends none: the sheet posts
+	// the band's own address, which is read first (c791).
+	it('reads the band the sheet posts, with no Referer at all', async () => {
+		const f2 = await addHidden('/manga/f2');
+		const { here, source } = at(f2.to);
+		const form = named('No Referer');
+		form.set('band', `${f2.to.pathname}?${f2.to.searchParams}&new=shelf`);
+		const r = await newShelfAdded(form, null, here, source);
+		expect(r).toHaveProperty('to');
+		if (!('to' in r)) return;
+		expect(new URL(r.to, 'http://app.test').searchParams.has('new')).toBe(false);
+		expect(shelvesOf(f2.seriesId)).toEqual([r.collection]);
+		// The field must name this page too: another page's address is no band of this one's.
+		const elsewhere = named('Elsewhere');
+		elsewhere.set('band', `/somewhere-else?${f2.to.searchParams}`);
+		expect(await newShelfAdded(elsewhere, null, here, source)).toEqual({
+			status: 409,
+			message: BAND_UNKNOWN
+		});
+	});
+
 	it('makes nothing for a band it cannot read, or one that is gone', async () => {
 		const e = await addHidden('/manga/e');
 		const { here, source, other } = at(e.to);
@@ -232,9 +260,10 @@ describe('+ NEW SHELF on the band', () => {
 			// This page, without a band.
 			`http://app.test${e.to.pathname}`
 		])
+			// Nothing here says which series: not "gone", which would be false.
 			expect(await newShelfAdded(named('Nope'), referer, here, source), String(referer)).toEqual({
 				status: 409,
-				message: SHELVE_GONE
+				message: BAND_UNKNOWN
 			});
 		expect(await newShelfAdded(named('   '), band, here, source)).toEqual({
 			status: 400,

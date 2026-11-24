@@ -1154,12 +1154,15 @@ A chip posts to the page's own `?/shelve` (the source page's and BROWSE's,
 sheet's own `setInCollection`, and only for the band's own series
 (`bandSeries`: its id and its preview's key, as UNDO asks), so a chip tapped
 after UNDO, or on a stale band, shelves nothing and says `NOT SHELVED: THE
-SERIES IS NOT IN THE LIBRARY NOW`. `NewShelfSheet` posts only `name` to
-`?/newShelf`, and a relative `?/newShelf` drops the page's query, so
-`newShelfAdded` reads the band from the post's `Referer` (sent in full to
-the same origin by the browsers' default policy) and acts only when that is
-this page on this origin with a band whose facts hold; it lands back on the
-band, the sheet closed. No storage of its own: a shelf is a
+SERIES IS NOT IN THE LIBRARY NOW`. A relative `?/newShelf` drops the page's
+query, so `NewShelfSheet` posts the band's address back as `band` beside the
+`name`, and `newShelfAdded` reads it first. It falls back to the post's
+`Referer` for a page from before that field. It acts only when the address is
+this page on this origin with a band whose facts hold, and lands back on the
+band, the sheet closed. With neither to read (an old page under a
+no-referrer policy) it says `NOT SHELVED: THIS PAGE COULD NOT SAY WHICH
+SERIES · USE A SHELF ABOVE`, not that the series is gone, which would be
+false. No storage of its own: a shelf is a
 `collection_series` row, which cascades with the series, so **UNDO takes
 both back** (the series row goes, and its shelf rows with it); the shelves
 themselves stay. Without script a chip's post carries the band in its URL,

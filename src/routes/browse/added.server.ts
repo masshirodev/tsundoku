@@ -159,6 +159,13 @@ export const bandShelves = (band: AddedBand | null): number[] =>
 export const SHELVE_GONE = 'the series is not in the library now';
 
 /**
+ * + NEW SHELF posted with no band to read (no `band` field and no usable
+ * Referer: an old page under a no-referrer policy): nothing is known about the
+ * series, so the words say so and send the reader to the chips.
+ */
+export const BAND_UNKNOWN = 'this page could not say which series · use a shelf above';
+
+/**
  * PUT ON A SHELF from the ADDED band (doc/BROWSE.md, "Shelves in
  * the ADD band"): one chip's tap, on (`on=1`) or off (`on=0`), through the
  * SHELVES sheet's own write (`setInCollection`). It asks the band's own facts
@@ -187,13 +194,16 @@ export async function shelveAdded(
 }
 
 /**
- * + NEW SHELF from the ADDED band: `NewShelfSheet` as it is, whose form posts
- * only `name` to `?/newShelf`. The band is its page's URL, and a form's
- * relative `?/newShelf` drops that query, so the band is read from where the
- * post came from (`Referer`, sent in full to the same origin under the
- * browsers' default policy), and only when that is this page (`path`) on this
- * origin. The shelf is made and the series put on it only while the band's own
- * facts hold, as for a chip; it lands back on the band, the sheet closed.
+ * + NEW SHELF from the ADDED band: `NewShelfSheet`, whose form posts `name`
+ * to `?/newShelf`. The band is its page's URL, and a form's relative
+ * `?/newShelf` drops that query, so the sheet posts it back as `band`. A page
+ * from before that field is read from where the post came from (`Referer`,
+ * sent in full to the same origin under the browsers' default policy); with
+ * neither, the answer says the band is not known here rather than that the
+ * series is gone, which would be false. Either is used only when it is this
+ * page (`path`) on this origin. The shelf is made and the series put on it
+ * only while the band's own facts hold, as for a chip; it lands back on the
+ * band, the sheet closed.
  */
 export async function newShelfAdded(
 	form: FormData,
@@ -203,19 +213,18 @@ export async function newShelfAdded(
 ): Promise<{ to: string; collection: number } | { status: 400 | 409; message: string }> {
 	const name = String(form.get('name') ?? '').trim();
 	if (name === '') return { status: 400, message: 'a shelf needs a name' };
+	const band = String(form.get('band') ?? '');
 	let from: URL;
 	try {
-		from = new URL(referer ?? '');
+		from = band ? new URL(band, here.origin) : new URL(referer ?? '');
 	} catch {
-		return { status: 409, message: SHELVE_GONE };
+		return { status: 409, message: BAND_UNKNOWN };
 	}
 	if (from.origin !== here.origin || from.pathname !== here.pathname)
-		return { status: 409, message: SHELVE_GONE };
+		return { status: 409, message: BAND_UNKNOWN };
 	const p = from.searchParams;
-	const s =
-		p.get('added') === 'hidden'
-			? await bandSeries(sourceId, p.get('series'), p.get('preview'))
-			: null;
+	if (p.get('added') !== 'hidden') return { status: 409, message: BAND_UNKNOWN };
+	const s = await bandSeries(sourceId, p.get('series'), p.get('preview'));
 	if (!s) return { status: 409, message: SHELVE_GONE };
 	const collection = createCollection(name);
 	setInCollection([s.seriesId], collection, true);

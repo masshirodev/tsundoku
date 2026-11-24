@@ -10,7 +10,18 @@
 	 * the form: it all works without script. The desktop makes a shelf in the
 	 * sidebar instead (+layout.svelte), so this sheet isn't drawn there.
 	 */
-	let { closeHref }: { closeHref: string } = $props();
+	let {
+		closeHref,
+		band = null
+	}: {
+		closeHref: string;
+		/**
+		 * The page's own address when the sheet stands over a band whose facts
+		 * the post needs (BROWSE's ADDED band, `newShelfAdded`): a relative
+		 * `?/newShelf` drops the query, and a Referer may not be sent at all.
+		 */
+		band?: string | null;
+	} = $props();
 
 	let name = $state('');
 
@@ -36,6 +47,7 @@
 		</div>
 		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		<form method="POST" action="?/newShelf">
+			{#if band}<input type="hidden" name="band" value={band} />{/if}
 			<div class="field">
 				<!-- The sheet exists to take this one name. -->
 				<!-- svelte-ignore a11y_autofocus -->

@@ -206,7 +206,7 @@
 		{#if shelfRefusal}<span class="refused">NOT SHELVED: {shelfRefusal.toUpperCase()}</span>{/if}
 	</div>
 	<ShelfPicker open={picking} ids={[band.seriesId]} {shelves} onclose={() => (picking = false)} />
-	{#if naming}<NewShelfSheet closeHref={withNew(false)} />{/if}
+	{#if naming}<NewShelfSheet closeHref={withNew(false)} band={withNew(false)} />{/if}
 {/if}
 
 <style>
