@@ -262,14 +262,32 @@ describe('SELECT’s press', () => {
 		const press = await act('flags', { pkg: 'en.multi', flag: 'offHistory', value: 'true' });
 		const from = new URL(press.location!, 'http://localhost').searchParams.get('from')!;
 		expect(flags.sourceFlags('501').offHistory).toBe(true);
-		const undo = await act('undoFlags', { pkg: 'en.multi', flag: 'offHistory', to: '1', from });
+		const undo = await act('undoFlags', {
+			select: '1',
+			pkg: 'en.multi',
+			flag: 'offHistory',
+			to: '1',
+			from
+		});
 		expect(undo.status).toBe(303);
 		expect(flags.sourceFlags('500').offHistory).toBe(true);
 		expect(flags.sourceFlags('501').offHistory).toBe(false);
-		// The selection comes back, so SELECT stays on with the rows it had.
-		expect(new URL(undo.location!, 'http://localhost').searchParams.getAll('pkg')).toEqual([
-			'en.multi'
-		]);
+		// Pressed while selecting: the selection comes back, so SELECT stays on
+		// with the rows it had.
+		const at = new URL(undo.location!, 'http://localhost').searchParams;
+		expect(at.get('select')).toBe('1');
+		expect(at.getAll('pkg')).toEqual(['en.multi']);
+	});
+
+	it('an undo pressed after SELECT ended lands on the plain list', async () => {
+		const press = await act('flags', { pkg: 'en.multi', flag: 'offHistory', value: 'true' });
+		const from = new URL(press.location!, 'http://localhost').searchParams.get('from')!;
+		const undo = await act('undoFlags', { flag: 'offHistory', to: '1', from });
+		expect(undo.status).toBe(303);
+		expect(flags.sourceFlags('501').offHistory).toBe(false);
+		const at = new URL(undo.location!, 'http://localhost');
+		expect(at.searchParams.has('select')).toBe(false);
+		expect(at.searchParams.getAll('pkg')).toEqual([]);
 	});
 
 	it('refuses an undo whole when a source was changed since on its own page', async () => {
