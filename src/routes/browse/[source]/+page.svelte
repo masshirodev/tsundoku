@@ -25,7 +25,7 @@
 	import { writeFilters } from '$lib/library/browse-filters';
 	import { backOriginLabel, keepOrigin } from '$lib/library/tag-search';
 	import { isRefusedCheck } from './refused-check';
-	import { isSettled } from '$lib/library/settled';
+	import { isSettled, type Settled } from '$lib/library/settled';
 	import ResultTile from './ResultTile.svelte';
 	import AddedBand from '../AddedBand.svelte';
 	import { SiteCheck, checkLine } from '$lib/site-check.svelte';
@@ -168,26 +168,36 @@
 	 */
 	let answered = 0;
 	let asking = $state(false);
+	/**
+	 * A re-read of the list on screen that failed: a band's ✕, MORE ↓ or a
+	 * reload asking the source again. The grid it already drew stays, under a
+	 * band that says so; only a list not yet drawn falls to the failure.
+	 */
+	let failedAgain = $state<string | null>(null);
+	const land = (key: string, s: Settled<Answer>) => {
+		const kept = untrack(() => shown);
+		if (!s.ok && kept?.ok && kept.key === key) failedAgain = s.error;
+		else {
+			shown = { key, ...s };
+			failedAgain = null;
+		}
+		answered += 1;
+		asking = false;
+		held = null;
+	};
 	$effect(() => {
 		const a = data.answer;
 		const key = listKey(page.url);
 		// Read without depending on it: this effect is what writes it.
-		if (untrack(() => shown && shown.key !== key)) shown = null;
-		if (isSettled(a)) {
-			shown = { key, ...a };
-			answered += 1;
-			asking = false;
-			held = null;
-			return;
+		if (untrack(() => shown && shown.key !== key)) {
+			shown = null;
+			failedAgain = null;
 		}
+		if (isSettled(a)) return land(key, a);
 		let current = true;
 		asking = true;
 		void a.then((s) => {
-			if (!current) return;
-			shown = { key, ...s };
-			answered += 1;
-			asking = false;
-			held = null;
+			if (current) land(key, s);
 		});
 		return () => (current = false);
 	});
@@ -615,6 +625,14 @@
 		/>
 	{/if}
 
+	{#if failedAgain}
+		<!-- Asked again and refused: what it sent before stays drawn below. -->
+		<Band
+			title="{name.toUpperCase()} DID NOT ANSWER"
+			detail="THE LIST BELOW IS WHAT IT SENT BEFORE · {failedAgain.toUpperCase().slice(0, 100)}"
+			ondismiss={() => (failedAgain = null)}
+		/>
+	{/if}
 	{#if shown && !shown.ok}
 		{#if webviewFailed}
 			{@render webviewBand(webviewFailed)}

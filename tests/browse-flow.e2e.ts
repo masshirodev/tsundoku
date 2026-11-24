@@ -188,6 +188,52 @@ test('a source that failed to load, and an engine that stopped, say so', async (
 	await expect(page.locator('.band')).toContainText('NOT ANSWERING');
 });
 
+// A re-read of the list on screen that fails keeps the grid it drew, under a
+// band saying the source did not answer: it used to swap the whole grid for
+// the failure (c847). A band's ✕ re-reads it: its parameters leave the URL and
+// the load runs again. The source's pages are kept on the server for 15
+// minutes (browse.ts, KEEP_MS), so the re-read reaches the source only once
+// they are gone: here a setting changed, which forgets them, then the engine
+// stops.
+test('a drawn list asked again while the source is down keeps its grid, and says so', async ({
+	page
+}) => {
+	await page.goto(`${OPEN}?tab=popular`);
+	const tiles = page.locator('.grid .tile');
+	await expect(tiles.first()).toBeVisible();
+	await page.waitForLoadState('networkidle');
+	const drawn = await tiles.count();
+	const at = new URL(page.url());
+	await page.request.get(`${OPEN}/settings`);
+	const set = await page.request.post(`${OPEN}/settings?/set`, {
+		form: { key: 'quality', value: '1' },
+		headers: { origin: at.origin }
+	});
+	expect(set.ok(), 'the setting was saved, and the kept pages forgotten').toBe(true);
+	await engineDown();
+	try {
+		// The same list with a band's parameter on it, as a band drawn and then
+		// dismissed changes the URL: the load runs again, and asks the source.
+		at.searchParams.set('added', 'bogus');
+		await page.evaluate((href) => {
+			const a = document.createElement('a');
+			a.href = href;
+			document.body.append(a);
+			a.click();
+		}, at.pathname + at.search);
+		await page.waitForURL(/added=bogus/);
+		await expect(page.locator('.band', { hasText: 'DID NOT ANSWER' })).toBeVisible();
+		await expect(page.locator('.band')).toContainText('THE LIST BELOW IS WHAT IT SENT BEFORE');
+		await expect(tiles).toHaveCount(drawn);
+	} finally {
+		await resetEngine();
+		await page.request.post(`${OPEN}/settings?/set`, {
+			form: { key: 'quality', value: '0' },
+			headers: { origin: at.origin }
+		});
+	}
+});
+
 test('on the phone, / opens the search in the title’s place, and the grid is three wide', async ({
 	page
 }) => {

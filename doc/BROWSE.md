@@ -705,7 +705,11 @@ which of the two is answering a check.
   label says WAITING FOR THE SITE over the grid outline. Otherwise the house
   band comes at 10 s ("STILL ASKING …"). At 60 s an extension's call gives up:
   DID NOT ANSWER, with TRY AGAIN (a novel's waits two minutes, since its first
-  call may pass a check the app solves).
+  call may pass a check the app solves). A list already drawn that is asked
+  again (a band's ✕, MORE ↓, a reload, once the source's pages are no longer
+  kept) and fails keeps its grid, under DID NOT ANSWER · THE LIST BELOW IS WHAT
+  IT SENT BEFORE, rather than giving the screen to the failure
+  (`tests/browse-flow.e2e.ts`).
 - **In SEARCH THE SOURCES**, a source still asking says "BROWSER CHECK · ASKED
   18 S AGO" in its header instead of ASKING.
 - **In BROWSE**, a source whose site has needed a check says "FIRST VISIT WAITS
