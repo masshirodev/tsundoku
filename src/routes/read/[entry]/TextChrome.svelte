@@ -166,6 +166,8 @@
 				onpointermove={(e) => dragging && scrubAt(e)}
 				onpointerup={() => (dragging = false)}
 				onkeydown={(e) => {
+					// Off a TV the arrows are the reader's (doc/READER.md): see Chrome.svelte.
+					if (!tvScreen.current) return;
 					if (e.key === 'ArrowRight') onscrub(Math.min(pages - 1, page + (rtl ? -1 : 1)));
 					if (e.key === 'ArrowLeft') onscrub(Math.max(0, page + (rtl ? 1 : -1)));
 				}}

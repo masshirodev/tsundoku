@@ -216,6 +216,10 @@
 			onpointerup={() => (dragging = false)}
 			onpointercancel={() => (dragging = false)}
 			onkeydown={(e) => {
+				// Off a TV the arrows are the reader's whatever has focus
+				// (doc/READER.md): a click leaves the keyboard here, and scrubbing
+				// as well moved two pages a press, the scrub racing the turn.
+				if (!tvScreen.current) return;
 				const forward = mode === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
 				const back = mode === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
 				if (e.key === forward) onscrub(Math.min(total - 1, page + 1));

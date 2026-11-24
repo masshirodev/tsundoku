@@ -224,6 +224,39 @@ test('a scrub during a slide wins: the turn gives way instead of landing one pas
 	await expect(track).toHaveAttribute('aria-valuenow', '1');
 });
 
+/**
+ * Off a TV the arrows are the reader's whatever has focus (doc/READER.md). A
+ * click on the scrubber leaves the keyboard on it, and its own arrow handler
+ * scrubbed a page as the reader turned one: two pages a press, and the two
+ * moves raced each other mid-slide.
+ */
+test('with the scrubber clicked, an arrow turns one page, not two', async ({ page }) => {
+	await open(page);
+	const track = page.locator('footer[aria-label="Reader controls"] .track');
+	const stage = page.locator('.stage .track');
+	await page.keyboard.press('Escape');
+	await expect(track).toBeVisible();
+	const box = (await track.boundingBox())!;
+	const now = async () => Number(await track.getAttribute('aria-valuenow'));
+	// Where one ← (R→L: on) lands from page 1, with the keyboard elsewhere.
+	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+	await expect(track).toHaveAttribute('aria-valuenow', '1');
+	await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(now).toBeGreaterThan(1);
+	await expect(stage).not.toHaveClass(/animating/);
+	const one = await now();
+	// The same from page 1 with the scrubber holding the keyboard, as a click leaves it.
+	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+	await expect(track).toHaveAttribute('aria-valuenow', '1');
+	await expect(track).toBeFocused();
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(now).toBeGreaterThan(1);
+	await expect(stage).not.toHaveClass(/animating/);
+	await page.waitForTimeout(300);
+	expect(await now()).toBe(one);
+});
+
 test('a turn asked for right after a mid-slide scrub waits for the first, and slides whole', async ({
 	page
 }) => {
