@@ -438,12 +438,30 @@
 		void ceremony(input.command as keyof typeof PURPOSE);
 	}
 
-	async function post(path: '/api/unlock/options' | '/api/unlock/verify', body: object) {
-		return fetch(resolve(path), {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(body)
-		});
+	/**
+	 * How long the device prompt's options request may take. It is a local
+	 * read, tens of milliseconds; one that never answers ends the wait as a
+	 * failure, or `waiting` would drop every press until the text changed.
+	 */
+	const OPTIONS_WAIT_MS = 8_000;
+	async function post(
+		path: '/api/unlock/options' | '/api/unlock/verify',
+		body: object,
+		waitMs?: number
+	) {
+		// Not AbortSignal.timeout: older TV WebViews lack it (c974).
+		const ctl = new AbortController();
+		const timer = waitMs ? setTimeout(() => ctl.abort(), waitMs) : undefined;
+		try {
+			return await fetch(resolve(path), {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body),
+				signal: ctl.signal
+			});
+		} finally {
+			clearTimeout(timer);
+		}
 	}
 
 	async function ceremony(command: keyof typeof PURPOSE) {
@@ -457,8 +475,9 @@
 			text: 'COMMAND · WAITING FOR THE DEVICE'
 		};
 		const unanswered = purpose === 'enrol' ? 'NOT ENROLLED' : undefined;
-		// Never left on `waiting`: `onsubmit` drops every press until it changes.
-		const res = await post('/api/unlock/options', { purpose }).catch(() => null);
+		// Never left on `waiting`: `onsubmit` drops every press until it changes,
+		// so a request that fails or never answers (OPTIONS_WAIT_MS) ends it.
+		const res = await post('/api/unlock/options', { purpose }, OPTIONS_WAIT_MS).catch(() => null);
 		if (!res) return fail(unanswered);
 		if (!res.ok)
 			return fail(

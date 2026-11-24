@@ -569,7 +569,7 @@ test.describe('a gated box', () => {
 		expect(asked).toEqual(['reveal']);
 	});
 
-	test('an options request that never answers ends the wait, and a new press asks again', async ({
+	test('an options request that fails ends the wait, and a new press asks again', async ({
 		page
 	}) => {
 		await gateTheBox(page);
@@ -579,6 +579,32 @@ test.describe('a gated box', () => {
 		await box.fill('/reveal');
 		await box.press('Enter');
 		await expect(page.getByText('NOT UNLOCKED')).toBeVisible();
+
+		await box.press('Enter');
+		await expect(page).toHaveURL(`${base}/`);
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+	});
+
+	// One that hangs is the case that matters: `waiting` drops every press, so
+	// without the page's own wait (OPTIONS_WAIT_MS, 8 s) Enter did nothing until
+	// the text changed (c821).
+	test('an options request that never answers ends the wait, and a new press asks again', async ({
+		page
+	}) => {
+		test.setTimeout(60_000);
+		await gateTheBox(page);
+		let hung = true;
+		await page.route('**/api/unlock/options', async (route) => {
+			if (!hung) return route.continue();
+			hung = false;
+			await new Promise(() => {});
+		});
+		await page.goto(`${base}/search`);
+		const box = page.getByRole('searchbox');
+		await box.fill('/reveal');
+		await box.press('Enter');
+		await expect(page.getByText('COMMAND · WAITING FOR THE DEVICE')).toBeVisible();
+		await expect(page.getByText('NOT UNLOCKED')).toBeVisible({ timeout: 15_000 });
 
 		await box.press('Enter');
 		await expect(page).toHaveURL(`${base}/`);

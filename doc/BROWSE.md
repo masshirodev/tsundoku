@@ -140,9 +140,9 @@ holding the intent (an unknown command and a TV's refusal still say so, since
 neither asks anything, and keep saying so after the running command's answer
 lands: each bar's note belongs to the latest press, which the earlier answer
 never clears). On `/search`, a press while the device prompt is
-waiting starts no second ceremony, and an options request that never answers
-ends the wait as NOT UNLOCKED (NOT ENROLLED for `/lock`), so the next press can
-try again.
+waiting starts no second ceremony, and an options request that fails, or does
+not answer within 8 s (`OPTIONS_WAIT_MS`), ends the wait as NOT UNLOCKED (NOT
+ENROLLED for `/lock`), so the next press can try again.
 
 ## A source's page
 
