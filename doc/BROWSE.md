@@ -969,6 +969,10 @@ every row it updated; SELECT ends. The band carries each updated row's new
 version, so UNDO refuses whole (409, nothing changed) when a row's version is
 not the one the press installed — one that took its own BACK TO since, or
 another update — instead of swapping it forward again and calling it restored.
+The versions ride as one `ver` per `done`, in place and as written: a version
+name such as `1.2+3` is not a package name, and an unknown one keeps its place,
+so the rows after it keep theirs (until 2026-11-24 a filter shortened the list
+and UNDO refused rows nothing had changed).
 REMOVE asks first through REMOVE's ConfirmSheet with its lines summed, and has
 **no UNDO** (the sheet asked; an install fetches what the repository lists
 then, which may not be the removed version). **An OBSOLETE row stays
