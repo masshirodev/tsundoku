@@ -377,7 +377,9 @@ Paged turns slide and follow the finger, as a manga's do ([`READER.md`](READER.m
   second finger going down (a pinch beginning) ends it as a cancel would, so
   the page goes back instead of jerking towards the new finger, and neither
   finger moves it until both lift (`src/lib/reader/pointer.ts`, shared with
-  the image reader).
+  the image reader). A drag is never a long press: once it starts (8 px) the
+  hold is given up, so a drag that pauses does not select the word under the
+  finger (it did between 8 and 10 px, until 2026-11-24).
 - **Across a chapter's end** the next chapter's first page slides in from
   where the next page lies, and back across it the previous chapter's last
   page slides in from the other side. Into another volume it slides in once

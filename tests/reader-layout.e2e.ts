@@ -522,3 +522,49 @@ test('a second finger cancels a drag: the page goes back rather than jerking to 
 	await page.waitForTimeout(500);
 	expect(await at()).toBe(0);
 });
+
+/**
+ * A drag starts at 8 px and the hold that opens the page menu gave up only
+ * past 10 px. So a finger that pulled the page 10 px and paused there opened
+ * the menu over a page left aside, and the menu took the second finger that
+ * should have dropped the drag: the track stayed at translateX(10px). The
+ * loaded runs met this as 'a second finger cancels a drag' stuck at 10, when a
+ * stalled box made the pause.
+ */
+test('a drag that pauses is not a hold: no menu, and a second finger still drops it', async ({
+	page
+}) => {
+	test.skip(!test.info().project.use.hasTouch, 'two fingers need a touchscreen');
+	await open(page);
+	const at = () =>
+		page
+			.locator('.stage .track')
+			.evaluate((el: HTMLElement) =>
+				Number(/translateX\((-?[\d.]+)px\)/.exec(el.style.transform)?.[1] ?? 0)
+			);
+	const vp = page.viewportSize()!;
+	const [x, y] = [vp.width / 2, vp.height / 2];
+	const cdp = await page.context().newCDPSession(page);
+	const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', pts: { x: number; y: number }[]) =>
+		cdp.send('Input.dispatchTouchEvent', {
+			type,
+			touchPoints: pts.map((p, i) => ({ ...p, id: i }))
+		});
+	try {
+		await touch('touchStart', [{ x, y }]);
+		await touch('touchMove', [{ x: x + 10, y }]);
+		await expect.poll(at).toBe(10);
+		// Longer than the hold (450 ms), with the finger still: a drag, not a hold.
+		await page.waitForTimeout(700);
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await touch('touchStart', [
+			{ x: x + 10, y },
+			{ x: x - 150, y }
+		]);
+		await expect.poll(at).toBe(0);
+		await touch('touchEnd', []);
+	} finally {
+		await cdp.detach();
+	}
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+});

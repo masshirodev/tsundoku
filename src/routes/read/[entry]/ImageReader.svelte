@@ -2014,6 +2014,10 @@
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
 		if (!dragging && !dragStarts(dx, dy)) return;
+		// A drag is not a hold. It starts at 8 px and the hold gives up only past
+		// 10, so a drag that paused in between opened the page menu over a page
+		// pulled aside, and the menu took the second finger that should drop it.
+		if (!dragging) cancelPress();
 		dragging = true;
 		const side: -1 | 1 = dx < 0 ? 1 : -1;
 		peek = side;

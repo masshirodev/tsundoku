@@ -367,6 +367,46 @@ test('a second finger cancels a drag: the page goes back rather than jerking to 
 	expect((await flow(page)).at).toBe(-step);
 });
 
+/** A drag that pauses is not a hold, as in the image reader (reader-layout's case says why). */
+test('a drag that pauses is not a hold: no word is selected, and a second finger still drops it', async ({
+	page
+}) => {
+	test.skip(!test.info().project.use.hasTouch, 'two fingers need a touchscreen');
+	const id = await firstChapter(page);
+	await openAt(page, id);
+	const { step } = await flow(page);
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(async () => (await flow(page)).at).toBe(-step);
+	await landed(page);
+	const { x, y } = await middleOf(page);
+	const cdp = await page.context().newCDPSession(page);
+	const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', pts: { x: number; y: number }[]) =>
+		cdp.send('Input.dispatchTouchEvent', {
+			type,
+			touchPoints: pts.map((p, i) => ({ ...p, id: i }))
+		});
+	try {
+		await touch('touchStart', [{ x, y }]);
+		await touch('touchMove', [{ x: x - 10, y }]);
+		await expect.poll(async () => (await flow(page)).at).toBe(-step - 10);
+		// Longer than the hold, with the finger still: the hold here selects the
+		// word under the finger, which a drag must not do.
+		await page.waitForTimeout(900);
+		await expect(page.locator('.sel')).toHaveCount(0);
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await touch('touchStart', [
+			{ x: x - 10, y },
+			{ x: x + 150, y }
+		]);
+		await expect.poll(async () => (await flow(page)).at).toBe(-step);
+		await landed(page);
+		await touch('touchEnd', []);
+	} finally {
+		await cdp.detach();
+	}
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
 /**
  * R→L for this session, from READING: DIRECTION is session state until
  * REMEMBER, which this read-only file never presses (text-reader-flow does).

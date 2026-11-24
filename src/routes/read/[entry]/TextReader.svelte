@@ -2331,6 +2331,8 @@
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
 		if (!dragging && !dragStarts(dx, dy)) return;
+		// A drag is not a hold: see the image reader's pointermove.
+		if (!dragging) clearTimeout(press);
 		dragging = true;
 		drag = dragGive(forwardBy(dx, mode), pageThat('next'), pageThat('prev'));
 	}

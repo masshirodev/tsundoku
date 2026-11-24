@@ -151,7 +151,10 @@ Paged turns slide; they don't pop.
   finger going down (a pinch beginning) ends it as a cancel would, so a drag
   goes back rather than jerking towards the new finger, and on the strip a
   pinch is never a long press (`src/lib/reader/pointer.ts`, shared with the
-  text reader).
+  text reader). **A drag is never a long press either**: once a drag starts
+  (8 px) the hold is given up. It used to give up only past 10 px, so a drag
+  that paused between the two opened the page menu over a page pulled aside,
+  and the menu took the second finger that should have dropped the drag.
 - **Nothing redraws at the end.** The screens are keyed, so the neighbour's
   element becomes the page's own, with its image already decoded.
 - **Split wide pages slide half to half,** since each half is a screen.
