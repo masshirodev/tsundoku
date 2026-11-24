@@ -137,7 +137,9 @@ onto it, or a reload, asks nothing; only a new key press does. A press counts
 once. `runSearchCommand` runs one command at a time across the bars, so a
 second Enter while one is running sends nothing and pushes no second entry
 holding the intent (an unknown command and a TV's refusal still say so, since
-neither asks anything). On `/search`, a press while the device prompt is
+neither asks anything, and keep saying so after the running command's answer
+lands: each bar's note belongs to the latest press, which the earlier answer
+never clears). On `/search`, a press while the device prompt is
 waiting starts no second ceremony, and an options request that never answers
 ends the wait as NOT UNLOCKED (NOT ENROLLED for `/lock`), so the next press can
 try again.

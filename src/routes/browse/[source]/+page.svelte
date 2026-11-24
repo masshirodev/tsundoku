@@ -59,12 +59,21 @@
 	 * grid and the list stays as it was.
 	 */
 	let commandNote = $state('');
+	/**
+	 * Presses so far. A press clears the note as it starts, and its answer
+	 * says a refusal only while it is still the latest: a command still
+	 * running when the next press is refused must not wipe that refusal when
+	 * it lands.
+	 */
+	let presses = 0;
 	async function onSearch(e: SubmitEvent) {
 		const text = String(new FormData(e.currentTarget as HTMLFormElement).get('q') ?? '');
 		if (!isSearchCommand(text)) return;
 		e.preventDefault();
+		const press = ++presses;
+		commandNote = '';
 		const outcome = await runSearchCommand(text);
-		commandNote = outcome.type === 'refused' ? outcome.message : '';
+		if (press === presses && outcome.type === 'refused') commandNote = outcome.message;
 	}
 
 	type Answer = Extract<Awaited<typeof data.answer>, { ok: true }>['value'];

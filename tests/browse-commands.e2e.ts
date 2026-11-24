@@ -130,6 +130,8 @@ test('a press while a command runs sends nothing, and an unknown one still says 
 
 	release();
 	await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+	// The first press's answer landing does not wipe the second's refusal.
+	await expect(page.getByText('UNKNOWN COMMAND · /REV · NOTHING CHANGED')).toBeVisible();
 	await page.unrouteAll();
 	await enter(page, box, '/hide');
 	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
@@ -221,9 +223,45 @@ test('on a TV, the refusal still shows while another command runs', async ({ pag
 		await arrived;
 		await enter(screen, box, '/reveal');
 		await expect(screen.getByText('NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER')).toBeVisible();
+		const answered = screen.waitForResponse('**/api/command');
 		release();
+		await answered;
+		// And after /hide's answer lands: it is the earlier press's, not this one's.
+		await expect(screen.getByText('NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER')).toBeVisible();
 	});
 });
+
+// The other two bars, the same rule: a source's page and BROWSE's search.
+for (const { name, url, label } of [
+	{ name: 'a source’s bar', url: '/browse/100', label: 'Search Open Source' },
+	{ name: 'BROWSE’s search', url: '/downloads/search', label: 'Search' }
+])
+	test(`${name}: a refusal made while a command runs outlives that command’s answer`, async ({
+		page
+	}) => {
+		let release = () => {};
+		const held = new Promise<void>((done) => (release = done));
+		let reached = () => {};
+		const arrived = new Promise<void>((done) => (reached = done));
+		await page.route('**/api/command', async (route) => {
+			reached();
+			await held;
+			await route.continue();
+		});
+		await page.goto(url);
+		const box = page.getByRole('searchbox', { name: label });
+		await enter(page, box, '/reveal');
+		await arrived;
+		await enter(page, box, '/rev');
+		const refusal = page.getByText('UNKNOWN COMMAND · /REV · NOTHING CHANGED');
+		await expect(refusal).toBeVisible();
+		release();
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+		await expect(refusal).toBeVisible();
+		await page.unrouteAll();
+		await enter(page, box, '/hide');
+		await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+	});
 
 // ---- a gated box, on a database of its own -----------------------------------------
 
