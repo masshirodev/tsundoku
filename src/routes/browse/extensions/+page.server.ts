@@ -604,7 +604,12 @@ export const actions: Actions = {
 		const refused = undoRefusal(flag, to, facts, isRevealed(cookies));
 		if (refused) return fail(409, { message: refused });
 		undoFlagPress(flag, facts);
-		redirect(303, `${PAGE}?${selectQuery(tickedPackages(form))}`);
+		// Back in SELECT only when it was pressed there: after ✕ the band stays
+		// up, and its UNDO lands on EXTENSIONS as the owner left it.
+		redirect(
+			303,
+			form.get('select') === '1' ? `${PAGE}?${selectQuery(tickedPackages(form))}` : PAGE
+		);
 	},
 	/**
 	 * SELECT's UPDATE: UPDATE ALL narrowed to the ticked rows, each

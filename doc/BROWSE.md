@@ -939,7 +939,10 @@ and its facts are one transaction (`setSourceFlags`), so a failure part-way
 leaves nothing changed. A row that could not change keeps its ink rule and
 leads with `NOT CHANGED · …` until the next press or ✕; a package removed on
 another device since it was ticked leaves the list and the selection and is
-counted in the band, not called a success.
+counted in the band, not called a success. The band is the URL's, so it stays
+after SELECT's ✕; an UNDO pressed then undoes and lands on EXTENSIONS as it was
+left, out of SELECT (it carries `select=1` and the ticks only while
+selecting).
 
 **Every press's redirect is budgeted before it is written.** The guard is on the
 whole `Location` — `/browse/extensions`, `select=1`, one `pkg` per ticked

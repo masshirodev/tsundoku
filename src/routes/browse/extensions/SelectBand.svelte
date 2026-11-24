@@ -18,6 +18,7 @@
 		remove = null,
 		back = null,
 		selection = [],
+		selecting = false,
 		names = {}
 	}: {
 		/** EXTENSIONS' own resolved path: the actions post to it. */
@@ -50,11 +51,16 @@
 		back?: { done: string[] } | null;
 		/** What is ticked now, so UNDO lands with the same rows ticked. */
 		selection?: string[];
+		/**
+		 * Whether SELECT is on now. The band outlives ✕ (it is the URL's), so an
+		 * UNDO pressed after leaving SELECT must not land back in it.
+		 */
+		selecting?: boolean;
 		/** The drawn rows' names, for a band that names one. */
 		names?: Record<string, string>;
 	} = $props();
 
-	// The band's own URL parameters, said once (select.server.ts's SELECT_BAND_PARAMS).
+	// The band's own URL parameters, said once: what bandQuery (select.server.ts) writes.
 	const PARAMS = [
 		'band',
 		'flag',
@@ -70,13 +76,20 @@
 		'untrusted',
 		'series',
 		'queued',
-		'followed'
+		'followed',
+		// ?/updateSome's rows that had no update.
+		'no'
 	] as const;
 	const dismiss = () => clearBandUrl(PARAMS);
 	// `encodeFacts`' shape (select.server.ts), said here so the client need not
 	// import the server module; `|` is in neither kind of source id.
-	/** UNDO's action, with the selection, so a no-script refusal lands still selecting. */
+	/**
+	 * UNDO's action. While selecting it carries the selection, so a no-script
+	 * refusal lands still selecting; after ✕ it carries nothing, and UNDO lands
+	 * on EXTENSIONS as it was left.
+	 */
 	const undoAction = $derived.by(() => {
+		if (!selecting) return `${base}?/undoFlags`;
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams({ select: '1' });
 		for (const pkg of selection) p.append('pkg', pkg);
@@ -189,7 +202,10 @@
 					<input type="hidden" name="flag" value={flags.flag} />
 					<input type="hidden" name="to" value={flags.to ? '1' : '0'} />
 					<input type="hidden" name="from" value={factsUrl} />
-					{#each selection as pkg (pkg)}<input type="hidden" name="pkg" value={pkg} />{/each}
+					{#if selecting}
+						<input type="hidden" name="select" value="1" />
+						{#each selection as pkg (pkg)}<input type="hidden" name="pkg" value={pkg} />{/each}
+					{/if}
 					<button type="submit">UNDO</button>
 				</form>
 			{/if}

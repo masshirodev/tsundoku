@@ -340,6 +340,30 @@ test('UNDO puts a mixed selection back mixed, and the band marks the rows it cou
 	).toHaveAttribute('aria-checked', 'false');
 });
 
+// The band is the URL's and outlives SELECT's ✕, so its UNDO can be pressed
+// after the owner has left SELECT: it undoes, and leaves them out of it.
+test('UNDO pressed after ✕ undoes, and does not put SELECT back', async ({ page }) => {
+	await page.goto('/browse/extensions');
+	await startSelect(page);
+	await row(page, 'Shelf Novels').click();
+	await cell(page, 'NEVER TRACKED').click();
+	const band = page.locator('.band');
+	await expect(band).toContainText('NEVER TRACKED · ON FOR 1');
+
+	await page.getByRole('link', { name: 'Stop selecting' }).click();
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await expect(band).toContainText('NEVER TRACKED · ON FOR 1');
+
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page).not.toHaveURL(/select=1/);
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await expect(page.locator('.cell.sel')).toBeVisible();
+	await page.goto('/browse/ln:shelf/settings');
+	await expect(
+		page.locator('form.own', { hasText: 'Never tracked' }).getByRole('switch')
+	).toHaveAttribute('aria-checked', 'false');
+});
+
 test('a ticked row removed elsewhere is not counted as changed, and leaves the selection', async ({
 	page,
 	baseURL

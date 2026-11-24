@@ -470,6 +470,7 @@
 			remove={data.removeBand}
 			back={data.backBand}
 			selection={[...selected]}
+			{selecting}
 			{names}
 		/>
 	{/if}

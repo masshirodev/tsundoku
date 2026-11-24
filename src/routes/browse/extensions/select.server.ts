@@ -189,17 +189,6 @@ export function applyFlag(plan: FlagPress, db = getDb()): FlagFact[] {
 	return plan.ids.length ? setSourceFlags(plan.ids, plan.flag, plan.to, db) : [];
 }
 
-/** Plan and write in one call, for a caller with no band to measure. */
-export function pressFlag(
-	pkgs: readonly string[],
-	flag: SourceFlag,
-	to: boolean,
-	db = getDb()
-): FlagPress & { facts: FlagFact[] } {
-	const plan = planFlag(pkgs, flag, to, db);
-	return { ...plan, facts: applyFlag(plan, db) };
-}
-
 /**
  * Whether UNDO may run whole: every source the press changed still has the
  * value it set. A source changed since, on its own settings page, is named by
@@ -234,25 +223,6 @@ export function undoFlagPress(flag: SourceFlag, facts: readonly FlagFact[], db =
 		db
 	);
 }
-
-/** One band at a time, and the parameters each kind carries (doc/BANDS.md). */
-export const SELECT_BAND_PARAMS = [
-	'band',
-	'flag',
-	'to',
-	'from',
-	'of',
-	'chg',
-	'miss',
-	'gone',
-	'done',
-	'ver',
-	'stayed',
-	'untrusted',
-	'series',
-	'queued',
-	'followed'
-] as const;
 
 /** A band's own URL parameters, as the action writes them: one band, replaced by the next press. */
 export function bandQuery(
@@ -310,27 +280,3 @@ export function flagsBand(p: URLSearchParams): FlagsBand | null {
 		gone: listParam(p, 'gone')
 	};
 }
-
-/** What each switch of a package does, in the band's words: the press's own line. */
-export function flagWords(flag: SourceFlag, to: boolean): string {
-	if (flag === 'hidden') return to ? 'REVEAL SHOWS THEM' : 'LISTED, SEARCHED AND NAMED AGAIN';
-	if (flag === 'addedHidden')
-		return to
-			? 'A SERIES ADDED FROM THEM ARRIVES HIDDEN'
-			: 'A SERIES ADDED FROM THEM ARRIVES SHOWN';
-	if (flag === 'offHistory')
-		return to
-			? 'THEIR READS LEAVE HISTORY, AND STILL COUNT FOR PROGRESS'
-			: 'THEIR READS SHOW IN HISTORY AGAIN';
-	return to
-		? 'NOTHING FROM THEM IS SENT TO ANILIST, MAL OR RANOBE'
-		: 'THEY ARE SENT TO ANILIST, MAL AND RANOBE AGAIN';
-}
-
-/** The switch's name as the settings page and the bar write it. */
-export const FLAG_NAMES: Record<SourceFlag, string> = {
-	hidden: 'HIDDEN',
-	addedHidden: 'ADDED HIDDEN',
-	offHistory: 'OFF HISTORY',
-	neverTracked: 'NEVER TRACKED'
-};
