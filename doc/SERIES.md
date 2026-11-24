@@ -241,7 +241,10 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   already read alone. It's the common case after an import, in one gesture
   where RANGE takes three taps. It's logged as marks (`mark_read`), not
   reading. It works on not-downloaded rows too, which a tap doesn't open, and
-  is off while selecting.
+  is off while selecting. An episode row's long press does the same, and its
+  bands say episodes and watched ("MARKED WATCHED THROUGH EP. 5 · 3 EPISODES",
+  "PUT BACK 4 EPISODES"). The words are in both languages and take the unit
+  from the series' kind (`through-words.ts`, `tests/through-words.spec.ts`).
 - **UNDO of a MARK READ THROUGH puts the old place back**, through its own
   action, `?/undoMarkThrough`, because `?/mark read=0` is MARK UNREAD, which
   clears the place. The answer of `?/markThrough` carries the press's stamp and

@@ -80,7 +80,7 @@ to an existing one (`?/ungroup` against `?/undoAdd`), no other ✕ may remove
 | Series                              | A refusal, `NOTHING CHANGED`                                               | Form answer                                                    |
 | Series                              | `N NOT AT THE SOURCE`                                                      | Form answer                                                    |
 | Series                              | REFRESH's answer                                                           | Form answer                                                    |
-| Series                              | `MARKED READ THROUGH`, `PUT BACK N CHAPTERS`                               | Form answer                                                    |
+| Series                              | `MARKED READ THROUGH`, `PUT BACK N CHAPTERS` (EPISODES, WATCHED on video)  | Form answer                                                    |
 | Series                              | `ADDED TO … · PART`, Work made, `UNLINKED`, `RENAMED`, `TAKEN OUT`         | Form answer                                                    |
 | Series panel (`SeriesPanel.svelte`) | `TAKEN OUT OF …`, `… IS NO LONGER A WORK`, `HIDDEN · TAKEN OUT`            | Form answer                                                    |
 | Series panel                        | `NOT A SERIES · WON'T ASK AGAIN`, `NOT THIS · WON'T ASK AGAIN`             | Form answer                                                    |

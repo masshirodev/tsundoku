@@ -798,6 +798,70 @@
 		}
 	],
 	"series_refresh_detail": "NADA BAIXADO · PRÓXIMO OU TODOS MANTÉM",
+	"series_through_marked": "MARCADO COMO LIDO ATÉ {label}",
+	"series_through_marked_video": "MARCADO COMO ASSISTIDO ATÉ {label}",
+	"series_through_none": "NADA A MARCAR · TUDO LIDO ATÉ {label}",
+	"series_through_none_video": "NADA A MARCAR · TUDO ASSISTIDO ATÉ {label}",
+	"series_through_count": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} CAPÍTULO",
+				"countPlural=*": "{n} CAPÍTULOS"
+			}
+		}
+	],
+	"series_through_count_video": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} EPISÓDIO",
+				"countPlural=*": "{n} EPISÓDIOS"
+			}
+		}
+	],
+	"series_through_put_back": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "DESFEITO EM {n} CAPÍTULO",
+				"countPlural=*": "DESFEITO EM {n} CAPÍTULOS"
+			}
+		}
+	],
+	"series_through_put_back_video": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "DESFEITO EM {n} EPISÓDIO",
+				"countPlural=*": "DESFEITO EM {n} EPISÓDIOS"
+			}
+		}
+	],
+	"series_through_kept": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} LIDO OU MARCADO DEPOIS · FICA COMO ESTÁ",
+				"countPlural=*": "{n} LIDOS OU MARCADOS DEPOIS · FICAM COMO ESTÃO"
+			}
+		}
+	],
+	"series_through_kept_video": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} ASSISTIDO OU MARCADO DEPOIS · FICA COMO ESTÁ",
+				"countPlural=*": "{n} ASSISTIDOS OU MARCADOS DEPOIS · FICAM COMO ESTÃO"
+			}
+		}
+	],
 	"series_refresh_no_source": "ESTA SÉRIE NÃO VEM DE UMA FONTE",
 	"offer_might_be_one_series": "PODE SER UMA SÉRIE",
 	"offer_not_a_series": "NÃO É UMA SÉRIE",

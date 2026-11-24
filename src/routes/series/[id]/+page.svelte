@@ -6,6 +6,7 @@
 	import KindSheet from './KindSheet.svelte';
 	import { showAround } from '$lib/library/surroundings';
 	import { movedUnit } from './move-words';
+	import { markedWords, putBackWords } from './through-words';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import DeleteSheet from './DeleteSheet.svelte';
 	import { entriesLine } from '$lib/reader/library-row';
@@ -783,15 +784,9 @@
 			ondismiss={dropAnswer}
 		/>
 	{:else if markedThrough}
-		<Band
-			title={markedThrough.ids.length === 0
-				? `NOTHING TO MARK · ALL READ THROUGH ${markedThrough.label.toUpperCase()}`
-				: `MARKED READ THROUGH ${markedThrough.label.toUpperCase()}`}
-			detail={markedThrough.ids.length === 0
-				? undefined
-				: `${markedThrough.ids.length} CHAPTER${markedThrough.ids.length === 1 ? '' : 'S'}`}
-			ondismiss={dropAnswer}
-		>
+		<!-- EpisodeList's long press reaches it too: through-words.ts takes the kind. -->
+		{@const words = markedWords(series.kind, markedThrough.ids.length, markedThrough.label)}
+		<Band title={words.title} detail={words.detail} ondismiss={dropAnswer}>
 			{#snippet action()}
 				{#if markedThrough.ids.length > 0}
 					<!-- Its own action: ?/mark read=0 is MARK UNREAD, which clears the place. -->
@@ -804,13 +799,8 @@
 		</Band>
 	{:else if undoneThrough && undoneThrough.kept > 0}
 		<!-- A chapter read or marked since the press stays as it is. -->
-		<Band
-			title="PUT BACK {undoneThrough.undone} CHAPTER{undoneThrough.undone === 1 ? '' : 'S'}"
-			detail="{undoneThrough.kept} READ OR MARKED SINCE · LEFT AS {undoneThrough.kept === 1
-				? 'IT IS'
-				: 'THEY ARE'}"
-			ondismiss={dropAnswer}
-		/>
+		{@const words = putBackWords(series.kind, undoneThrough.undone, undoneThrough.kept)}
+		<Band title={words.title} detail={words.detail} ondismiss={dropAnswer} />
 	{:else if madeWork}
 		<!-- OTHER FORMS' GROUP AS A WORK: the library's own band and UNDO. -->
 		<Band

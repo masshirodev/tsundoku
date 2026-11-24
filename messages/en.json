@@ -798,6 +798,70 @@
 		}
 	],
 	"series_refresh_detail": "NOTHING DOWNLOADED · NEXT OR ALL KEEPS THEM",
+	"series_through_marked": "MARKED READ THROUGH {label}",
+	"series_through_marked_video": "MARKED WATCHED THROUGH {label}",
+	"series_through_none": "NOTHING TO MARK · ALL READ THROUGH {label}",
+	"series_through_none_video": "NOTHING TO MARK · ALL WATCHED THROUGH {label}",
+	"series_through_count": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} CHAPTER",
+				"countPlural=*": "{n} CHAPTERS"
+			}
+		}
+	],
+	"series_through_count_video": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} EPISODE",
+				"countPlural=*": "{n} EPISODES"
+			}
+		}
+	],
+	"series_through_put_back": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "PUT BACK {n} CHAPTER",
+				"countPlural=*": "PUT BACK {n} CHAPTERS"
+			}
+		}
+	],
+	"series_through_put_back_video": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "PUT BACK {n} EPISODE",
+				"countPlural=*": "PUT BACK {n} EPISODES"
+			}
+		}
+	],
+	"series_through_kept": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} READ OR MARKED SINCE · LEFT AS IT IS",
+				"countPlural=*": "{n} READ OR MARKED SINCE · LEFT AS THEY ARE"
+			}
+		}
+	],
+	"series_through_kept_video": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} WATCHED OR MARKED SINCE · LEFT AS IT IS",
+				"countPlural=*": "{n} WATCHED OR MARKED SINCE · LEFT AS THEY ARE"
+			}
+		}
+	],
 	"series_refresh_no_source": "THIS SERIES ISN’T FROM A SOURCE",
 	"offer_might_be_one_series": "MIGHT BE ONE SERIES",
 	"offer_not_a_series": "NOT A SERIES",
