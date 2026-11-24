@@ -551,41 +551,58 @@ test.describe('a held arrow', () => {
 	test('the page hidden mid-ramp stops there, and no later repeat or return moves it', async ({
 		page
 	}) => {
-		await openForHold(page);
 		const y = () => scrollAt(page);
-		const start = await y();
-		await page.keyboard.down('ArrowDown');
-		// On the ramp, which the first repeat starts and which lasts the
-		// glide's 220 ms: the repeat and the hiding are one `evaluate`, so the
-		// moment is the page's own clock and not a poll, which is met by the
-		// press's glide and stays true after the ramp has ended. Read in the same
-		// turn as the hiding, or an ease's first frames go unseen.
-		const { atHidden, after } = await page.evaluate(async () => {
-			window.dispatchEvent(
-				new KeyboardEvent('keydown', {
-					key: 'ArrowDown',
-					code: 'ArrowDown',
-					keyCode: 40,
-					which: 40,
-					repeat: true,
-					bubbles: true,
-					cancelable: true
-				})
-			);
-			const from = performance.now();
-			await new Promise<void>((done) => {
-				const wait = () => (performance.now() - from >= 90 ? done() : requestAnimationFrame(wait));
-				requestAnimationFrame(wait);
-			});
-			Object.defineProperty(document, 'visibilityState', {
-				value: 'hidden',
-				configurable: true
-			});
-			const atHidden = Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0));
-			const after = performance.now() - from;
-			document.dispatchEvent(new Event('visibilitychange'));
-			return { atHidden, after };
-		});
+		// A frame late by more than the ramp's last 130 ms (a loaded box) hides
+		// the page after the ramp has ended, which says nothing about the ramp:
+		// that is the precondition missed, not the case failed, so it is tried
+		// again from a fresh chapter, up to three times (c929).
+		let start = 0;
+		let atHidden = 0;
+		let after = Infinity;
+		for (let attempt = 0; attempt < 3 && after >= 220; attempt++) {
+			if (attempt > 0) {
+				await page.keyboard.up('ArrowDown');
+				await page.evaluate(() => {
+					delete (document as unknown as { visibilityState?: unknown }).visibilityState;
+					document.dispatchEvent(new Event('visibilitychange'));
+				});
+			}
+			await openForHold(page);
+			start = await y();
+			await page.keyboard.down('ArrowDown');
+			// On the ramp, which the first repeat starts and which lasts the
+			// glide's 220 ms: the repeat and the hiding are one `evaluate`, so the
+			// moment is the page's own clock and not a poll, which is met by the
+			// press's glide and stays true after the ramp has ended. Read in the same
+			// turn as the hiding, or an ease's first frames go unseen.
+			({ atHidden, after } = await page.evaluate(async () => {
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', {
+						key: 'ArrowDown',
+						code: 'ArrowDown',
+						keyCode: 40,
+						which: 40,
+						repeat: true,
+						bubbles: true,
+						cancelable: true
+					})
+				);
+				const from = performance.now();
+				await new Promise<void>((done) => {
+					const wait = () =>
+						performance.now() - from >= 90 ? done() : requestAnimationFrame(wait);
+					requestAnimationFrame(wait);
+				});
+				Object.defineProperty(document, 'visibilityState', {
+					value: 'hidden',
+					configurable: true
+				});
+				const atHidden = Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0));
+				const after = performance.now() - from;
+				document.dispatchEvent(new Event('visibilitychange'));
+				return { atHidden, after };
+			}));
+		}
 		expect(after).toBeLessThan(220);
 		expect(atHidden - start).toBeGreaterThan(20);
 		// At once: an ease would still cover the ramp's speed times a third of a nudge's glide.
