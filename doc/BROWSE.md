@@ -84,11 +84,13 @@ painted, and puts the mark in step (another tab may have changed the key since
 this document's head ran); the toggle keeps the mark in step too. Without
 script nothing folds and the toggle's words are not drawn (a `<noscript>`
 rule). The label is a button, one stop on a TV, and OK toggles it; folded, its
-rows are not stops. **Its accessible name is `01 — RECENT · LAST BROWSED`,
-whatever its state** (`aria-expanded` says which): `HIDE ↑` and `SHOW ↓` are
-only its drawn words, since HIDE and SHOW are words other buttons in the browse
-world are found by (reveal's HIDE AGAIN among them), and a locator matches a
-name by substring. MANGA, ANIME and NOVELS do not fold: theirs would cost a key
+rows are not stops. **Its accessible name is what it draws**:
+`01 — RECENT LAST BROWSED HIDE ↑` open, `01 — RECENT 4 RECENT SHOW ↓` folded
+(`aria-expanded` says which too). The half not drawn is `display: none` and
+out of the name, so a voice user's "click show" finds it (WCAG 2.5.3, label in
+name). It was a fixed `01 — RECENT · LAST BROWSED` until 2026-11-24, to keep
+HIDE and SHOW out of other locators' reach; every browse locator for those is
+scoped or exact, which the browse specs that use them confirmed. MANGA, ANIME and NOVELS do not fold: theirs would cost a key
 each and a rule for a section that is most of the screen. Tested in
 `tests/browse-recent.e2e.ts` (fold, reload, unfold, the first paint with the
 app's script blocked, arrivals inside the app, another tab's change),

@@ -276,15 +276,15 @@
 	{:else}
 		{#if list.recent.length}
 			<!-- RECENT's label is its fold: one stop on a TV, OK toggles it.
-			     Its name is RECENT's own words, never HIDE or SHOW, which other
-			     buttons in the browse world are named (reveal's HIDE AGAIN). -->
+			     Its name is what it shows (`01 — RECENT 4 RECENT SHOW ↓`), so a
+			     voice user's "click show" finds it: the half not drawn is
+			     display: none, and out of the name. -->
 			<button
 				type="button"
 				class="label first fold"
 				class:shut={recentShut}
 				aria-expanded={!recentShut}
 				aria-controls="browse-recent"
-				aria-label="01 — RECENT · LAST BROWSED"
 				onclick={toggleRecent}
 			>
 				<span>01 — RECENT</span>

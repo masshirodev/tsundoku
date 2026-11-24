@@ -21,7 +21,7 @@ test.afterAll(async () => {
 	await world?.stop();
 });
 
-const toggle = (page: Page) => page.getByRole('button', { name: '01 — RECENT · LAST BROWSED' });
+const toggle = (page: Page) => page.getByRole('button', { name: /^01 — RECENT/ });
 const focusedIn = (page: Page, selector: string) =>
 	page.evaluate((s) => !!document.activeElement?.closest(s), selector);
 

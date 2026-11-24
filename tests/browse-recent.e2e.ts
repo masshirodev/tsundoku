@@ -14,7 +14,7 @@ import { resetEngine, SOURCES } from './browse-world';
 const OPEN = `/browse/${SOURCES.open.id}`;
 const KEY = 'tsundoku:browse-recent';
 
-const toggle = (page: Page) => page.getByRole('button', { name: '01 — RECENT · LAST BROWSED' });
+const toggle = (page: Page) => page.getByRole('button', { name: /^01 — RECENT/ });
 const recentRows = (page: Page) => page.locator('#browse-recent');
 /** What the label's right half shows (both words are in the markup; the fold shows one pair). */
 const shown = (page: Page) => toggle(page).locator('.right > span:visible');
@@ -33,12 +33,16 @@ test('RECENT folds, stays folded across a reload, and unfolds', async ({ page })
 	expect(n).toBeGreaterThan(0);
 	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'true');
 	await expect(shown(page)).toHaveText(['LAST BROWSED', 'HIDE ↑']);
+	// Its name holds the words drawn, so "click hide" finds it (WCAG 2.5.3).
+	await expect(toggle(page)).toHaveAccessibleName(/LAST BROWSED.*HIDE ↑/);
 
 	await toggle(page).click();
 	await expect(recentRows(page)).toBeHidden();
 	await expect(toggle(page)).toHaveAttribute('aria-expanded', 'false');
 	// Folded, it still says how many, so it isn't forgotten.
 	await expect(shown(page)).toHaveText([`${n} RECENT`, 'SHOW ↓']);
+	await expect(toggle(page)).toHaveAccessibleName(new RegExp(`${n} RECENT.*SHOW ↓`));
+	await expect(toggle(page)).not.toHaveAccessibleName(/HIDE|LAST BROWSED/);
 	expect(await stored(page)).toBe('folded');
 	// The sections after it keep their numbers.
 	await expect(page.locator('.screen > .label').nth(1)).toContainText('02 — MANGA');
