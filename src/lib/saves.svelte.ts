@@ -1,3 +1,4 @@
+import { untrack } from 'svelte';
 /**
  * Writes that failed (doc/WAITING.md). A write shows its result at once and
  * saves behind it. When the save doesn't go through, the new value stays --
@@ -47,8 +48,13 @@ class Saves {
 
 	/** These series are hidden now (a HIDE answered on this device): bands about them drop the name. */
 	unname(series: readonly number[]) {
-		if (series.length === 0) return;
-		this.#unnamed = new Set([...this.#unnamed, ...series]);
+		// Called from effects (the library's, on a HIDE answer): read without
+		// depending on it, and write only when something is new, or the effect
+		// that calls it would run itself again for good.
+		const now = untrack(() => this.#unnamed);
+		const add = series.filter((id) => !now.has(id));
+		if (add.length === 0) return;
+		this.#unnamed = new Set([...now, ...add]);
 	}
 
 	fail(f: FailedSave) {
