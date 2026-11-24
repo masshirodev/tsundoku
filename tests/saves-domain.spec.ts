@@ -252,3 +252,28 @@ describe('a cover chosen from a page', () => {
 		);
 	});
 });
+
+describe('a band naming its tile', () => {
+	// A library band says which tile ("FAV NOT SAVED · FRIEREN"), the name kept
+	// apart from its words so a HIDE since can take it off (saves.unname).
+	it('names the tile until that series is hidden, then says its words alone', () => {
+		saves.fail(
+			failure('fav:41', { what: 'FAV NOT SAVED', about: { series: 41, name: 'FRIEREN' } })
+		);
+		saves.fail(failure('fav:42', { what: 'FAV NOT SAVED', about: { series: 42, name: 'MOB' } }));
+		const words = () => saves.failed.map((f) => saves.words(f));
+		expect(words()).toEqual(['FAV NOT SAVED · FRIEREN', 'FAV NOT SAVED · MOB']);
+		saves.unname([41]);
+		expect(words()).toEqual(['FAV NOT SAVED', 'FAV NOT SAVED · MOB']);
+		// A failure raised later about the same series is not named either.
+		saves.fail(
+			failure('rating:41', { what: 'RATING 4 NOT SAVED', about: { series: 41, name: 'FRIEREN' } })
+		);
+		expect(saves.words(saves.failed.at(-1)!)).toBe('RATING 4 NOT SAVED');
+	});
+
+	it('says a band with no tile as it is', () => {
+		saves.fail(failure('cover:book:7', { what: 'BOOK COVER NOT SAVED' }));
+		expect(saves.words(saves.failed[0])).toBe('BOOK COVER NOT SAVED');
+	});
+});

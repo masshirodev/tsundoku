@@ -127,7 +127,12 @@ fails:
   TRIES AGAIN WITH THE NEXT REQUEST", with PUT BACK 3 and RETRY (a library
   tile's band names the tile, since several can be up at once, unless the
   card is hidden when the save fails: the band outlives reveal, and with
-  reveal off a hidden title does not reach the browser);
+  reveal off a hidden title does not reach the browser. The name is kept apart
+  from the band's words (`FailedSave.about`, drawn by `saves.words`), so a
+  series hidden after its save failed loses it at once: the library's HIDE
+  answers and the series screen's HIDE call `saves.unname`, and so does a list
+  that now draws the card hidden. A hide made on another device is not seen
+  until the band goes);
 - RETRY and PUT BACK end only their own failure; a newer failure of the same
   field replaces it, and a retry that lands leaves that newer one up;
 - the next navigation that reaches the workstation tries each held failure

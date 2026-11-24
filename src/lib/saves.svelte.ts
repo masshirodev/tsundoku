@@ -12,6 +12,13 @@
 export type FailedSave = {
 	/** What the band says: "RATING 4 NOT SAVED". */
 	what: string;
+	/**
+	 * The tile it is about, when a library band names one ("FAV NOT SAVED ·
+	 * FRIEREN"), kept apart from `what` so the name can go: the band outlives
+	 * reveal and the screen it was raised on, and a series hidden since must not
+	 * be named on it (`unname`).
+	 */
+	about?: { series: number; name: string };
 	/** The value it would go back to: "PUT BACK 3". */
 	putBackLabel: string;
 	/** Which control shows it dashed: `rating:<series>`, `fav:<series>`. */
@@ -30,6 +37,19 @@ class Saves {
 
 	/** Failures whose retry is out, so a nudge or a second tap does not double it. */
 	#out = new Set<FailedSave>();
+	/** Series this device hid since: a band about one says its words without the name. */
+	#unnamed = $state(new Set<number>());
+
+	/** The band's words: `what`, and the tile's name while it may still be said. */
+	words(f: FailedSave): string {
+		return f.about && !this.#unnamed.has(f.about.series) ? `${f.what} · ${f.about.name}` : f.what;
+	}
+
+	/** These series are hidden now (a HIDE answered on this device): bands about them drop the name. */
+	unname(series: readonly number[]) {
+		if (series.length === 0) return;
+		this.#unnamed = new Set([...this.#unnamed, ...series]);
+	}
 
 	fail(f: FailedSave) {
 		this.failed = [...this.failed.filter((x) => x.key !== f.key), f];

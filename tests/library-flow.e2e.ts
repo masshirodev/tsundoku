@@ -1404,6 +1404,52 @@ test.describe('a tile save that fails draws its value unsaved', () => {
 		});
 	}
 
+	// The name is kept apart from the band's words (saves.words), so a HIDE
+	// answered after the save failed takes it off the band at once: the band
+	// outlives the screen, and with reveal off the title must not stay on it.
+	// HIDE on the series screen (`hid`); the library's own HIDE answers drop it
+	// the same way (`hideFacts`). Not by the long-press sheet: a save band
+	// covers a sheet's last row, HIDE (c1105).
+	test('a series hidden after its save failed stops being named on its band', async ({ page }) => {
+		await page.goto('/?shelf=all&sort=title');
+		const tile = page.locator('.grid .tile', { hasText: TITLE });
+		const fav = tile.getByRole('button', { name: 'Favourite' });
+		const word = (await fav.getAttribute('aria-pressed')) === 'true' ? 'UNFAV' : 'FAV';
+		const isFav = (u: URL) => u.pathname === '/' && u.search === '?/favourite';
+		await page.route(isFav, (route) => route.abort());
+		await fav.click();
+		const band = page.locator('[role="alert"]');
+		const named = `${word} NOT SAVED · ${TITLE.toUpperCase()}`;
+		await expect(band.locator('.what')).toHaveText(named);
+
+		await tile.locator('.open').click();
+		await page.waitForURL(/\/series\/\d+/);
+		await expect(band.locator('.what')).toHaveText(named);
+		await page.getByRole('button', { name: 'HIDE', exact: true }).filter({ visible: true }).click();
+		await expect(band.locator('.what')).toHaveText(`${word} NOT SAVED`);
+		// And on the next screen too, reached inside the app (the store is the page's).
+		await page.getByRole('link', { name: 'Search' }).click();
+		await page.waitForURL(/\/search/);
+		await expect(band.locator('.what')).toHaveText(`${word} NOT SAVED`);
+		await band.getByRole('button', { name: /PUT BACK/ }).click();
+		await expect(band).toHaveCount(0);
+		await page.unroute(isFav);
+
+		// Shown again, as the seed has it.
+		await page.goto('/search');
+		await page.getByRole('searchbox').fill('/reveal');
+		await page.keyboard.press('Enter');
+		await page.waitForURL((u) => u.pathname === '/');
+		await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+		await page.goto('/?shelf=all&sort=title');
+		const again = await longPress(page, TITLE);
+		await again.getByRole('button', { name: 'UNHIDE' }).click();
+		await expect(tile.getByText('HIDDEN', { exact: true })).toHaveCount(0);
+		await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+		await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+		await expect(tile).toBeVisible();
+	});
+
 	test('a tile gone from the grid when its save fails is not named, and leaves no separator', async ({
 		page
 	}) => {

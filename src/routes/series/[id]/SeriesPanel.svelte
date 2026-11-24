@@ -312,6 +312,19 @@
 	 * refusal: the Work the screen drew is gone or its id names another,
 	 * so the band must be drawn over the Work there is now.
 	 */
+	/**
+	 * HIDE's answer: as `replacing`, and a library band still naming this
+	 * series stops naming it (doc/WAITING.md, "Writes that fail").
+	 */
+	const hid: SubmitFunction = () => {
+		// The same form UNHIDEs a hidden series, which must not take a name away.
+		const hiding = !series.hidden;
+		return async ({ result, update }) => {
+			if (hiding && (result.type === 'success' || result.type === 'redirect'))
+				saves.unname([series.id]);
+			await settleReplacing({ result, update });
+		};
+	};
 	const replacingStale: SubmitFunction =
 		() =>
 		async ({ result, update }) => {
@@ -1443,7 +1456,7 @@
 									<button type="submit" class="edit">UNHIDE</button>
 								</form>
 							{:else}
-								<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
+								<form method="POST" action="?/hide" use:enhance={hid} class="hide-form">
 									<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
 									<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
 								</form>
@@ -1494,7 +1507,7 @@
 									<button type="submit" class="edit">UNHIDE</button>
 								</form>
 							{:else}
-								<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
+								<form method="POST" action="?/hide" use:enhance={hid} class="hide-form">
 									<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
 									<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
 								</form>

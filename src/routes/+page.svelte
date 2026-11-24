@@ -39,7 +39,7 @@
 	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
-	import { postAction, saves } from '$lib/saves.svelte';
+	import { postAction, saves, type FailedSave } from '$lib/saves.svelte';
 	import { seriesSaves, type Turn } from '$lib/serial-saves';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
@@ -1108,6 +1108,17 @@
 				})
 			: null
 	);
+	// A band naming a tile must stop naming it once the series is hidden: by
+	// this HIDE's answer, or by a card the list now draws hidden (a Work's part,
+	// a hidden root). doc/WAITING.md, "Writes that fail".
+	$effect(() => {
+		if (hideFacts) saves.unname(hideFacts.hidden);
+	});
+	$effect(() => {
+		const about = new Set(saves.failed.flatMap((f) => (f.about ? [f.about.series] : [])));
+		if (about.size === 0) return;
+		saves.unname(series.filter((s) => s.hidden && about.has(s.id)).map((s) => s.id));
+	});
 	/** The UNHIDE answer's facts: every part it showed, and UNDO to hide them. */
 	const showFacts = $derived(
 		latest && 'showFacts' in latest
@@ -1341,7 +1352,7 @@
 		action: 'favourite' | 'rate',
 		key: string,
 		fields: Record<string, string>,
-		failure: () => { what: string; putBackLabel: string; putBack: () => void },
+		failure: () => Pick<FailedSave, 'what' | 'about' | 'putBackLabel' | 'putBack'>,
 		settle: () => void
 	) {
 		const save = () => postAction(`/?/${action}`, fields);
@@ -1392,10 +1403,11 @@
 	 * hidden title does not reach the browser (doc/LIBRARY.md). `hidden` is the
 	 * card's own, a hidden root's included. A tile no longer listed has no name.
 	 */
-	function bandWords(what: string, id: number) {
+	function bandWords(what: string, id: number): Pick<FailedSave, 'what' | 'about'> {
 		const card = series.find((s) => s.id === id);
-		const name = card && !card.hidden ? card.title.toUpperCase() : '';
-		return name ? `${what} · ${name}` : what;
+		return card && !card.hidden
+			? { what, about: { series: id, name: card.title.toUpperCase() } }
+			: { what };
 	}
 
 	function favourite(id: number, on: boolean) {
@@ -1405,7 +1417,7 @@
 			`fav:${id}`,
 			{ id: String(id), on: on ? '1' : '0' },
 			() => ({
-				what: bandWords(`${on ? 'FAV' : 'UNFAV'} NOT SAVED`, id),
+				...bandWords(`${on ? 'FAV' : 'UNFAV'} NOT SAVED`, id),
 				putBackLabel: series.find((s) => s.id === id)?.favourite
 					? 'PUT BACK · FAV'
 					: 'PUT BACK · NOT FAV',
@@ -1426,7 +1438,7 @@
 			`rating:${id}`,
 			{ id: String(id), rating: String(rating) },
 			() => ({
-				what: bandWords(`RATING ${rating} NOT SAVED`, id),
+				...bandWords(`RATING ${rating} NOT SAVED`, id),
 				putBackLabel: `PUT BACK ${series.find((s) => s.id === id)?.rating ?? 0}`,
 				putBack: () => ratingNow.delete(id)
 			}),

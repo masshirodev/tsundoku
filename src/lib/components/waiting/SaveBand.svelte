@@ -10,7 +10,7 @@
 		{#each saves.failed as f (f.key)}
 			<div class="band" role="alert">
 				<div class="text">
-					<div class="what">{f.what}</div>
+					<div class="what">{saves.words(f)}</div>
 					<div class="why">WORKSTATION DID NOT ANSWER · TRIES AGAIN WITH THE NEXT REQUEST</div>
 				</div>
 				<button type="button" class="put" onclick={() => saves.putBack(f.key)}
