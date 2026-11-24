@@ -302,8 +302,10 @@
 			// On a success `update()` re-reads the page already (SvelteKit's
 			// fallback); on a failure it only applies the action's `form`.
 			await update();
-			if (close || staleWork(result)) workSheet = false;
+			// Re-read before closing: a sheet re-opened while the read is still
+			// out would be drawn on the old Work's moment, and refused again.
 			if (staleWork(result)) await invalidateAll();
+			if (close || staleWork(result)) workSheet = false;
 		};
 	/**
 	 * `replacing` for the two UNHIDE forms, plus a read of the page on a stale

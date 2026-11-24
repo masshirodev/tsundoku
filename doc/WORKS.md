@@ -479,7 +479,9 @@ LONGER A WORK · ONE SERIES WAS LEFT` with UNDO, which restores the same id,
   not on a Work, and posts none. A refusal there re-reads the screen, so the
   band is drawn over the Work the series is in now and the next press posts
   that Work's moment; the WORK row sheet closes on it, as GroupSheet does on
-  the Work screen's refusal. A Work that simply **ended** is the case before
+  the Work screen's refusal. It closes only once the page has been read
+  again: a sheet re-opened while the read was still out was drawn on the old
+  moment and refused a second time. A Work that simply **ended** is the case before
   that check: the series is in no Work, so the four actions answer
   `THIS SERIES IS IN NO WORK` with nothing written, and that refusal says
   `stale: true` as well: the screen re-reads, both the WORK row's sheet and
