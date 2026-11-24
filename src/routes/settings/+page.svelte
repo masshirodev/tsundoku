@@ -17,7 +17,7 @@
 	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
 	import QrCode from '$lib/components/content/QrCode.svelte';
 	import { offline } from '$lib/offline.svelte';
-	import { SERVICE_NAME, clock, type Service } from '$lib/library/tracking';
+	import { SERVICE_NAME, TRACKERS, clock, type Service } from '$lib/library/tracking';
 	import type { AccountView } from '$lib/server/tracking';
 	import {
 		DEVICE_KEYS,
@@ -1251,6 +1251,8 @@
 								{a.userName ? `Signed in as ${a.userName}` : 'Not signed in'}
 							</div>
 							<div class="meta" class:alert={m.alert}>{m.text}</div>
+							<!-- What it takes, once, so MAL is never looked for on a film (doc/TRACKING.md). -->
+							<div class="takes">{TRACKERS[a.service].takesWords}</div>
 						</div>
 						{#if a.userName}
 							{#if a.failed.count}
@@ -2650,6 +2652,11 @@
 	}
 	.who .meta.alert {
 		color: var(--text-1);
+	}
+	/* What the tracker takes: a line under the state, as quiet as it. */
+	.who .takes {
+		font: 400 13px/1.35 var(--font-mono);
+		color: var(--text-2);
 	}
 	.choose {
 		color: var(--text-1);

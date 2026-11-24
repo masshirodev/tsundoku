@@ -51,6 +51,11 @@ test('SETTINGS lists both catalogues, not signed in, and why they can’t be yet
 		'THE APP ISN’T REGISTERED · SEE DOC/SECRETS.MD'
 	);
 	await expect(page.getByRole('link', { name: 'SIGN IN →' })).toHaveCount(0);
+	// What each takes, once on its row: MAL is never looked for on a film or show.
+	await expect(rows.locator('.takes')).toHaveText([
+		'COMICS AND ANIME',
+		'COMICS AND ANIME · NEVER FILMS OR SHOWS'
+	]);
 });
 
 test('a sign-in that came back refused says so, and changes nothing', async ({ page }) => {

@@ -250,7 +250,10 @@ The accounts and the queue are per service (`tracker_accounts`,
 
 `TRACKERS` in `src/lib/library/tracking.ts` is the contract: each service
 declares the kinds it `takes`, how it `connect`s, and whether tsundoku speaks
-to it yet (`built`). `trackersFor(kind)` is the one question.
+to it yet (`built`). `trackersFor(kind)` is the one question. Each row in
+SETTINGS' 06 — CATALOGUES says once, under its state, what its tracker takes
+(`takesWords`): AniList `COMICS AND ANIME`, MAL `COMICS AND ANIME · NEVER FILMS
+OR SHOWS` (`tests/tracking-flow.e2e.ts`).
 
 | Service | Kinds it takes      | What it is here                                                                     |
 | ------- | ------------------- | ----------------------------------------------------------------------------------- |
