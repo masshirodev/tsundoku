@@ -969,7 +969,10 @@ every row it updated; SELECT ends. The band carries each updated row's new
 version, so UNDO refuses whole (409, nothing changed) when a row's version is
 not the one the press installed — one that took its own BACK TO since, or
 another update — instead of swapping it forward again and calling it restored.
-The versions ride as one `ver` per `done`, in place and as written: a version
+While UPDATE n runs (minutes, on a slow repository) its cell reads UPDATING…
+and every cell of the bar is disabled until it answers, so a second press
+can't start a second run whose band covers only what it took. The versions ride
+as one `ver` per `done`, in place and as written: a version
 name such as `1.2+3` is not a package name, and an unknown one keeps its place,
 so the rows after it keep theirs (until 2026-11-24 a filter shortened the list
 and UNDO refused rows nothing had changed).

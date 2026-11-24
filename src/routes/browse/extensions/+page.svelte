@@ -4,6 +4,7 @@
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
@@ -145,6 +146,25 @@
 		};
 	};
 	let checking = $state(false);
+	/**
+	 * The bar's form out: 'update' while UPDATE n runs (it can take minutes),
+	 * 'press' for a switch. Every cell is disabled until it answers, so a second
+	 * press can't start a second run whose band covers only what it took.
+	 */
+	let bulkBusy = $state<'' | 'update' | 'press'>('');
+	const bulkWorking: SubmitFunction = ({ submitter }) => {
+		const action = (submitter as HTMLButtonElement | null)?.formAction;
+		// The action's `/` is encoded in the address (`%2FupdateSome`): ask its parameters.
+		bulkBusy =
+			action && new URL(action, location.href).searchParams.has('/updateSome') ? 'update' : 'press';
+		return async ({ update }) => {
+			try {
+				await update();
+			} finally {
+				bulkBusy = '';
+			}
+		};
+	};
 
 	// ---- SELECT ---------------------
 	/**
@@ -754,7 +774,13 @@
 		{/snippet}
 		{#if selecting}
 			<!-- One form: every ticked row's `pkg`, and each bar cell its own action. -->
-			<form method="POST" action="{base}?/flags" class="selform" use:enhance>
+			<form
+				method="POST"
+				action="{base}?/flags"
+				class="selform"
+				use:enhance={bulkWorking}
+				aria-busy={bulkBusy !== ''}
+			>
 				{@render list(true)}
 				<div class="bulk" role="toolbar" aria-label="Selection actions">
 					<!-- REMOVE's question is a GET, and a GET replaces the action's query
@@ -772,7 +798,7 @@
 									type="submit"
 									class="swc"
 									formaction={flagHref('hidden', true)}
-									disabled={js && c.known === 0}
+									disabled={(js && c.known === 0) || bulkBusy !== ''}
 								>
 									<span class="w"
 										><span class="k">HIDE</span><span class="n">THEY LEAVE THE LIST</span></span
@@ -785,7 +811,7 @@
 									formaction={flagHref(sw.flag, c.state !== 'on')}
 									role="switch"
 									aria-checked={c.state === 'mixed' ? 'mixed' : c.state === 'on'}
-									disabled={js && c.known === 0}
+									disabled={(js && c.known === 0) || bulkBusy !== ''}
 								>
 									<span class="w"
 										><span class="k">{sw.name}</span><span class="n">{cellNote(c, sw.flag)}</span
@@ -801,11 +827,12 @@
 							type="submit"
 							class="swc go"
 							formaction={updateHref()}
-							disabled={js && updateCount === 0}
+							disabled={(js && updateCount === 0) || bulkBusy !== ''}
 						>
 							<span class="w"
-								><span class="k">UPDATE {updateCount}</span><span class="n">OF {selected.size}</span
-								></span
+								><span class="k"
+									>{bulkBusy === 'update' ? 'UPDATING…' : `UPDATE ${updateCount}`}</span
+								><span class="n">OF {selected.size}</span></span
 							>
 						</button>
 						{#if js && removableCount === 0}
@@ -823,6 +850,7 @@
 								class="swc go solo"
 								formmethod="get"
 								formaction={base}
+								disabled={bulkBusy !== ''}
 								onclick={askRemove}
 								>{removableCount ? `REMOVE ${removableCount}…` : 'REMOVE…'}</button
 							>

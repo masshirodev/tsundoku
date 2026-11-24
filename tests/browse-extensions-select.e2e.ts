@@ -413,10 +413,24 @@ test('UPDATE narrows UPDATE ALL to the ticked row, and its UNDO is BACK TO', asy
 	await expect(page.locator('.label', { hasText: 'UPDATES' })).toContainText('UPDATE ALL 1');
 	await startSelect(page);
 	await row(page, 'Webtoons.com').click();
+	// Held, as a slow repository makes it: UPDATE n says it is running and the
+	// bar takes no second press until it answers.
+	let release = () => {};
+	const held = new Promise<void>((r) => (release = r));
+	const isUpdate = (u: URL) => u.searchParams.has('/updateSome');
+	await page.route(isUpdate, async (route) => {
+		await held;
+		await route.continue();
+	});
 	await page.locator('.bulk .swc', { hasText: 'UPDATE 1' }).click();
+	const running = page.locator('.bulk .swc', { hasText: 'UPDATING…' });
+	await expect(running).toBeDisabled();
+	await expect(page.locator('.bulk .swc:not([disabled])')).toHaveCount(0);
+	release();
 	const band = page.locator('.band');
 	await expect(band).toContainText('UPDATED · 1 EXTENSION');
 	await expect(band).toContainText('UNDO GOES BACK TO THEM');
+	await page.unroute(isUpdate);
 	// SELECT ended on success, and the row is the new version.
 	await expect(page.locator('.bulk')).toHaveCount(0);
 	await expect(row(page, 'Webtoons.com')).toContainText('1.6.3');
