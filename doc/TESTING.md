@@ -424,7 +424,14 @@ and a `goto` that waits for the network to settle first: SvelteKit hydrates
 after `load`, and a click, a tap or an arrow key that lands before hydration
 does nothing. A client-side navigation into the reader doesn't change the
 document, so no load state covers it; `readerReady(page)` waits for the
-reader's own stylesheet instead (its ground turns true black).
+reader's own stylesheet instead (its ground turns true black). A page a spec
+makes itself, in a browser it launched (a TV's pointerless Chromium in
+`browse-commands`' `onATv`), is not the fixture's and gets none of this until
+it is passed through `waitsForHydration(page)` from `tests/fixtures.ts`.
+Without it, `browse-commands`' "on a TV, the refusal still shows" case typed
+`/hide` before hydration on a loaded box, the bar's form posted without
+JavaScript, and the route it held for `/api/command` was never reached, so the
+case ran out its 120 s.
 
 **Network quiet is a guess at hydration; the page's own mark is not.**
 `networkidle` is 500 ms without a request, and on a loaded machine the last

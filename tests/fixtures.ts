@@ -29,24 +29,35 @@ import { hydrated } from './helpers/hydration';
  */
 export const test = base.extend({
 	page: async ({ page }, use) => {
-		const goto = page.goto.bind(page);
-		page.goto = async (url, options) => {
-			const res = await goto(url, options);
-			await page.waitForLoadState('networkidle');
-			await hydrated(page);
-			return res;
-		};
-		for (const name of ['reload', 'goBack', 'goForward'] as const) {
-			const navigate = page[name].bind(page) as Page['reload'];
-			page[name] = async (options) => {
-				const res = await navigate(options);
-				await hydrated(page);
-				return res;
-			};
-		}
+		waitsForHydration(page);
 		await use(page);
 	}
 });
+
+/**
+ * Gives a page the waits the fixture's own page has. For a page a spec makes
+ * itself, in a browser it launched (a TV's pointerless Chromium, say): the
+ * fixture never sees it, so its `goto` returned at `load` and the next key
+ * reached server-rendered markup, which posted its form without JavaScript.
+ */
+export function waitsForHydration(page: Page): Page {
+	const goto = page.goto.bind(page);
+	page.goto = async (url, options) => {
+		const res = await goto(url, options);
+		await page.waitForLoadState('networkidle');
+		await hydrated(page);
+		return res;
+	};
+	for (const name of ['reload', 'goBack', 'goForward'] as const) {
+		const navigate = page[name].bind(page) as Page['reload'];
+		page[name] = async (options) => {
+			const res = await navigate(options);
+			await hydrated(page);
+			return res;
+		};
+	}
+	return page;
+}
 
 export { expect, hydrated };
 

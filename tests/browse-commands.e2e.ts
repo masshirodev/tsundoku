@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, devices, type CDPSession, type Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
-import { expect, test } from './fixtures';
+import { expect, test, waitsForHydration } from './fixtures';
 import { startPreview } from './highlights-preview';
 import { HOST_ARGS } from './helpers/host-args';
 
@@ -173,7 +173,10 @@ async function onATv(page: Page, baseURL: string, body: (screen: Page) => Promis
 			locale: 'en-US',
 			storageState: { cookies: await page.context().cookies(), origins: [] }
 		});
-		const screen = await tv.newPage();
+		// Not the fixture's page, so its waits are given to it here: typed before
+		// hydration, a command posted the bar's form without JavaScript and
+		// never reached /api/command, which a held route then waited on for good.
+		const screen = waitsForHydration(await tv.newPage());
 		await body(screen);
 	} finally {
 		await browser.close();
