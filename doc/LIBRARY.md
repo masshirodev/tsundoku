@@ -341,8 +341,10 @@ though it is not drawn there.
   tapped while they are out opens on every selected series (its sheet takes
   its rows once, on open): SHOW lists every series and GROUP counts them all.
   SHOW opens at once and its list grows as the ids land. A tap made while the
-  reads are out belongs to its selection: ✕ drops it, and of two taps only the
-  last opens. A series unticked while the ids are out stays unticked. If the
+  reads are out belongs to its selection: ✕ drops it, + SHELF's picker drops
+  it, and of two taps only the last opens; and it opens only on a selection
+  that still holds something, never as `DELETE 0 SERIES?` or a GROUP of none.
+  A series unticked while the ids are out stays unticked. If the
   id GET fails, the wait ends and the sheet opens on what is selected, which
   is the loaded pages, and the bar counts the same. While it is out the sheet
   says `N MORE FROM SELECT ALL · LOADING`; an id the server names missing is

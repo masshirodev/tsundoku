@@ -209,7 +209,9 @@
 	async function openWhenFilled(open: () => void): Promise<void> {
 		const tap = ++lastTap;
 		await fill();
-		if (tap === lastTap) open();
+		// Nothing left to act on (every row unticked, or named missing): no
+		// GROUP of none, no DELETE 0 SERIES?.
+		if (tap === lastTap && selected.size > 0) open();
 	}
 
 	/** How long DELETE waits for that read before it asks without the row. */
@@ -259,7 +261,7 @@
 			asked = [...selected];
 			answer = await readHeld(asked);
 		} while (tap === lastTap && !sameMembers(asked, selected));
-		if (tap !== lastTap) return;
+		if (tap !== lastTap || selected.size === 0) return;
 		held = answer;
 		deleteHeldToo = false;
 		deleting = true;
@@ -322,8 +324,15 @@
 		<BulkBar columns={7}>
 			{#snippet actions()}
 				<button type="submit" name="do" value="fav" disabled={selected.size === 0}>FAV</button>
-				<button type="button" disabled={selected.size === 0} onclick={() => (pickerOpen = true)}
-					>+ SHELF</button
+				<button
+					type="button"
+					disabled={selected.size === 0}
+					onclick={() => {
+						// Its own sheet, now: a GROUP or DELETE still waiting on the
+						// reads must not open under the picker when they land.
+						dropTaps();
+						pickerOpen = true;
+					}}>+ SHELF</button
 				>
 				<!-- No tag editor is designed yet; see doc/LIBRARY.md. -->
 				<button type="button" disabled>TAG</button>

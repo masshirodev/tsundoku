@@ -544,6 +544,41 @@ test.describe('SELECT ALL past one page', () => {
 		await sheet.getByRole('button', { name: 'DONE' }).click();
 	});
 
+	test('+ SHELF tapped after GROUP while the id GET is out: the picker opens, and GROUP does not under it', async ({
+		page
+	}) => {
+		const { out } = await selectAllHeld(page);
+		await tapGroup(page);
+		await page.getByRole('button', { name: '+ SHELF' }).click();
+		const picker = page.getByRole('dialog', { name: 'Add to shelf' });
+		await expect(picker).toBeVisible();
+		await out[0].continue();
+		await page.waitForLoadState('networkidle');
+		// Counted in the DOM, not by role: a sheet opened under the picker is
+		// hidden from the accessibility tree by it, and would not be found.
+		await expect(page.locator('[role="dialog"][aria-label="Group into a series"]')).toHaveCount(0);
+		await expect(picker).toBeVisible();
+	});
+
+	test('a DELETE waiting on the id GET opens nothing when the selection is empty by then', async ({
+		page
+	}) => {
+		const { out } = await selectAllHeld(page);
+		await tapDelete(page);
+		// Every drawn tile unticked while the read is out, and the read itself
+		// answers no others: nothing is selected when it lands.
+		const ticked = tiles(page).locator('.open[aria-pressed="true"]');
+		while ((await ticked.count()) > 0) await ticked.first().click();
+		// DELETE reads the selection's highlights before it asks: that answer is
+		// the moment it would open.
+		const heldRead = page.waitForResponse((r) => new URL(r.url()).search === '?/held');
+		await out[0].fulfill({ json: { ids: [] } });
+		await heldRead;
+		// Asserting that nothing opens: a beat for a sheet that would (doc/TESTING.md, "Load").
+		await page.waitForTimeout(500);
+		await expect(page.getByRole('dialog', { name: /DELETE/ })).toHaveCount(0);
+	});
+
 	test('leaving for the search while the id GET is out carries what the bar read, and its late answer adds nothing', async ({
 		page
 	}) => {
