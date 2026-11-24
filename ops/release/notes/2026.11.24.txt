@@ -1,0 +1,7 @@
+The EDIT sheet's tags: Enter now always adds the tag you typed. Before, it could add the first suggestion instead, or nothing at all when that suggestion was already on the series.
+
+Search: typing a page's name (/help, /lock and the rest) and tapping its row no longer sometimes lands you back on the search when that page is slow to open.
+
+Reading manga online: turning back to a page you have just seen no longer flashes its loading box for a moment on a slow phone or TV.
+
+Extensions: a repository you add can no longer point tsundoku at other addresses on your own network. A repository on your own computer or network still works, as long as what it offers comes from the same address you typed.
