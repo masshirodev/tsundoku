@@ -114,8 +114,10 @@ fails:
   wear the same dashed mark, for as long as the page holds that tap,
   a RETRY in flight included);
 - each failure keeps its own band: the store (`saves`) holds a list keyed by
-  save (`fav:<id>`, `rating:<id>`, `cover:<entry>`), so a second failed field
-  or tile does not take the first one's PUT BACK or RETRY, and the bands stack
+  save (`fav:<id>`, `rating:<id>`, `cover:book|series|both:<entry>`), so a
+  second failed field or tile does not take the first one's PUT BACK or RETRY
+  (a failed BOOK COVER and SERIES COVER on one page are two; a cover's UNDO
+  shares the key of the choice it undoes), and the bands stack
   at the bottom, the newest where a lone band sits. The list is the app's, so
   they survive leaving the screen that raised them;
 - a tile drawn again after a trip away draws the stored value with no mark --

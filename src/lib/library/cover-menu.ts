@@ -123,3 +123,22 @@ export function bandFor(
 		};
 	return { title: `${what} · ${pageName(page)}`, detail: `${title.toUpperCase()} · WAS ${was}` };
 }
+
+/** What a cover choice posts: an entry's book cover, its series' cover, or both. */
+export type CoverBody = {
+	entryId: number;
+	book?: number | null;
+	series?: { entry: number; page: number } | null;
+};
+
+/**
+ * A failed cover save's key in the saves list (doc/WAITING.md, "Writes that
+ * fail"): by what it writes as well as the entry, so a failed BOOK COVER and
+ * a failed SERIES COVER on one entry are two failures, each with its RETRY
+ * and PUT BACK, not one replacing the other. Its UNDO has the same key as the
+ * choice it undoes, and replaces it.
+ */
+export function coverSaveKey(b: CoverBody): string {
+	const what = 'book' in b && 'series' in b ? 'both' : 'book' in b ? 'book' : 'series';
+	return `cover:${what}:${b.entryId}`;
+}

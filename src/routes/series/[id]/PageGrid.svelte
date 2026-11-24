@@ -17,7 +17,14 @@
 	import { saves } from '$lib/saves.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import PageMenu from '$lib/components/content/PageMenu.svelte';
-	import { bandFor, menuRows, type Automatic, type MenuRow } from '$lib/library/cover-menu';
+	import {
+		bandFor,
+		coverSaveKey,
+		menuRows,
+		type Automatic,
+		type CoverBody,
+		type MenuRow
+	} from '$lib/library/cover-menu';
 	import type { BookEditions } from '$lib/server/editions';
 	import { baseToEdition } from '$lib/library/editions';
 	import ExtrasList from './ExtrasList.svelte';
@@ -105,11 +112,6 @@
 
 	// ---- the page menu: long-press a cell ----------------------------------
 	let menu = $state<{ page: number; rect: DOMRect } | null>(null);
-	type CoverBody = {
-		entryId: number;
-		book?: number | null;
-		series?: { entry: number; page: number } | null;
-	};
 	let band = $state<{ title: string; detail: string; undo: CoverBody } | null>(null);
 	const rows = $derived(
 		menu && book
@@ -157,7 +159,7 @@
 			saves.fail({
 				what: `${row.target === 'book' ? 'BOOK COVER' : row.target === 'series' ? 'SERIES COVER' : 'COVER'} NOT SAVED`,
 				putBackLabel: 'PUT BACK',
-				key: `cover:${book.id}`,
+				key: coverSaveKey(b),
 				retry: async () => (await post(b)) && (await invalidateAll(), true),
 				putBack: () => undefined
 			});

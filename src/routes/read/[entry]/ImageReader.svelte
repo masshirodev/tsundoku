@@ -72,7 +72,14 @@
 		type KeptPage,
 		type SpreadChoice
 	} from '$lib/library/highlights';
-	import { bandFor, menuRows, type MenuKind, type MenuRow } from '$lib/library/cover-menu';
+	import {
+		bandFor,
+		coverSaveKey,
+		menuRows,
+		type CoverBody,
+		type MenuKind,
+		type MenuRow
+	} from '$lib/library/cover-menu';
 	import { saves } from '$lib/saves.svelte';
 	import {
 		ProgressClock,
@@ -1574,11 +1581,6 @@
 		untrack(() => endHold(true));
 	});
 
-	type CoverBody = {
-		entryId: number;
-		book?: number | null;
-		series?: { entry: number; page: number } | null;
-	};
 	let coverBand = $state<{ title: string; detail: string; undo: CoverBody } | null>(null);
 	let bandTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -1631,7 +1633,7 @@
 		saves.fail({
 			what: `${what} NOT SAVED`,
 			putBackLabel: 'PUT BACK',
-			key: `cover:${m.entry}`,
+			key: coverSaveKey(b),
 			retry: () => postCover(b),
 			putBack: () => applyLocal(undo)
 		});
@@ -1645,7 +1647,7 @@
 			saves.fail({
 				what: 'COVER NOT PUT BACK',
 				putBackLabel: 'LEAVE IT',
-				key: `cover:${band.undo.entryId}`,
+				key: coverSaveKey(band.undo),
 				retry: () => postCover(band.undo),
 				putBack: () => undefined
 			});

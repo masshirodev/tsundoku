@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { saves, type FailedSave } from '../src/lib/saves.svelte';
+import { coverSaveKey } from '../src/lib/library/cover-menu';
 
 // The store behind the bands (doc/WAITING.md, "Writes that fail"): a list
 // keyed by save, whose callers on the series screen and in the
@@ -221,5 +222,33 @@ describe('clear(key)', () => {
 		saves.clear('fav:1');
 		expect(keys()).toEqual(['fav:2']);
 		expect(saves.unsaved('fav:1')).toBe(false);
+	});
+});
+
+describe('a cover chosen from a page', () => {
+	// The reader's and PageGrid's page menu (src/lib/library/cover-menu.ts).
+	// Both used to key a failure `cover:<entry>`, so a failed SERIES COVER after
+	// a failed BOOK COVER on one entry took the first's place, its RETRY and
+	// PUT BACK lost while its value stayed drawn.
+	it('keys a failure by what it writes, so a book and a series cover are two', () => {
+		const book = coverSaveKey({ entryId: 7, book: 3 });
+		const series = coverSaveKey({ entryId: 7, series: { entry: 7, page: 3 } });
+		const both = coverSaveKey({ entryId: 7, book: 3, series: { entry: 7, page: 3 } });
+		expect(new Set([book, series, both]).size).toBe(3);
+		expect(coverSaveKey({ entryId: 8, book: 3 })).not.toBe(book);
+		saves.fail(failure(book, { what: 'BOOK COVER NOT SAVED' }));
+		saves.fail(failure(series, { what: 'SERIES COVER NOT SAVED' }));
+		expect(saves.failed.map((f) => f.what)).toEqual([
+			'BOOK COVER NOT SAVED',
+			'SERIES COVER NOT SAVED'
+		]);
+	});
+
+	it('keys an UNDO as the choice it undoes, which it replaces', () => {
+		// Unset (null) is still a write to that cover.
+		expect(coverSaveKey({ entryId: 7, book: null })).toBe(coverSaveKey({ entryId: 7, book: 3 }));
+		expect(coverSaveKey({ entryId: 7, series: null })).toBe(
+			coverSaveKey({ entryId: 7, series: { entry: 7, page: 3 } })
+		);
 	});
 });
