@@ -546,6 +546,22 @@ describe('a band keeps every row of its lists', () => {
 		expect(outBack.backBand.done).toEqual(['x.b1', 'x.b2']);
 	});
 
+	// A version name is not a package name: `1.2+3` and `v1,2` were dropped or
+	// split by the package filter, the list came back shorter than `done`, and
+	// UNDO refused as A ROW CHANGED for rows nothing had changed (c937). An
+	// unknown version stays in its place, so the rows after it keep theirs.
+	it('the update band keeps every version as written, and in its place', async () => {
+		const up = band.bandQuery('update', {
+			done: ['x.v1', 'x.v2', 'x.v3', 'x.v4'],
+			ver: ['1.2+3', 'v1,2', '', '2.0 beta'],
+			of: 4,
+			no: 0
+		});
+		const out = await loadAt(`/browse/extensions?${up}`);
+		expect(out.updateBand.done).toEqual(['x.v1', 'x.v2', 'x.v3', 'x.v4']);
+		expect(out.updateBand.ver).toEqual(['1.2+3', 'v1,2', '', '2.0 beta']);
+	});
+
 	it('BACK TO puts every row it counted back on its old version', async () => {
 		const until = Date.now() + 86_400_000;
 		for (const [pkg, handle, id] of [

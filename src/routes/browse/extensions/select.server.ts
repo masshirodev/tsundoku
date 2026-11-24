@@ -230,8 +230,11 @@ export function bandQuery(
 	values: Record<string, string | string[] | number>
 ): string {
 	const q = new URLSearchParams({ band: kind });
+	// An empty value is left out, except inside a list: a list is positional
+	// (UPDATE's `ver`, one per `done`), and dropping one would shift the rest.
 	for (const [key, value] of Object.entries(values))
-		for (const v of Array.isArray(value) ? value : [value]) if (v !== '') q.append(key, String(v));
+		if (Array.isArray(value)) for (const v of value) q.append(key, String(v));
+		else if (value !== '') q.append(key, String(value));
 	return q.toString();
 }
 

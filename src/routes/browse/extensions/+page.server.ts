@@ -301,7 +301,9 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		url.searchParams.get('band') === 'update'
 			? {
 					done: listParam(url.searchParams, 'done'),
-					ver: listParam(url.searchParams, 'ver'),
+					// Positional, one per `done`, and raw: a version name is not a
+					// package name (`1.2+3`, `v1,2`), and a filter would shift the rest.
+					ver: url.searchParams.getAll('ver'),
 					failed: listParam(url.searchParams, 'miss'),
 					untrusted: listParam(url.searchParams, 'untrusted'),
 					of: Number(url.searchParams.get('of')) || 0,
