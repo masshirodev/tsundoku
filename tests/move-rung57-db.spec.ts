@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 // Migration 57 (doc/MOVE.md): the old origin key and when it was left,
 // each entry's own source, and the NO SERVER failures a move's band reads. On
 // a file, as the live database is, and never editing a migration below it.
-const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung57-'));
+const work = mkdtempSync(join(tmpdir(), 'tsundoku-migration57-'));
 process.env.DATABASE_PATH = ':memory:';
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 

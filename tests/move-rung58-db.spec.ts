@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 // Migration 58 (doc/MOVE.md): every key a series has left, not only the
 // one migration 57 kept, and every address an entry has left. On a file, as the
 // live database is, and never editing a migration below it.
-const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung58-'));
+const work = mkdtempSync(join(tmpdir(), 'tsundoku-migration58-'));
 process.env.DATABASE_PATH = ':memory:';
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 

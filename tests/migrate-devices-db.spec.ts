@@ -8,7 +8,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 // gives. On a file, as the live database is.
 process.env.DATABASE_PATH = ':memory:';
 mkdirSync(join(process.cwd(), 'temp'), { recursive: true });
-const work = mkdtempSync(join(process.cwd(), 'temp', 'tsundoku-rung59-'));
+const work = mkdtempSync(join(process.cwd(), 'temp', 'tsundoku-migration59-'));
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
 const { climb } = await import('$lib/server/db');
@@ -87,7 +87,7 @@ describe('migration 59', () => {
 		conn.unsafeMode(false);
 		conn.close();
 		const reopened = new Database(path);
-		expect(() => climb(reopened)).toThrow(/rung 59/);
+		expect(() => climb(reopened)).toThrow(/migration 59/);
 		expect(reopened.pragma('user_version', { simple: true })).toBe(58);
 		expect(() => insert(reopened, TV, 'tv')).toThrow(/CHECK constraint failed/);
 		reopened.close();

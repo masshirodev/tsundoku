@@ -15,7 +15,7 @@ import { afterAll, describe, expect, it } from 'vitest';
  * queue, the series screen's `seriesSeasons`, AniSkip's `episodeEntry`), not
  * the tables.
  */
-const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung68-'));
+const work = mkdtempSync(join(tmpdir(), 'tsundoku-migration68-'));
 const path = join(work, 'library.sqlite');
 process.env.DATABASE_PATH = path;
 process.env.BACKUP_DIR = join(work, 'backups');

@@ -477,7 +477,7 @@ test.describe('OPEN → past a stuck decision', () => {
 				await new Promise((r) => setTimeout(r, 500));
 			}
 		}
-		throw new Error('the c670 preview never answered');
+		throw new Error('the second preview (BASE2) never answered');
 	});
 
 	test.afterAll(() => {

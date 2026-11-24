@@ -2099,7 +2099,8 @@ function widenKinds(conn: Database.Database): void {
 			sql: string;
 		}
 	).sql;
-	if (!sql.includes(OLD_KINDS)) throw new Error('rung 47: series.kind is not the CHECK it expects');
+	if (!sql.includes(OLD_KINDS))
+		throw new Error('migration 47: series.kind is not the CHECK it expects');
 	const version = conn.pragma('schema_version', { simple: true }) as number;
 	conn.unsafeMode(true);
 	try {
@@ -2113,7 +2114,8 @@ function widenKinds(conn: Database.Database): void {
 		conn.unsafeMode(false);
 	}
 	const ok = conn.pragma('integrity_check', { simple: true });
-	if (ok !== 'ok') throw new Error(`rung 47: integrity check after widening series.kind: ${ok}`);
+	if (ok !== 'ok')
+		throw new Error(`migration 47: integrity check after widening series.kind: ${ok}`);
 }
 
 /** Migration 79's CHECK: the five kinds migration 47 left, and the two films and shows add. */
@@ -2133,7 +2135,7 @@ function widenKindsForFilms(conn: Database.Database): void {
 			.get() as { sql: string }
 	).sql;
 	if (!sql.includes(KINDS_BEFORE_FILMS))
-		throw new Error('rung 79: series.kind is not the CHECK it expects');
+		throw new Error('migration 79: series.kind is not the CHECK it expects');
 	const version = conn.pragma('schema_version', { simple: true }) as number;
 	conn.unsafeMode(true);
 	try {
@@ -2147,7 +2149,8 @@ function widenKindsForFilms(conn: Database.Database): void {
 		conn.unsafeMode(false);
 	}
 	const ok = conn.pragma('integrity_check', { simple: true });
-	if (ok !== 'ok') throw new Error(`rung 79: integrity check after widening series.kind: ${ok}`);
+	if (ok !== 'ok')
+		throw new Error(`migration 79: integrity check after widening series.kind: ${ok}`);
 }
 
 /**
@@ -2168,7 +2171,7 @@ function widenDeviceKinds(conn: Database.Database): void {
 		}
 	).sql;
 	if (!sql.includes(OLD_DEVICE_KINDS))
-		throw new Error('rung 59: devices.kind is not the CHECK it expects');
+		throw new Error('migration 59: devices.kind is not the CHECK it expects');
 	const version = conn.pragma('schema_version', { simple: true }) as number;
 	conn.unsafeMode(true);
 	try {
@@ -2182,7 +2185,8 @@ function widenDeviceKinds(conn: Database.Database): void {
 		conn.unsafeMode(false);
 	}
 	const ok = conn.pragma('integrity_check', { simple: true });
-	if (ok !== 'ok') throw new Error(`rung 59: integrity check after widening devices.kind: ${ok}`);
+	if (ok !== 'ok')
+		throw new Error(`migration 59: integrity check after widening devices.kind: ${ok}`);
 }
 
 function migrate(conn: Database.Database, path: string): void {

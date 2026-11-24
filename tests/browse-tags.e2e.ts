@@ -57,11 +57,11 @@ async function open(page: Page, url: string) {
  */
 async function recordWait(page: Page): Promise<void> {
 	await page.evaluate(() => {
-		sessionStorage.removeItem('c452');
+		sessionStorage.removeItem('tsundoku-e2e:tag-wait');
 		setTimeout(() => {
 			const busy = document.querySelector<HTMLElement>('[aria-busy="true"]');
 			sessionStorage.setItem(
-				'c452',
+				'tsundoku-e2e:tag-wait',
 				JSON.stringify({
 					text: busy?.innerText.replace(/\s+/g, ' ').trim() ?? null,
 					focused: !!busy && document.activeElement === busy,
@@ -73,7 +73,9 @@ async function recordWait(page: Page): Promise<void> {
 	});
 }
 const recorded = async (page: Page) =>
-	JSON.parse((await page.evaluate(() => sessionStorage.getItem('c452'))) ?? 'null') as {
+	JSON.parse(
+		(await page.evaluate(() => sessionStorage.getItem('tsundoku-e2e:tag-wait'))) ?? 'null'
+	) as {
 		text: string | null;
 		focused: boolean;
 		line: string | null;

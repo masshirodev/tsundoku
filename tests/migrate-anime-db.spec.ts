@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 // Migration 47 (doc/ANIME.md): `anime` among series.kind's values,
 // written into the schema's text, since rebuilding the table would cascade
 // its drop through the whole library. On a file, as the live database is.
-const work = mkdtempSync(join(tmpdir(), 'tsundoku-rung47-'));
+const work = mkdtempSync(join(tmpdir(), 'tsundoku-migration47-'));
 process.env.DATABASE_PATH = ':memory:';
 afterAll(() => rmSync(work, { recursive: true, force: true }));
 
@@ -115,7 +115,7 @@ describe('migration 47', () => {
 		conn.unsafeMode(false);
 		conn.close();
 		const reopened = new Database(conn.name);
-		expect(() => climb(reopened)).toThrow(/rung 47/);
+		expect(() => climb(reopened)).toThrow(/migration 47/);
 		expect(reopened.pragma('user_version', { simple: true })).toBe(46);
 		expect(
 			(reopened.pragma('table_info(entries)') as { name: string }[]).some(

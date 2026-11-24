@@ -1775,7 +1775,7 @@ test.describe("the band at a chapter's start", () => {
 				scrollHeight: n.scrollHeight
 			};
 		});
-		console.log(`c742 measured: ${JSON.stringify(m)}`);
+		console.log(`SCROLL's chapter end measured: ${JSON.stringify(m)}`);
 		// The setup: `.page` is what offsetTop counts from, and the band is above the blocks.
 		expect(m.parentIsPage).toBe(true);
 		expect(m.offsetTop).toBeGreaterThanOrEqual(m.band);

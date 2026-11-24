@@ -20,9 +20,9 @@ import type { MihonManga } from '$lib/import/mihon-backup';
  * unit run and passes alone; it is one of the migration specs by nature.
  */
 
-// The one case below that goes through the app's own code paths needs `getDb()`'s
+// The cases below that go through the app's own code paths need `getDb()`'s
 // database: getDb reads this once, on first use, and nothing above calls it.
-// The other cases climb connections of their own and never touch it.
+// The rest climb connections of their own and never touch it.
 process.env.DATABASE_PATH = ':memory:';
 const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');

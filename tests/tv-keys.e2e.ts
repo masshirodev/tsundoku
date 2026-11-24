@@ -244,7 +244,7 @@ async function scrollers(
 			return d;
 		};
 		const button = document.createElement('button');
-		button.id = 'c578';
+		button.id = 'nested-in';
 		button.textContent = 'IN';
 		button.style.cssText = 'display:block;height:40px;margin:0';
 		const fill = () => box('height:600px');
@@ -277,7 +277,7 @@ async function setUp(page: import('@playwright/test').Page, tops: Partial<Record
 			const el = id === 'page' ? document.scrollingElement! : document.getElementById(id)!;
 			el.scrollTop = top === -1 ? el.scrollHeight : top!;
 		}
-		document.getElementById('c578')!.focus({ preventScroll: true });
+		document.getElementById('nested-in')!.focus({ preventScroll: true });
 	}, tops);
 }
 
@@ -311,7 +311,7 @@ test('↓ in a scroller at its end scrolls the next one out, then the page', asy
 	const ends = await read();
 	await arrow(page, 'ArrowDown');
 	expect(await read()).toEqual({ ...ends, page: ends.page + 40 });
-	await expect(page.locator('#c578')).toBeFocused();
+	await expect(page.locator('#nested-in')).toBeFocused();
 });
 
 test('↓ passes over a box that hides its overflow, and the page at its end moves nothing', async ({

@@ -198,17 +198,17 @@ async function openPairLink(
 
 /** What the measurement asserts, and prints so the notes quote the run, not an expectation. */
 function judge(label: string, m: Awaited<ReturnType<typeof openPairLink>>) {
-	console.log(`[c723] ${label}: document requests ${JSON.stringify(m.documents)}`);
-	console.log(`[c723] ${label}: main-frame commits ${JSON.stringify(m.navigations)}`);
+	console.log(`[pair-firefox] ${label}: document requests ${JSON.stringify(m.documents)}`);
+	console.log(`[pair-firefox] ${label}: main-frame commits ${JSON.stringify(m.navigations)}`);
 	// The assets are the page's own; the requests that matter are the rest.
 	const asset = /^GET \/(_app|icons|favicon|manifest)/;
 	const assets = m.seen.filter((l) => asset.test(l));
 	for (const line of m.seen.filter((l) => !asset.test(l)))
-		console.log(`[c723] ${label}: seen ${line}`);
+		console.log(`[pair-firefox] ${label}: seen ${line}`);
 	console.log(
-		`[c723] ${label}: seen ${assets.length} asset requests, ${assets.filter((l) => !/-> 200$/.test(l)).length} not 200`
+		`[pair-firefox] ${label}: seen ${assets.length} asset requests, ${assets.filter((l) => !/-> 200$/.test(l)).length} not 200`
 	);
-	console.log(`[c723] ${label}: ${JSON.stringify(m.secure)}, library ${m.libraryStatus}`);
+	console.log(`[pair-firefox] ${label}: ${JSON.stringify(m.secure)}, library ${m.libraryStatus}`);
 	// The link is asked for once, and only once: a second GET would be a redeem of a used code.
 	expect(m.seen.filter((l) => /^GET \/pair\//.test(l))).toHaveLength(1);
 	// One navigation: the link, its one redirect, the welcome screen. No reload,
@@ -477,8 +477,8 @@ test('the relay sees an https attempt: Firefox in HTTPS-Only mode never asks for
 		await tab.goto(`${r.origin}${code}`).catch(() => undefined);
 		await expect.poll(() => r.seen.some((l) => l.startsWith('TLS ClientHello'))).toBe(true);
 		await tab.waitForLoadState('load').catch(() => undefined);
-		for (const line of r.seen) console.log(`[c723] firefox, https_only: seen ${line}`);
-		console.log(`[c723] firefox, https_only: tab at ${tab.url()}`);
+		for (const line of r.seen) console.log(`[pair-firefox] firefox, https_only: seen ${line}`);
+		console.log(`[pair-firefox] firefox, https_only: tab at ${tab.url()}`);
 		expect(r.seen.filter((l) => /^GET \/pair\//.test(l))).toHaveLength(0);
 		const w = (await (await request.get(`${local}/api/wifi`)).json()) as Wifi;
 		expect(w.code?.state).toBe('live');

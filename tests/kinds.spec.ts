@@ -54,7 +54,7 @@ import { planNovel } from '$lib/import/novel-plan';
 import { planAnime } from '$lib/import/anime-plan';
 import { planEpub } from '$lib/import/epub-plan';
 import { planHentoidBook } from '$lib/import/hentoid-plan';
-import { defaultDirection } from '$lib/library/series';
+import { defaultDirection, directionOptions } from '$lib/library/series';
 import { familyOfKind } from '$lib/server/engine/repo-index';
 import { groupAnswers } from '$lib/library/books';
 
@@ -125,11 +125,21 @@ describe('the registry', () => {
 		}
 	});
 
-	it('states the layout the reader starts from, as defaultDirection decides it', () => {
-		// `defaultDirection` (library/series.ts) decides. This goes red if
-		// either one changes without the other.
-		for (const kind of KINDS)
-			if (kindFacts(kind).medium !== 'video') expect(kindLayout(kind)).toBe(defaultDirection(kind));
+	it('states the layout the reader starts from: one its own reader offers', () => {
+		// `defaultDirection` returns the kind's layout, so comparing the two can't
+		// fail. What can: a kind read on paper or words with no layout (it would
+		// fall back to R→L), or one its DIRECTION row has no cell for (a text
+		// kind given 'rtl', a comic given 'paged').
+		for (const kind of KINDS) {
+			if (kindFacts(kind).medium === 'video') continue;
+			const layout = kindLayout(kind);
+			expect(layout, kind).toBeDefined();
+			expect(
+				directionOptions(kind).map((o) => o.value),
+				kind
+			).toContain(layout);
+			expect(defaultDirection(kind), kind).toBe(layout);
+		}
 	});
 
 	it('keeps KINDS readonly, because FILTER_KINDS shares the object', () => {
