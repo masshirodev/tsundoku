@@ -146,13 +146,35 @@ const previewBack = (page: import('@playwright/test').Page) =>
  * the series' history entry, so one swipe back is the catalog, and the
  * preview's ← still names that catalog rather than SOURCES.
  */
-async function undoOntoThePreview(page: import('@playwright/test').Page) {
+async function undoOntoThePreview(
+	page: import('@playwright/test').Page,
+	/**
+	 * Chapters are downloading behind the band: one that lands between the
+	 * look for UNDO and the press ends it, and the server refuses the press
+	 * (409, "something of it is downloaded or read now"). Then there is no
+	 * preview to land on, and this says so instead.
+	 */
+	downloading = false
+): Promise<boolean> {
 	const stepsOnSeries = await page.evaluate(() => history.length);
 	const undo = page
 		.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })
 		.getByRole('button', { name: 'UNDO' });
 	await expect(undo).toBeVisible();
 	await undo.click();
+	const onPreview = () => /^\/downloads\/source\//.test(new URL(page.url()).pathname);
+	if (downloading) {
+		const refused = page.getByText('something of it is downloaded or read now');
+		await expect
+			.poll(async () => onPreview() || (await refused.count()) > 0, {
+				message: 'UNDO went back to the preview, or was refused for a downloaded chapter',
+				// UNDO asks the engine to drop the add, beside the downloads it is
+				// running: once in ten runs alone neither outcome had come in 5 s.
+				timeout: 15_000
+			})
+			.toBe(true);
+		if (!onPreview()) return false;
+	}
 	await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/downloads\/source\//);
 	expect(
 		await page.evaluate(() => history.length),
@@ -163,6 +185,7 @@ async function undoOntoThePreview(page: import('@playwright/test').Page) {
 		'the preview’s origin survived UNDO'
 	).toMatch(new RegExp(`^${OPEN}`));
 	await expect(previewBack(page)).toContainText('BROWSE');
+	return true;
 }
 
 /** UNDO on the new series' band, forward in history: it puts the library back. */
@@ -295,10 +318,8 @@ test('ADD AND DOWNLOAD: the same one swipe, with what it queued on the band', as
 	const undo = page
 		.locator('.band', { hasText: 'ADDED TO THE LIBRARY' })
 		.getByRole('button', { name: 'UNDO' });
-	if (await undo.count()) {
-		await undoOntoThePreview(page);
+	if ((await undo.count()) && (await undoOntoThePreview(page, true)))
 		await expect(addButton(page)).toBeVisible();
-	}
 });
 
 test('an ADD that hid the series lands on the source’s page, and one swipe back still reaches the list', async ({

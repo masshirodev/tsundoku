@@ -543,7 +543,14 @@ test('the browser’s back, from a preview at the 20-page cap: the same scroll, 
 	// Soft, so a red says every side that asked: the engine's count alone
 	// can't tell the browser asking again from the workstation doing so.
 	expect.soft(world.calls(), 'the source is asked nothing on the way back').toEqual([]);
-	expect.soft(world.images(), 'no cover is fetched again').toBe(0);
+	const sent = covers.sent();
+	expect
+		.soft(
+			world.images(),
+			`no cover is fetched again (the page sent ${sent.length}, ` +
+				`${sent.filter((t) => !drawn.includes(t)).length} of them never drawn)`
+		)
+		.toBe(0);
 	expect.soft(covers.again(drawn), 'no cover already shown is sent again').toEqual([]);
 });
 

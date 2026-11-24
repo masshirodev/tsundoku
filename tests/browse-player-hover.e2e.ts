@@ -212,6 +212,17 @@ test('the cursor goes with the controls during playback and comes back with them
 	page
 }) => {
 	test.setTimeout(90_000);
+	// The fixture clip is 8 s, and this case plays it for longer than that in
+	// all: at its end the episode now flows into the next one, which closed the
+	// settings sheet under the case and took its Escape out of the player.
+	// Every play starts it 10x slower, as tv-player's do.
+	await page.addInitScript(() => {
+		const play = HTMLMediaElement.prototype.play;
+		HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+			this.playbackRate = 0.1;
+			return play.call(this);
+		};
+	});
 	await incognito(page);
 	await openEpisode(page);
 	const player = page.locator('.player');
