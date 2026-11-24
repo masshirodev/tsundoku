@@ -48,7 +48,12 @@ const BANDS = [
 	['burned', 'NO TRIES LEFT', 'MAKE A NEW CODE ON THE COMPUTER']
 ] as const;
 
-test('a band pushes the column down instead of drawing over it', async ({ page }) => {
+test('a band pushes the column down instead of drawing over it', async ({ page, request }) => {
+	// A live code first, as the cases below make theirs: a plain /pair/tv
+	// draws the band for whatever code the server holds, and the last case
+	// here leaves its code USED, so a second pass over this file (or any
+	// earlier spender) would start on that band.
+	expect((await request.post('/api/pair/tv', { data: { action: 'code' } })).ok()).toBe(true);
 	// The design's code screen: the section label at 108, the six cards at 148.
 	await page.goto('/pair/tv');
 	await expect(page.locator('.band')).toHaveCount(0);
