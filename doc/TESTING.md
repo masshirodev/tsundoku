@@ -60,7 +60,15 @@ from the file's header comment), and commit the result.
 
 Both runners write SQLite databases and data folders under the OS temp folder
 (`TMPDIR`, else `/tmp`), so **leave `TMPDIR` on a fast disk**: pointed at a
-spinning disk, the migration specs take minutes and time out. On a machine
+spinning disk, the migration specs take minutes and time out. Even an NVMe is
+slow for them when it is busy, because a climb commits every rung, about 250
+fsyncs a case: a wave gate's `TMPDIR` is on disk, and there four specs
+(`migrate-anime`, `migrate-devices`, `move-rung57`, `move-rung58`) took 2-4 s a
+case alone and ran past vitest's 5 s beside a busy suite. So a spec that climbs
+a file database sets `synchronous = OFF` on its own connection first: it tests
+the rung, not durability. A vitest timeout printed as `Error:
+STACK_TRACE_ERROR` is this: the timeout's message replaced by the stack's
+placeholder. On a machine
 whose `/tmp` is a tmpfs, every file there is RAM until it is removed, which is
 why both suites clean up after themselves:
 

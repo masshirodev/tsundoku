@@ -22,6 +22,10 @@ const version = () => {
 describe('TSUNDOKU_MIGRATE=off: what the timers run with', () => {
 	it('refuses a database behind the code, and leaves it where it was', () => {
 		const old = new Database(dbPath);
+		// No fsync: the climb commits every rung, about 250 syncs a case, and on a
+		// disk TMPDIR (a wave gate's) under a busy suite those took a case past
+		// vitest's 5 s. What is tested is the rung, not durability (c951).
+		old.pragma('synchronous = OFF');
 		climb(old, 28);
 		old.close();
 		process.env.TSUNDOKU_MIGRATE = 'off';

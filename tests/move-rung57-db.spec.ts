@@ -16,6 +16,10 @@ const { climb } = await import('$lib/server/db');
 function at56() {
 	const path = join(work, `lib-${Math.random().toString(36).slice(2)}.sqlite`);
 	const conn = new Database(path);
+	// No fsync: the climb commits every rung, about 250 syncs a case, and on a
+	// disk TMPDIR (a wave gate's) under a busy suite those took a case past
+	// vitest's 5 s. What is tested is the rung, not durability (c951).
+	conn.pragma('synchronous = OFF');
 	conn.pragma('foreign_keys = ON');
 	climb(conn, 56);
 	const root = Number(

@@ -21,6 +21,10 @@ const SETTINGS = JSON.stringify({ 'tsundoku.reader.fit': { v: 'width', at: 100 }
 function at58() {
 	const path = join(work, `lib-${Math.random().toString(36).slice(2)}.sqlite`);
 	const conn = new Database(path);
+	// No fsync: the climb commits every rung, about 250 syncs a case, and on a
+	// disk TMPDIR (a wave gate's) under a busy suite those took a case past
+	// vitest's 5 s. What is tested is the rung, not durability (c951).
+	conn.pragma('synchronous = OFF');
 	conn.pragma('foreign_keys = ON');
 	climb(conn, 58);
 	conn
