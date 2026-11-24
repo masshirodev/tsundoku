@@ -355,14 +355,22 @@ test('leaving for another screen ends it; Enter on a query does not, and /lock a
 	await field(page).first().press('Enter');
 	await expect(page.getByRole('status')).toContainText('/lock');
 	await expect(count(page)).toHaveText('1 SELECTED');
+	// A command typed over results clears them a beat later. Waited for, so the
+	// search this case comes back to is the same however loaded the box: it
+	// raced /help's typing, and back from /help found the query or not.
+	await page.waitForURL((u) => u.pathname === '/search' && !u.searchParams.get('q'));
+	await expect(count(page)).toHaveText('1 SELECTED');
 
 	// A page command's link is a client-side way to another screen: it drops the selection.
 	await field(page).first().fill('/help');
 	await page.locator('a.page-cmd').click();
 	await page.waitForURL(/\/help/);
-	// Back to the search from there: it arrives as a plain search.
+	// Back to the search from there: it arrives as a plain search, whose hits
+	// open their sheet rather than tick.
 	await page.goBack();
 	await expect(page).toHaveURL(/\/search/);
+	await expect(count(page)).toHaveCount(0);
+	await typeQuery(page, 'haibara');
 	await expect(page.locator('.hits .hit').first()).toBeVisible();
 	await expect(count(page)).toHaveCount(0);
 	await expect(page.getByRole('checkbox')).toHaveCount(0);

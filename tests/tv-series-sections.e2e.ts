@@ -840,7 +840,7 @@ test('off a TV the columns are not sections: ↓ runs on into the list', async (
 /**
  * A failed save's band (`SaveBand`, from the layout on every screen) is pinned
  * over the columns' bottom edge while both are drawn. It is what FAV's refused
- * POST really raises: the panel's own save, aborted as saves-flow's are.
+ * POST really raises: the panel's own save, aborted as series-flow's two failed saves are.
  */
 const lostFav = (u: URL) => /^\/series\/\d+$/.test(u.pathname) && u.search === '?/favourite';
 const inBand = (page: Page) => page.evaluate(() => !!document.activeElement?.closest('.stack'));

@@ -381,3 +381,100 @@ test('the cover resumes, as ▶ CONTINUE does', async ({ page }) => {
 	await cover.click();
 	await page.waitForURL(/\/read\/\d+/);
 });
+
+// ---- Two failed saves on one screen (doc/WAITING.md, "Writes that fail") ----
+// Each is its own control's real save, lost on the wire with `page.route`, and
+// each keeps its own band, PUT BACK and RETRY through a navigation. Here, not
+// in a file of its own: its RETRY really stores Mount Hua's FAV, which this
+// file's FAV cases read, and as two flow files they ran at once and one saw
+// the other's FAV ✓ ("two quick FAV taps…" could not find FAV).
+
+const MOUNT_HUA = 'Return of the Mount Hua Sect';
+
+const seriesAction = (action: string) => (u: URL) =>
+	/^\/series\/\d+$/.test(u.pathname) && u.search === `?/${action}`;
+
+const failBand = (page: Page, text: string) => page.locator('[role="alert"]', { hasText: text });
+const seriesPanel = (page: Page) => page.getByRole('region', { name: 'About this series' });
+
+test('two failed fields on the series screen each keep PUT BACK and RETRY, through a navigation', async ({
+	page
+}) => {
+	const lostFav = seriesAction('favourite');
+	const lostRate = seriesAction('rate');
+	await page.route(lostFav, (route) => route.abort());
+	await page.route(lostRate, (route) => route.abort());
+
+	await page.goto('/?shelf=all&sort=title');
+	await page.waitForLoadState('networkidle');
+	await page.locator('.grid .tile', { hasText: MOUNT_HUA }).click();
+	await page.waitForURL(/\/series\/\d+/);
+	const panel = seriesPanel(page);
+	const fav = panel.getByRole('button', { name: /^FAV( ✓)?$/ });
+	const wasFav = await fav.getAttribute('aria-pressed');
+	// A value the seed does not hold, so the tap is a change.
+	const rate = panel.getByRole('button', { name: 'Rate 3 of 10' });
+	const rated = (await rate.getAttribute('aria-pressed')) === 'true';
+	const value = rated ? 4 : 3;
+	const favText = wasFav === 'true' ? 'UNFAV NOT SAVED' : 'FAV NOT SAVED';
+	const rateText = `RATING ${value} NOT SAVED`;
+
+	await fav.click();
+	await expect(failBand(page, favText)).toHaveCount(1);
+	await panel.getByRole('button', { name: `Rate ${value} of 10` }).click();
+	await expect(failBand(page, rateText)).toHaveCount(1);
+	// The second failure did not take the first one's band.
+	await expect(failBand(page, favText)).toHaveCount(1);
+	await expect(page.locator('[role="alert"]')).toHaveCount(2);
+	for (const text of [favText, rateText]) {
+		await expect(failBand(page, text).getByRole('button', { name: /PUT BACK/ })).toBeVisible();
+		await expect(failBand(page, text).getByRole('button', { name: 'RETRY' })).toBeVisible();
+	}
+
+	// Away and back, the nudge retrying and losing each time.
+	await page.goBack();
+	await expect(page.locator('.grid .tile', { hasText: MOUNT_HUA })).toBeAttached();
+	await expect(page.locator('[role="alert"]')).toHaveCount(2);
+	// Each nudge's own two POSTs have to be lost before the route lifts below:
+	// a retry still on its way would otherwise land by itself.
+	const nudged = Promise.all(
+		['favourite', 'rate'].map((action) =>
+			page.waitForEvent('requestfailed', {
+				predicate: (r) => new RegExp(`/series/\\d+\\?/${action}$`).test(r.url())
+			})
+		)
+	);
+	await page.goForward();
+	await page.waitForURL(/\/series\/\d+/);
+	await nudged;
+	await expect(page.locator('[role="alert"]')).toHaveCount(2);
+	await expect(failBand(page, favText).getByRole('button', { name: 'RETRY' })).toBeVisible();
+	await expect(failBand(page, rateText).getByRole('button', { name: /PUT BACK/ })).toBeVisible();
+
+	// RETRY lands for FAV alone: the rating's band is still up.
+	await page.unroute(lostFav);
+	const stored = page.waitForResponse((r) => /\/series\/\d+\?\/favourite$/.test(r.url()) && r.ok());
+	await failBand(page, favText).getByRole('button', { name: 'RETRY' }).click();
+	await stored;
+	await expect(failBand(page, favText)).toHaveCount(0);
+	await expect(failBand(page, rateText)).toHaveCount(1);
+
+	// PUT BACK ends the rating's alone, and its value comes back.
+	await failBand(page, rateText)
+		.getByRole('button', { name: /PUT BACK/ })
+		.click();
+	await expect(page.locator('[role="alert"]')).toHaveCount(0);
+	await page.unroute(lostRate);
+
+	// Put FAV back as the seed has it: the RETRY did store it.
+	const restored = page.waitForResponse(
+		(r) => /\/series\/\d+\?\/favourite$/.test(r.url()) && r.ok()
+	);
+	await fav.click();
+	await restored;
+	await page.reload();
+	await expect(seriesPanel(page).getByRole('button', { name: /^FAV( ✓)?$/ })).toHaveAttribute(
+		'aria-pressed',
+		wasFav!
+	);
+});

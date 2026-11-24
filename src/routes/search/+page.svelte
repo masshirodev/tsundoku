@@ -84,6 +84,10 @@
 		}, 180);
 		return () => clearTimeout(timer);
 	});
+	// Any navigation away cancels a replace still pending. Its `goto` would
+	// otherwise overtake the one under way: /help typed and its row tapped
+	// within the beat landed back on /search while /help was still loading.
+	beforeNavigate(() => clearTimeout(timer));
 
 	const query = $derived(parseSearch(data.q).type === 'query' ? data.q.trim() : '');
 
