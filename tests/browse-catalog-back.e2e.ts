@@ -540,9 +540,11 @@ test('the browser’s back, from a preview at the 20-page cap: the same scroll, 
 	expect(after.top, 'the same tile is at the top').toBe(before.top);
 	expect(Math.abs(after.y - before.y), 'the same scroll').toBeLessThanOrEqual(2);
 	// The answer is still the source's own, kept: nothing is asked at all.
-	expect(world.calls(), 'the source is asked nothing on the way back').toEqual([]);
-	expect(world.images(), 'no cover is fetched again').toBe(0);
-	expect(covers.again(drawn), 'no cover already shown is sent again').toEqual([]);
+	// Soft, so a red says every side that asked: the engine's count alone
+	// can't tell the browser asking again from the workstation doing so.
+	expect.soft(world.calls(), 'the source is asked nothing on the way back').toEqual([]);
+	expect.soft(world.images(), 'no cover is fetched again').toBe(0);
+	expect.soft(covers.again(drawn), 'no cover already shown is sent again').toEqual([]);
 });
 
 test('a source that answers slowly: the place is held while this visit’s answer is on its way', async ({
