@@ -8,11 +8,22 @@
 	 * step through it, and the page keeps its place and focus.
 	 */
 	export function clearBandUrl(names: readonly string[]): void {
-		const url = new URL(page.url);
+		// A clear still landing (a slow load) is where the next one starts:
+		// `page.url` doesn't move until it lands, and building on it would put
+		// the first band's parameters back. Only on the same screen.
+		const base =
+			pendingClear && pendingClear.pathname === page.url.pathname ? pendingClear : page.url;
+		const url = new URL(base);
 		for (const name of names) url.searchParams.delete(name);
+		pendingClear = url;
+		const done = () => {
+			if (pendingClear === url) pendingClear = null;
+		};
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the current, resolved path, less its band's parameters
-		void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+		void goto(url, { replaceState: true, noScroll: true, keepFocus: true }).then(done, done);
 	}
+	/** The address the last clear is navigating to, until it lands. */
+	let pendingClear: URL | null = null;
 
 	/**
 	 * When a band last went away: bands stack, so the band below moves

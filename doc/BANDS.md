@@ -32,6 +32,12 @@ word ([`I18N.md`](I18N.md)). On a TV it is a focus stop after UNDO.
 | The page's own state                       | Clears it                                                                              | Until the event happens again                        |
 | The workstation (`scan_jobs.dismissed_at`) | `?/dismissScan` with `stay=1`                                                          | Every device. A second tab's ✕ is the same row again |
 
+**Two URL bands' ✕ in quick succession clear both**: while the first ✕'s
+navigation is still landing (a slow load), the second builds on where the
+first is going, not on the address still shown, which holds the first band's
+parameters (`clearBandUrl`'s `pendingClear`; `band-dismiss-flow`, "two ✕
+during a slow load").
+
 **A URL band's ✕ navigates, and SvelteKit resets `form` on navigation**, so it
 also clears any form-answer band on screen, and that band's UNDO goes with it
 (measured in `band-dismiss-flow`). A form-answer band's ✕ does not touch the

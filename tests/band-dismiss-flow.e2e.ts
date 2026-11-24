@@ -263,6 +263,32 @@ test('✕ on one of two stacked bands leaves the other as it was, either way rou
 	await expect(page).toHaveURL(new RegExp(`\\?moved=1&kept=2$`));
 });
 
+// The first ✕'s navigation still landing (a slow load) when the second is
+// pressed: the second builds on where the first is going, not on the address
+// still shown, which holds the first band's parameters (c848).
+test('two ✕ during a slow load take both bands away, and neither comes back', async ({ page }) => {
+	await page.goto(seriesUrl(STACKED));
+	await expect(moved(page)).toBeVisible();
+	await expect(groupedBand(page)).toBeVisible();
+	let release = () => {};
+	const held = new Promise<void>((r) => (release = r));
+	let holding = true;
+	await page.route('**/__data.json**', async (route) => {
+		if (holding) {
+			holding = false;
+			await held;
+		}
+		await route.continue().catch(() => {});
+	});
+	await x(moved(page)).click();
+	await x(groupedBand(page)).click();
+	release();
+	await expect(page).not.toHaveURL(/moved=|kept=|created=/);
+	await expect(moved(page)).toHaveCount(0);
+	await expect(groupedBand(page)).toHaveCount(0);
+	await page.unroute('**/__data.json**');
+});
+
 test('bands stacked: hit areas do not overlap, and a double press takes only one', async ({
 	page
 }) => {
