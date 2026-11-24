@@ -488,6 +488,14 @@ test('a bare tag and its tag: twin, typed on EDIT, link each to its own library 
 		await field.press('Enter');
 		await expect(field).toHaveValue('');
 	}
+	// Enter adds what was typed even once the suggestions are drawn. Typed
+	// again, the bare Mecha's own suggestion comes first, ✓ ON THIS and so
+	// disabled: as the form's first submit button it took Enter, and a
+	// disabled default button submits nothing.
+	await field.fill('Mecha');
+	await expect(edit.locator('.sugg button').first()).toBeDisabled();
+	await field.press('Enter');
+	await expect(field).toHaveValue('');
 	await page.keyboard.press('Escape');
 	await expect(edit).toBeHidden();
 

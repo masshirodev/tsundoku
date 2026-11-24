@@ -279,6 +279,14 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   `genre:ise` instead of `genre:isekai`, a second spelling, which is exactly
   what suggestions exist to prevent. `tests/series-flow.e2e.ts` holds that
   down.
+- **Enter adds what was typed, never a suggestion.** The suggestions are the
+  form's submit buttons, so left to the browser, Enter submitted through the
+  first of them: a tag never typed, or nothing at all when that one was ✓ ON
+  THIS and so disabled. The field submits the form itself, with no submitter,
+  so only a tap sends `pick`. A suggestion list whose answer lands after the
+  text moved on is dropped, not drawn under the new text.
+  `tests/browse-tags.e2e.ts`' "a bare tag and its tag: twin" case holds Enter
+  down with the disabled suggestion first.
 - **Suggestion counts only include visible series**, so the tag field can't be
   used to learn how many hidden series carry a tag.
 

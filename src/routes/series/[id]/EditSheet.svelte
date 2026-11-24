@@ -70,14 +70,34 @@
 			suggestions = [];
 			return;
 		}
+		// An answer that lands after the text moved on (or after Enter cleared
+		// it) is for words no longer in the field: dropped, or it would draw
+		// the old list under the new text.
+		let current = true;
 		timer = setTimeout(async () => {
 			const res = await fetch(
 				`/api/series/${series.id}/tags?q=${encodeURIComponent(text)}${book ? `&entry=${book.id}` : ''}`
 			);
-			suggestions = res.ok ? await res.json() : [];
+			const found: Suggestion[] = res.ok ? await res.json() : [];
+			if (current) suggestions = found;
 		}, 150);
-		return () => clearTimeout(timer);
+		return () => {
+			current = false;
+			clearTimeout(timer);
+		};
 	});
+
+	/**
+	 * Enter adds what was typed. Left to the browser it would submit through
+	 * the form's first submit button, which is the first suggestion once the
+	 * list is drawn: a tag never typed, or, when that one is ✓ ON THIS and so
+	 * disabled, nothing at all.
+	 */
+	function enterAdds(e: KeyboardEvent) {
+		if (e.key !== 'Enter' || e.isComposing) return;
+		e.preventDefault();
+		(e.currentTarget as HTMLInputElement).form?.requestSubmit();
+	}
 
 	const reset: SubmitFunction =
 		() =>
@@ -143,6 +163,7 @@
 			<input
 				name="tag"
 				bind:value={tagText}
+				onkeydown={enterAdds}
 				placeholder="namespace:value"
 				aria-label="Add a tag, as namespace:value"
 				autocomplete="off"
