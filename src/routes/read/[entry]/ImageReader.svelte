@@ -1186,7 +1186,11 @@
 	}
 
 	$effect(() => {
-		if (mode !== 'vertical' || !data.manifest) return;
+		if (mode !== 'vertical' || !data.manifest) {
+			// Off the strip: coming back to it is an opening, which places the page.
+			settledOn = null;
+			return;
+		}
 		const id = data.entry.id;
 		untrack(() => {
 			const current = stripChapter(
@@ -1203,8 +1207,15 @@
 				data.manifest?.version ?? ''
 			);
 			const onStrip = strip.some((c) => c.id === id);
-			const scrolledHere = crossing === id;
-			crossing = null;
+			// Read on into it, or this chapter's data arriving again. A chapter
+			// read online gets its data in more than one step, and a run for the
+			// chapter being left, between the crossing and the arrival, used to
+			// clear `crossing`: the arrival then looked like CH. → from the
+			// controls and put page 1's top at the top of the screen, mid-read.
+			// So only the run for another chapter (the arrival) clears it.
+			const scrolledHere = crossing === id || settledOn === id;
+			if (settledOn !== id) crossing = null;
+			settledOn = id;
 			// Stopped at the ends: the strip is this chapter alone.
 			const prev = stopAtEnd ? null : readable(data.prev);
 			const next = stopAtEnd ? null : readable(data.next);
@@ -1244,6 +1255,8 @@
 	 * arrival, which would otherwise put it back at the top of the document.
 	 */
 	let placeAt: { id: number; page: number } | null = null;
+	/** The chapter the strip last settled on: a later run for it is its data again, not a jump. */
+	let settledOn: number | null = null;
 	function place() {
 		if (!placeAt) return;
 		document

@@ -532,7 +532,12 @@ shown within half a second of scrolling to it.
   middle of the screen, the reader moves to that chapter: the URL, the
   controls, the progress events and the rating follow (a navigation with
   `replaceState` and `noScroll`). The strip stays as it is, so nothing on
-  screen moves. Going on past a band marks the chapter left as read. Going
+  screen moves. A chapter read online gets its data in more than one step,
+  and the step for the chapter being left can land between the crossing and
+  the arrival: only the arrival ends the crossing, or the arrival looked like
+  CH. → from the controls and snapped the new chapter's first page to the top
+  of the screen (until 2026-11-24; `tests/browse-online.e2e.ts`, "nothing
+  jumps at a band"). Going on past a band marks the chapter left as read. Going
   back up past one goes back into the chapter before, still loaded, as Mihon
   does.
 - **The window moves with the reader.** Arriving in a chapter loads its

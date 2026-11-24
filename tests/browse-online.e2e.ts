@@ -166,6 +166,63 @@ test('a page read online takes its own shape once it arrives, paged and vertical
 });
 
 /**
+ * Reading on down the strip, a chapter read online crosses into the next
+ * without anything moving on screen. Its data arrives in more than one step,
+ * and the reader took the step for the chapter being left as a jump from the
+ * controls: at each band the next chapter's first page snapped to the top of
+ * the screen, mid-read (561 px here). Watched every frame: whatever page was
+ * under the middle must move by about one wheel step, never more.
+ */
+test('the strip reads on across chapters read online, and nothing jumps at a band', async ({
+	page
+}) => {
+	test.setTimeout(120_000);
+	await page.goto(`/browse/${SOURCES.open.id}`);
+	await page.locator('.grid .tile', { hasText: 'Open Source 1-5' }).click();
+	await page.locator('.cta-go .cta').click();
+	await expect(page).toHaveURL(/\/read\/\d+/);
+	await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+		timeout: 20_000
+	});
+	await page.keyboard.press('Escape');
+	await page.getByRole('button', { name: /R→L ·/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await sheet.getByRole('radio', { name: 'VERTICAL' }).click();
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(page.locator('.strip')).toBeVisible();
+	const first = new URL(page.url()).pathname;
+	await page.evaluate(() => {
+		const w = window as unknown as { jumps: string[] };
+		w.jumps = [];
+		let prev: { el: HTMLElement; top: number } | null = null;
+		const frame = () => {
+			const el =
+				document
+					.elementFromPoint(innerWidth / 2, innerHeight / 2)
+					?.closest<HTMLElement>('[data-role]') ?? null;
+			if (prev?.el.isConnected) {
+				const moved = prev.el.getBoundingClientRect().top - prev.top;
+				if (Math.abs(moved) > 150)
+					w.jumps.push(
+						`${Math.round(moved)}px: ${prev.el.dataset.entry}/${prev.el.dataset.index} at ${location.pathname}`
+					);
+			}
+			prev = el ? { el, top: el.getBoundingClientRect().top } : null;
+			requestAnimationFrame(frame);
+		};
+		requestAnimationFrame(frame);
+	});
+	for (let i = 0; i < 160; i++) {
+		await page.mouse.wheel(0, 80);
+		await page.waitForTimeout(40);
+	}
+	await page.waitForTimeout(1500);
+	// It read on into another chapter, and nothing on screen jumped.
+	expect(new URL(page.url()).pathname).not.toBe(first);
+	expect(await page.evaluate(() => (window as unknown as { jumps: string[] }).jumps)).toEqual([]);
+});
+
+/**
  * Turning back: a page read online is `no-store`, and a turn mounts a new
  * element for the page turned to, so the browser would ask the workstation,
  * and the workstation the source, for a page that had just been on screen; on
