@@ -1135,7 +1135,10 @@ ON A SHELF:` and the library's shelves (its collections) as chips, one tap
 each, several allowed, a second tap takes one off; the line says `ON LATER,
 TONIGHT` once it is on any. Then `+ NEW SHELF`, which opens `NewShelfSheet` as
 it is (the URL's `new=shelf`), at the strip's right end under UNDO, so a
-remote's ↓ from UNDO lands in the strip and ← walks the chips. The band still
+remote's ↓ from UNDO lands in the strip and ← walks the chips. `new=shelf`,
+like `refused`, is the band's and not the list's: the grid under the sheet is
+not drawn again, and no link the page builds (FIND, FILTER, a tab, MORE ↓)
+carries it to another list (`tests/browse-add-shelf.e2e.ts`). The band still
 says ADDED TO THE LIBRARY, AND HIDDEN, with the chips under it. The last shelf
 a chip put the series on is offered first next time, per device
 (`tsundoku:add-shelf`, its id; read once as the band mounts, so the order can

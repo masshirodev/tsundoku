@@ -113,9 +113,22 @@ test('a hidden ADD’s band offers the shelves: a chip, + NEW SHELF, the library
 		expect(await onShelf(page, context, later)).toBe(true);
 
 		// + NEW SHELF: NewShelfSheet as it is; the new shelf has the series on it.
+		// The grid behind it is the same list (`new=shelf` is the band's, not the
+		// list's), so its tiles are not drawn again; and no link built while the
+		// sheet is open carries `new=shelf` to another list.
+		await page
+			.locator('.grid .tile')
+			.first()
+			.evaluate((el) => (el.dataset.kept = '1'));
 		await strip(page).getByRole('link', { name: '+ NEW SHELF' }).click();
 		const sheet = page.getByRole('dialog', { name: 'New shelf' });
 		await expect(sheet).toBeVisible();
+		await expect(page.locator('.grid .tile[data-kept]')).toHaveCount(1);
+		expect(
+			await page
+				.locator('a[href*="new=shelf"]:not(.chip.new)')
+				.evaluateAll((as) => as.map((a) => a.getAttribute('href')))
+		).toEqual([]);
 		await sheet.getByRole('textbox', { name: 'Shelf name' }).fill('Tonight');
 		await sheet.getByRole('button', { name: 'CREATE TONIGHT' }).click();
 		await expect(sheet).toBeHidden();

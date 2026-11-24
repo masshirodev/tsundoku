@@ -98,12 +98,19 @@
 	const base = $derived(resolve('/browse/[source]', { source: data.source.id }));
 	/** The ADDED band's parameters: said once, and never part of which list this is. */
 	const ADDED_BAND = ['added', 'series', 'preview', 'queued'];
+	/**
+	 * The band's own parameters, ADDED's and the two it opens: + NEW SHELF's
+	 * sheet (`new=shelf`) and a refusal. None is part of which list this is, and
+	 * none is carried onto another list: a tab or MORE ↓ built while NEW SHELF
+	 * was open took `new=shelf` with it.
+	 */
+	const SAID_ONCE = [...ADDED_BAND, 'new', 'refused'];
 	/** The current URL with some parameters changed; null removes one. */
 	function link(over: Record<string, string | null>): string {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(page.url.searchParams);
 		// The ADDED band is said once, not carried onto the next list.
-		for (const k of ADDED_BAND) p.delete(k);
+		for (const k of SAID_ONCE) p.delete(k);
 		for (const [k, v] of Object.entries(over)) {
 			if (v === null) p.delete(k);
 			else p.set(k, v);
@@ -127,7 +134,7 @@
 	const listKey = (u: URL) => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(u.searchParams);
-		for (const k of ['pages', 'panel', 'find', 'refused', 'new', ...ADDED_BAND]) p.delete(k);
+		for (const k of ['pages', 'panel', 'find', ...SAID_ONCE]) p.delete(k);
 		return `${u.pathname}?${p}|${data.reveal ? 'reveal' : ''}|${data.incognito ? 'incognito' : ''}`;
 	};
 
