@@ -1668,7 +1668,10 @@
 		.list-col {
 			flex: 1;
 			overflow-y: auto;
-			--rail-h: calc(100dvh - var(--header-h) - var(--safe-y) - var(--banner-h, 0px) - 36px);
+			/* Under the list's 36px head, and inside its hairline border (1px above
+			   and below, the TV's own): with the border counted the list was 2px
+			   taller than the column, and a short list's last ↓ scrolled 2px. */
+			--rail-h: calc(100dvh - var(--header-h) - var(--safe-y) - var(--banner-h, 0px) - 36px - 2px);
 		}
 		.series {
 			--list-top: 0px;

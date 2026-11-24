@@ -109,6 +109,11 @@ only if it can move in the key's direction: `canScroll` in `geometry.ts`,
 `clientHeight` are integers each rounded from a fractional layout and
 `scrollTop` is not, so a scroller at its very end can read up to a pixel
 short of it. The page at its own end scrolls nowhere, and that is no error.
+More than that pixel is content, and a key spends a press on it: the TV's
+chapter list once stood 2px past its column (its hairline border left out of
+the rail's height), so the first ↓ at a short list's end scrolled 2px and
+showed nothing (`tests/tv-series-sections.e2e.ts`, "a short chapter list does
+not overflow its column").
 
 **A page a screen has locked** (`overflow: hidden` or `clip` on the root, or
 on `body`, which CSS hands the viewport when the root is `visible`) scrolls

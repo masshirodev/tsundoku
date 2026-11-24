@@ -276,6 +276,35 @@ test('↓ brings the whole details column on screen, and at its end does nothing
 	expect(after.y, 'the page did not move').toBe(0);
 });
 
+/**
+ * A short chapter list fits its column exactly. On the TV the list has a
+ * hairline border, and the rail under its head was sized without it, so the
+ * list stood 2px past the column (458 in 456 at 960×540): at the last row the
+ * first ↓ was a 2px scroll that showed nothing.
+ */
+test('a short chapter list does not overflow its column', async ({ page }) => {
+	const listed = (await (
+		await page.request.get('/api/library?shelf=all&sort=title&offset=0&limit=100')
+	).json()) as { series: { id: number }[] };
+	let checked = 0;
+	for (const { id } of listed.series) {
+		await page.goto(`/series/${id}`);
+		const col = page.locator('.list-col');
+		if (!(await col.count())) continue;
+		await page.waitForLoadState('networkidle');
+		// A chapter list of a few rows; a book grid or an empty list is not one.
+		const rows = await page.locator('.list .entry').count();
+		if (rows === 0 || rows > 4) continue;
+		const { scroll, client } = await col.evaluate((el) => ({
+			scroll: el.scrollHeight,
+			client: el.clientHeight
+		}));
+		expect(scroll - client, `series ${id}: the list overflows its column`).toBeLessThanOrEqual(1);
+		if (++checked === 3) break;
+	}
+	expect(checked, 'short lists to measure').toBe(3);
+});
+
 test('↑ walks the details column back to its top, then the bar, never the list', async ({
 	page
 }) => {
@@ -857,13 +886,13 @@ async function failFav(page: Page) {
 	await expect(page.locator('.stack .band')).toBeVisible();
 }
 
-/** ↓ until the pad is in the band, or `presses` have gone by; the rows it passed. */
+/** ↓ until the pad is in the band, or `presses` have gone by; the row each press left. */
 async function downToBand(page: Page, presses = 12) {
 	const rows: string[] = [];
 	for (let i = 0; i < presses; i++) {
+		rows.push((await where(page)).text);
 		await page.keyboard.press('ArrowDown');
 		if (await inBand(page)) return { reached: true, rows };
-		rows.push((await where(page)).text);
 	}
 	return { reached: false, rows };
 }
@@ -878,7 +907,7 @@ test('a failed save’s band is reached from the end of a short list, and ↑ co
 
 	const walk = await downToBand(page);
 	expect(walk.reached, `↓ alone reached the band, past ${walk.rows.join(' | ')}`).toBe(true);
-	expect(walk.rows.at(-1), 'after the last row').toContain('Chapter 3');
+	expect(walk.rows.at(-1), 'from the last row').toContain('Chapter 3');
 	expect(await row(page), 'on its first button').toMatch(/^PUT BACK/);
 	await page.keyboard.press('ArrowUp');
 	expect(await inBand(page), '↑ leaves the band').toBe(false);
@@ -925,7 +954,7 @@ test('a list that ends exactly at the band reaches it; one that runs under it do
 	await failFav(page);
 	await padToLastRow(page);
 	// Rows are the height they are, so the first row's margin puts the list's end on the band's
-	// top, measured with the column at its real end (it has 2 px to scroll even at three rows).
+	// top, measured with the column at its real end.
 	const place = (past: number) =>
 		page.evaluate((past) => {
 			const first = document.querySelector('.list-col .entry') as HTMLElement;
@@ -981,8 +1010,8 @@ test('the band arriving while the pad is mid-column changes nothing until the li
 	expect(await row(page), 'the list’s own rows come first').toContain('Chapter 2');
 	await page.keyboard.press('ArrowDown');
 	expect(await row(page)).toContain('Chapter 3');
-	// The column has its 2 px to scroll first, then the band.
-	expect((await downToBand(page, 3)).reached, 'and then the band').toBe(true);
+	// Straight on to the band: the column has nothing left to scroll.
+	expect((await downToBand(page, 1)).reached, 'and then the band').toBe(true);
 });
 
 test('the band leaving under the pad does not strand it, and the columns are sections again', async ({
