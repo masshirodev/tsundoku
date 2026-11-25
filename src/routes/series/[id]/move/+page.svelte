@@ -804,6 +804,13 @@
 		gap: 3px;
 		padding: 0 20px;
 	}
+	/* TopBar centres what its middle holds, which sizes each line to its
+	   text: without a cap, a long title runs off both edges instead of
+	   reaching its ellipsis. */
+	.bar-title .t,
+	.bar-title .s {
+		max-width: 100%;
+	}
 	.bar-title .t {
 		font: 500 14px var(--font-mono);
 		letter-spacing: 0.04em;

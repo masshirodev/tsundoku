@@ -213,6 +213,14 @@ slides the next screen 40px in and sheets rise ([`MOTION.md`](MOTION.md)), so a
 `tests/fixtures.ts` waits for the screen's animations; a sheet waits on its own
 (`el.getAnimations()`, as `tv-screens.e2e.ts` does).
 
+**Check for sideways scrolling against the viewport as set, never
+`window.innerWidth`.** The `phone` project emulates a mobile browser, which
+widens its layout viewport to fit a page that overflows, so `innerWidth` grows
+with the overflow and `scrollWidth <= innerWidth` cannot fail. Compare
+`document.documentElement.scrollWidth` with `page.viewportSize()!.width`, after
+`screenSettled(page)`: the screen sliding in is wider than the page while it
+moves.
+
 **A spec turns reveal on with `revealOn(context, base?)`** (`tests/helpers/reveal.ts`),
 which runs the `/reveal` command through the context's own request, so the
 server's signed cookie lands in the context ([`PRIVACY.md`](PRIVACY.md), "Only

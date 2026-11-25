@@ -209,6 +209,39 @@ test('its frame is two panes at 1280 and one below 1024, at the design’s measu
 	await expect(page.locator('.cands')).toBeHidden();
 });
 
+/**
+ * The bar's second line is the series' title and its source, set in capitals:
+ * a long one ran off both edges of a phone instead of reaching its ellipsis.
+ * The seed's title fits at 360px, so the case lengthens it for itself and puts
+ * it back (the browse project runs one file at a time).
+ */
+test("on a 360px phone a long title ends in the bar's ellipsis, and nothing scrolls sideways", async ({
+	page
+}) => {
+	const long = `${TITLE} and the Hundred Rooms of the Long Corridor`;
+	const dir = process.env.PLAYWRIGHT_RUN_DIR!;
+	const file = readdirSync(dir).find((n) => /^tsundoku-e2e-browse-\d+\.sqlite$/.test(n))!;
+	const db = new Database(join(dir, file));
+	db.pragma('busy_timeout = 5000');
+	const { id } = db.prepare('SELECT id FROM series WHERE title = ?').get(TITLE) as { id: number };
+	db.prepare('UPDATE series SET title = ? WHERE id = ?').run(long, id);
+	try {
+		await page.setViewportSize({ width: 360, height: 780 });
+		await page.goto(`/series/${id}/move`);
+		const sub = page.locator('.bar-title .s');
+		await expect(sub).toContainText(long.toUpperCase());
+		const bar = (await page.locator('.bar-title').boundingBox())!;
+		const box = (await sub.boundingBox())!;
+		expect(box.x).toBeGreaterThanOrEqual(bar.x - 1);
+		expect(box.x + box.width).toBeLessThanOrEqual(bar.x + bar.width + 1);
+		expect(await sub.evaluate((n) => n.scrollWidth > n.clientWidth)).toBe(true);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
+	} finally {
+		db.prepare('UPDATE series SET title = ? WHERE id = ?').run(TITLE, id);
+		db.close();
+	}
+});
+
 /*
  * Only the browse server's seed has an anime with a season watched through
  * (Tsukiakari no Ryokōsha's season 1), so the episode fold's hover is checked

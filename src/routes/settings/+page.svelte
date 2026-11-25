@@ -2391,6 +2391,15 @@
 	.seg button:last-child {
 		border-right: 0;
 	}
+	/* A narrow phone hasn't the room for three words on one line each (PLEX
+	   SERIF · PLEX SANS · OPENDYSLEXIC overran a 360px screen): a label wraps
+	   at its spaces instead of pushing the row past the edge. */
+	@media (max-width: 419px) {
+		.seg button {
+			min-width: min-content;
+			white-space: normal;
+		}
+	}
 	.seg button.on,
 	.chips button.on {
 		background: var(--surface-inverse);
@@ -2663,6 +2672,33 @@
 	}
 	.cell-form {
 		display: flex;
+	}
+	/* A phone hasn't the room for a device's name beside two or three actions
+	   (START FROM · SHOW · SIGN OUT took 284px of a 360px screen's 276, and
+	   the row ran off it with the name drawn under the buttons): the name
+	   takes its own line and the actions share the one below. */
+	@media (max-width: 599px) {
+		.acct-body:has(> .who + * + *) {
+			flex-wrap: wrap;
+		}
+		.acct-body:has(> .who + * + *) > .who {
+			flex-basis: 100%;
+		}
+		.acct-body:has(> .who + * + *) > :not(.who) {
+			flex: 1 1 0;
+			min-height: 52px;
+			border-top: var(--hairline);
+		}
+		.acct-body:has(> .who + * + *) > .who + *,
+		.acct-body:has(> .who + * + *) > .who + .cell-form > .cell {
+			border-left: 0;
+		}
+		/* Narrower sides so three actions share one line even at 360px. */
+		.acct-body:has(> .who + * + *) .cell {
+			flex: 1;
+			justify-content: center;
+			padding: 0 10px;
+		}
 	}
 	.cell {
 		display: flex;

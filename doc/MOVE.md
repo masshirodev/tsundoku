@@ -253,7 +253,9 @@ engine's `/__novideo`.
   the list for the comparison, and the MOVE bar is pinned to the bottom. `02 —
 WHAT THE MOVE DOES` is a closed block whose cells say MOVES, KEPT, UNCHANGED;
   `03 — BY NUMBER` folds matching runs and draws every odd row. On a phone the
-  map shows only the odd rows and the reading row until SHOW ALL.
+  map shows only the odd rows and the reading row until SHOW ALL. The top
+  bar's second line (the title and NOW FROM its source) ends in an ellipsis
+  however long the title; it is capped to the bar, since the bar centres it.
 - **PLAYS** is checked once a candidate is picked, and only with script: the
   episode CONTINUE would play, and MOVE doesn't wait on it. Without script the
   row is absent rather than stuck at CHECKING.

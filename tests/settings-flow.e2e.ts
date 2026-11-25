@@ -190,6 +190,31 @@ test.describe('the phone', () => {
 		await expect(row(page, 'AUDIO').getByRole('button', { name: 'PLAYER' })).toBeVisible();
 		await expect(row(page, 'FIT').locator('.label')).toHaveCSS('width', '84px');
 	});
+
+	test('nothing scrolls sideways: TYPEFACE wraps a label, and a device with two actions puts them under its name', async ({
+		page
+	}) => {
+		// Changed settings on another device, none here: its row offers START FROM beside SHOW.
+		const res = await page.request.post('/api/devices/sync', {
+			data: {
+				id: '2b7e1c9d-3f4a-4b5c-8d6e-7f8091a2b3c4',
+				kind: 'desktop',
+				settings: { 'tsundoku.reader.fit': { v: 'height', at: Date.now() } }
+			},
+			headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Firefox/131.0' }
+		});
+		expect(res.ok()).toBe(true);
+		await page.goto('/settings');
+		await expect(row(page, 'TYPEFACE').getByRole('button', { name: 'OPENDYSLEXIC' })).toBeVisible();
+		const device = section(page, '08 — DEVICES').locator('.row.device', {
+			hasText: 'Windows desktop · Firefox'
+		});
+		const start = device.getByRole('button', { name: 'START FROM' });
+		await expect(start).toBeVisible();
+		const name = (await device.locator('.who').boundingBox())!;
+		expect((await start.boundingBox())!.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
+	});
 });
 
 test('another device’s settings, shown and changed from here', async ({ page }) => {

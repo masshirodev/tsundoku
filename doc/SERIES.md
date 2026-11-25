@@ -480,7 +480,11 @@ so the chapter list is not pushed below every row.
   row and no line, since nothing could open it.
 - **ABOUT** clamps to three lines with MORE ↓ / LESS ↑ on a phone (two
   elsewhere, and two on the TV), never remembered. On the TV its MORE is one
-  more stop.
+  more stop. A source's synopsis often ends in its tracker links
+  (`- [MangaUpdates](https://www.mangaupdates.com/series/…)`), whose addresses
+  hold no break narrow enough for a phone's column, so ABOUT breaks a word
+  anywhere rather than widen the page; the sample synopsis ends that way
+  (`src/lib/server/fixtures.ts`).
 - **On the TV** DETAILS is one stop; OK opens or closes it in place and the
   focus stays on it; ↓ goes into the first opened row. Folded, nothing under
   it is a stop (a row with no box is not one), and → is the list beside the

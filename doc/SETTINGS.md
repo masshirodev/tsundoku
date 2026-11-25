@@ -349,7 +349,11 @@ workstation is back.
 - **Phone** (under 600px):
   - the scope drops under each control as one line;
   - segments shorten (PLAYER, EN), and chips wrap;
-  - RESET SECTION is RESET, and section 01 is READING · IMAGES.
+  - RESET SECTION is RESET, and section 01 is READING · IMAGES;
+  - a device row with two or three actions (START FROM, SHOW, SIGN OUT) puts
+    the device's name on a line of its own and the actions on the line under
+    it, sharing it equally: beside them the name had no room, and at 360px
+    the row ran off the screen.
 
 The measurements are hand-set, not a spacing scale; the colours are the
 theme's tokens. `tests/settings-frame.e2e.ts`, generated from the design's
@@ -366,7 +370,9 @@ flows are `tests/settings-flow.e2e.ts`. The domain is covered by
   language row overrides it; the count is plain text, without the →.
 - **A long segment takes the room it needs.** Equal segments would let FOLLOW
   THE PLAYER overflow a quarter of the tablet's control column, so a segment
-  grows to its text, and the rest share what's left.
+  grows to its text, and the rest share what's left. Under 420px (a narrow
+  phone) a segment wraps at its spaces instead: PLEX SERIF · PLEX SANS ·
+  OPENDYSLEXIC on one line each was wider than a 360px screen's control column.
 - **AUDIO KEPT's saving isn't stated.** The meta line says what's kept, not a
   number the page can't compute.
 - **HISTORY in MORE has no count.**

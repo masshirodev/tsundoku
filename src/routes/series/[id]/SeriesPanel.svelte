@@ -2479,6 +2479,11 @@
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 		text-wrap: pretty;
+		/* A source's synopsis can end in its links, `[MangaUpdates](https://…)`,
+		   one word wider than a phone's column. The phone sizes this paragraph
+		   to its content (MORE ↓ below is as wide as its word), so an unbroken
+		   word would widen the page; `anywhere` lets it break and size down. */
+		overflow-wrap: anywhere;
 	}
 	.about p.open {
 		display: block;

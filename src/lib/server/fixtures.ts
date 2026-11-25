@@ -37,13 +37,19 @@ type Row = {
 
 /**
  * The description every sample series gets: plainly a fixture, and long
- * enough to exercise the ABOUT row's two-line clamp and MORE.
+ * enough to exercise the ABOUT row's two-line clamp and MORE. It ends as a
+ * Mihon source's synopsis often does, in its tracker links, whose addresses
+ * hold no break wide enough for a phone's column: ABOUT has to break them
+ * rather than widen the page.
  */
 const SAMPLE_ABOUT =
 	'Development sample. The Mihon importer fills this from ComicInfo.xml (Summary), ' +
 	'Hentoid has none, and an EPUB supplies its own dc:description. Real descriptions ' +
 	'are often long and scraped with odd formatting, which is why this row clamps to two ' +
-	'lines and opens on MORE.';
+	'lines and opens on MORE.\n\n' +
+	'Tracker(s):\n' +
+	'- [AniList](https://anilist.co/manga/000000)\n' +
+	'- [MangaUpdates](https://www.mangaupdates.com/series/0sample)';
 
 // An episode has no pages; its size is a 24-minute 1080p episode's (doc/ANIME.md).
 const PAGES: Record<Kind, number> = {

@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, screenSettled, test } from './fixtures';
 import { previewId, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
@@ -215,6 +215,24 @@ test.describe('on a phone', () => {
 		await expect(more).toHaveText('LESS ↑');
 		await page.reload();
 		await expect(page.locator('.panel .about:visible .more')).toHaveText('MORE ↓');
+	});
+
+	test("ABOUT breaks a source link's address instead of widening the page", async ({ page }) => {
+		await openSeries(page, 'Tower of God');
+		// The screen slides in from the side, wider than the page while it moves.
+		await screenSettled(page);
+		const width = () => page.evaluate(() => document.documentElement.scrollWidth);
+		// The viewport as set, not innerWidth: a mobile browser widens its
+		// layout viewport to fit an overflowing page, so innerWidth grows with it.
+		const inner = page.viewportSize()!.width;
+		expect(await width()).toBeLessThanOrEqual(inner);
+		const more = page.locator('.panel .about:visible .more');
+		await expect(async () => {
+			await more.click();
+			await expect(more).toHaveText('LESS ↑', { timeout: 1_000 });
+		}).toPass();
+		await expect(page.locator('.panel .about:visible p')).toContainText('mangaupdates.com');
+		expect(await width()).toBeLessThanOrEqual(inner);
 	});
 
 	test('without script nothing folds, since nothing could open it', async ({
@@ -448,8 +466,9 @@ test.describe('every tag can be read and opened', () => {
 			.boundingBox())!;
 		const panel = (await page.locator('section.panel').boundingBox())!;
 		expect(edit.x + edit.width).toBeLessThanOrEqual(panel.x + panel.width + 1);
+		// The viewport as set: a mobile browser's innerWidth grows to fit an overflow.
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-			await page.evaluate(() => window.innerWidth)
+			page.viewportSize()!.width
 		);
 	});
 
