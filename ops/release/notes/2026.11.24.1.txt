@@ -1,0 +1,21 @@
+Reading a manhwa online down the strip: crossing into the next chapter no longer jumps you to the top of its first page. It scrolls on.
+
+The readers: after clicking the page scrubber, an arrow key turns one page, not two. A drag that pauses for a moment no longer opens the page menu (or, in a book, selects a word) and stays pulled aside.
+
+The series screen: MARK READ THROUGH says episodes and watched on an anime, and is in Portuguese in Portuguese. Its rows no longer shift as the screen finishes loading.
+
+On a TV, the last ↓ at the end of a short chapter list no longer does nothing.
+
+Saves that failed: a cover chosen for the book and one for the series from the same page are two failures, each with its own RETRY and PUT BACK, and a series you hide afterwards is no longer named on the band.
+
+Works: a part moved or taken out right after the Work changed in another tab is no longer refused twice.
+
+The library: IMPORT FINISHED's ✕ no longer takes a HIDE band and its UNDO away with it.
+
+BROWSE: a list that was showing stays on screen when the source stops answering, with a band saying so. + NEW SHELF works in a browser that sends no Referer.
+
+EXTENSIONS: UPDATE on a selection says UPDATING… while it runs and can't be pressed twice; its UNDO works for versions with characters like + in them; and UNDO after leaving SELECT no longer puts you back in it.
+
+Commands typed in a search bar: an unknown one keeps saying so while another runs, and /reveal's device prompt gives up after 8 seconds if the computer doesn't answer, instead of waiting for good.
+
+SETTINGS › CATALOGUES says what AniList and MAL each take.
