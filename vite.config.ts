@@ -22,9 +22,9 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 			adapter: web ? webAdapter() : adapter(),
-			// The web edition's relay is its service worker (web/sw.js); the
-			// app's own, for offline chapters, would take its place on the same
-			// scope. Until the two are one, the web build does not register it.
+			// The web edition registers the app's service worker itself, from
+			// web/boot.js: the tab must wait for it before the app starts, since
+			// every request for data goes through it (doc/WEB-EDITION.md).
 			serviceWorker: { register: !web },
 			// SvelteKit refuses a cross-site form post by its Origin header. The
 			// web edition's server has no network address: only this origin's

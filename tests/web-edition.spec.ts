@@ -8,7 +8,7 @@ import BetterSqlite from 'better-sqlite3';
 // web/ is plain JavaScript with JSDoc types, checked by svelte-check through
 // these imports.
 import nodePath from 'node:path';
-import WebSqlite, { load } from '../web/sqlite.js';
+import WebSqlite, { load, ready } from '../web/sqlite.js';
 import * as webPath from '../web/node-path.js';
 import { nodeStubs } from '../web/node-stubs.js';
 import { holdTheStart } from '../web/adapter.js';
@@ -155,5 +155,38 @@ describe('AsyncLocalStorage in the browser', () => {
 	it('holds the store run() was given', () => {
 		const als = new AsyncLocalStorage();
 		expect(als.run({ locale: 'ja' }, () => als.getStore())).toEqual({ locale: 'ja' });
+	});
+});
+
+// Last in the file: a ready() that succeeds keeps its pool for the module's life.
+describe('opening the OPFS pool', () => {
+	const refused = () =>
+		Object.assign(new Error('Access Handles cannot be created'), {
+			name: 'NoModificationAllowedError'
+		});
+
+	it('gives up once its wait is over, with the browser’s own error', async () => {
+		const calls: unknown[] = [];
+		const install = async (o: object) => {
+			calls.push(o);
+			throw refused();
+		};
+		await expect(ready({ install, waitMs: 120 })).rejects.toThrow('Access Handles');
+		expect(calls.length).toBeGreaterThan(1);
+	});
+
+	it('tries again while the tab it took over lets go, telling SQLite to forget the failure', async () => {
+		const flags: unknown[] = [];
+		const pool = { name: 'pool' };
+		const install = async (o: { forceReinitIfPreviouslyFailed?: boolean }) => {
+			flags.push(o.forceReinitIfPreviouslyFailed);
+			if (flags.length < 3) throw refused();
+			return pool;
+		};
+		expect(await ready({ install })).toBe(pool);
+		expect(flags).toEqual([false, true, true]);
+		// Opened once: a second call is the same pool, without installing again.
+		expect(await ready({ install })).toBe(pool);
+		expect(flags).toHaveLength(3);
 	});
 });

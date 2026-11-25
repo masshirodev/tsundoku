@@ -23,12 +23,31 @@ export async function load() {
 	return sqlite3;
 }
 
-/** Loads SQLite and opens the OPFS pool. Must finish before any file Database. */
-export async function ready({ directory = '/tsundoku' } = {}) {
+/**
+ * Loads SQLite and opens the OPFS pool. Must finish before any file Database.
+ *
+ * The pool takes an exclusive handle on each of its files. A tab that takes
+ * the lead from one that just closed (web/boot.js) can get here before the
+ * browser has stopped the old tab's worker and let its handles go, so a
+ * refused open is tried again for a while before it counts.
+ *
+ * @param {{ directory?: string, waitMs?: number, install?: (options: object) => Promise<any> }} [options]
+ */
+export async function ready({ directory = '/tsundoku', waitMs = 10_000, install } = {}) {
 	if (pool) return pool;
 	await load();
-	pool = await sqlite3.installOpfsSAHPoolVfs({ name: 'tsundoku', directory });
-	return pool;
+	const open = install ?? ((/** @type {object} */ o) => sqlite3.installOpfsSAHPoolVfs(o));
+	const until = Date.now() + waitMs;
+	for (let delay = 50, again = false; ; delay = Math.min(delay * 2, 1_000), again = true) {
+		try {
+			// SQLite remembers a failed install and answers it again, unless told not to.
+			pool = await open({ name: 'tsundoku', directory, forceReinitIfPreviouslyFailed: again });
+			return pool;
+		} catch (e) {
+			if (Date.now() + delay > until) throw e;
+			await new Promise((r) => setTimeout(r, delay));
+		}
+	}
 }
 
 class SqliteError extends Error {

@@ -2,8 +2,9 @@
 /// <reference no-default-lib="true"/>
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
-import { build, files, version } from '$service-worker';
+import { build, files, prerendered, version } from '$service-worker';
 import { byteRange } from '$lib/cache/policy';
+import { MESSAGES, postedForm, relay } from '$lib/web/relay';
 
 /**
  * Offline (doc/OFFLINE.md). Three caches:
@@ -18,8 +19,31 @@ import { byteRange } from '$lib/cache/policy';
  * responses `no-store` (src/hooks.server.ts), and a `no-store` response is
  * never written here. Only same-origin GETs are handled; writes always go to
  * the network.
+ *
+ * The web edition (doc/WEB-EDITION.md) builds this same worker with
+ * `__WEB_EDITION__`. Its server is not on the network but in one open tab,
+ * so where this worker would fetch from the server it asks that tab instead
+ * (`$lib/web/relay`), and every request the server answers is answered
+ * here, since nothing else could: writes, `/api/*`, a screen's data. Its
+ * navigations get the app's shell, which then loads its data the same way.
  */
 const sw = self as unknown as ServiceWorkerGlobalScope;
+
+const web = __WEB_EDITION__ ? relay(sw.clients) : null;
+
+/** The app's server: the network, or in the web edition the leading tab. */
+const server = (req: Request): Promise<Response> => (web ? web.send(req) : fetch(req));
+
+/**
+ * The web edition's own files beside the client's: its shell, `boot.js` and
+ * the server worker's code. Plain network files, like the client's.
+ */
+const webFile = (path: string) =>
+	path === '/index.html' || path === '/boot.js' || path.startsWith('/server/');
+
+/** Every file the build puts on the network, kept or not (the dictionary is
+ * one): in the web edition, the requests that are not the server's. */
+const STATIC = new Set([...build, ...files, ...prerendered]);
 
 const SHELL = `tsundoku-shell-${version}`;
 const ENTRIES = 'tsundoku-entries';
@@ -30,13 +54,25 @@ const EPISODES = 'tsundoku-episodes';
 // needs it (doc/JAPANESE.md), never precached with the app shell.
 const ASSETS = new Set([...build, ...files.filter((f) => !f.startsWith('/dict/'))]);
 
+/** The app shell, kept for this build. The web edition keeps its own files too, listed by its build. */
+async function precache(): Promise<void> {
+	const own: string[] = __WEB_EDITION__
+		? await fetch('/server/files.json').then((r) => r.json() as Promise<string[]>)
+		: [];
+	await (await caches.open(SHELL)).addAll([...ASSETS, ...own]);
+}
+
 sw.addEventListener('install', (event) => {
-	event.waitUntil(
-		caches
-			.open(SHELL)
-			.then((c) => c.addAll([...ASSETS]))
-			.then(() => sw.skipWaiting())
-	);
+	// The web edition's tab cannot start until this worker controls it, and
+	// keeping the whole app first would hold every first visit for it: its
+	// tab asks for the copy once it runs (MESSAGES.precache) instead.
+	if (__WEB_EDITION__) event.waitUntil(sw.skipWaiting());
+	else event.waitUntil(precache().then(() => sw.skipWaiting()));
+});
+
+sw.addEventListener('message', (event) => {
+	if (!web || web.onMessage(event)) return;
+	if (event.data?.type === MESSAGES.precache) event.waitUntil(precache());
 });
 
 sw.addEventListener('activate', (event) => {
@@ -64,7 +100,7 @@ async function networkFirst(
 	keepIn?: string
 ): Promise<Response> {
 	try {
-		const res = await fetch(req);
+		const res = await server(req);
 		if (keepIn && storable(res)) {
 			const copy = res.clone();
 			void caches.open(keepIn).then((c) => c.put(req, copy));
@@ -87,7 +123,7 @@ async function networkFirst(
 /** A kept episode's file, whole or the range asked for; the network when it isn't kept. */
 async function episodeFile(req: Request): Promise<Response> {
 	const hit = await (await caches.open(EPISODES)).match(req.url);
-	if (!hit) return fetch(req);
+	if (!hit) return server(req);
 	const range = req.headers.get('range');
 	if (!range) return hit;
 	const blob = await hit.blob();
@@ -110,13 +146,27 @@ async function episodeFile(req: Request): Promise<Response> {
 
 sw.addEventListener('fetch', (event) => {
 	const req = event.request;
-	if (req.method !== 'GET') return;
 	const url = new URL(req.url);
 	if (url.origin !== sw.location.origin) return;
 	const path = url.pathname;
+	if (req.method !== 'GET') {
+		if (!web) return;
+		// A write is the server's. A form posted without script is a
+		// navigation, whose answer the shell must be able to show.
+		if (req.mode === 'navigate')
+			event.respondWith(web.send(req).then((r) => postedForm(r, req.url)));
+		else event.respondWith(web.send(req));
+		return;
+	}
 
-	if (ASSETS.has(path)) {
+	if (ASSETS.has(path) || (web && webFile(path))) {
 		event.respondWith(caches.match(req).then((hit) => hit ?? fetch(req)));
+		return;
+	}
+	if (web && STATIC.has(path)) return;
+	if (web && req.mode === 'navigate') {
+		// Every screen is the shell, which then asks the server for its data.
+		event.respondWith(caches.match('/index.html').then((hit) => hit ?? fetch('/index.html')));
 		return;
 	}
 	// A page image: the cached copy first -- a turn back, or a chapter read
@@ -126,7 +176,7 @@ sw.addEventListener('fetch', (event) => {
 			caches
 				.open(ENTRIES)
 				.then((c) => c.match(req, { ignoreSearch: true }))
-				.then((hit) => hit ?? fetch(req))
+				.then((hit) => hit ?? server(req))
 		);
 		return;
 	}
@@ -138,7 +188,7 @@ sw.addEventListener('fetch', (event) => {
 			caches
 				.open(ENTRIES)
 				.then((c) => c.match(req))
-				.then((hit) => hit ?? fetch(req))
+				.then((hit) => hit ?? server(req))
 		);
 		return;
 	}
@@ -162,9 +212,17 @@ sw.addEventListener('fetch', (event) => {
 		event.respondWith(networkFirst(req, [ENTRIES, EPISODES, SCREENS]));
 		return;
 	}
-	if (path.startsWith('/api/')) return;
-	// Screens and their data: the network, with the last copy kept.
-	if (req.mode === 'navigate' || path.endsWith('/__data.json')) {
-		event.respondWith(networkFirst(req, [SCREENS], SCREENS));
+	if (path.startsWith('/api/')) {
+		if (web) event.respondWith(web.send(req));
+		return;
 	}
+	// Screens and their data: the network, with the last copy kept. The web
+	// edition's server is in the tab and never out of reach, so it keeps none.
+	if (req.mode === 'navigate' || path.endsWith('/__data.json')) {
+		event.respondWith(networkFirst(req, [SCREENS], web ? undefined : SCREENS));
+		return;
+	}
+	// Anything else of this origin is the server's too (a route's own file,
+	// an endpoint outside /api/): the self-hosted app's goes to the network.
+	if (web) event.respondWith(web.send(req));
 });

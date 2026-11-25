@@ -5,8 +5,10 @@
 //   build-web/                   static files, served as they are
 //     index.html                 the app's shell (SvelteKit's SPA fallback), started by boot.js
 //     _app/...                   the client, exactly as the Node build has it
-//     sw.js, boot.js             the request relay
+//     service-worker.js          the app's own service worker, built with __WEB_EDITION__
+//     boot.js                    starts the tab: the service worker, the lead, the server
 //     server/worker.js           SvelteKit's Server and every route's server code, for a Worker
+//     server/files.json          the files above that the service worker keeps for offline use
 //
 // The self-hosted build never sees this file: vite.config.ts picks it only
 // when TSUNDOKU_WEB=1.
@@ -70,20 +72,7 @@ export default function webAdapter({ out = 'build-web' } = {}) {
 				holdTheStart(readFileSync(join(out, 'index.html'), 'utf8'))
 			);
 
-			// The relay's own files are static too: a /boot.js handed to the
-			// page it is meant to start would wait for ever.
 			cpSync(here('./boot.js'), join(out, 'boot.js'));
-			const statics = [
-				...files(out).filter((/** @type {string} */ f) => f !== '/index.html'),
-				'/sw.js'
-			];
-			writeFileSync(
-				join(out, 'sw.js'),
-				readFileSync(here('./sw.js'), 'utf8').replace(
-					'__TSUNDOKU_STATIC__',
-					JSON.stringify(statics)
-				)
-			);
 
 			await build({
 				configFile: false,
@@ -110,7 +99,7 @@ export default function webAdapter({ out = 'build-web' } = {}) {
 					outDir: out,
 					emptyOutDir: false,
 					target: 'es2022',
-					minify: false,
+					minify: true,
 					lib: { entry: here('./worker.js'), formats: ['es'], fileName: () => 'server/worker.js' },
 					rollupOptions: {
 						output: {
@@ -120,7 +109,11 @@ export default function webAdapter({ out = 'build-web' } = {}) {
 					}
 				}
 			});
-			builder.log.minor(`tsundoku-web: ${out}/ (${statics.length} static files, server/worker.js)`);
+			// What the service worker keeps beside the client's own files (which
+			// `$service-worker` lists for it): the shell, boot.js and the server.
+			const own = ['/index.html', '/boot.js', ...files(join(out, 'server'), out)];
+			writeFileSync(join(out, 'server', 'files.json'), JSON.stringify(own));
+			builder.log.minor(`tsundoku-web: ${out}/ (server/worker.js and ${own.length - 3} chunks)`);
 		}
 	};
 }
