@@ -71,7 +71,8 @@ export function nodeStubs() {
 		async load(id) {
 			if (!id.startsWith('\0node-stub:')) return null;
 			const name = id.slice('\0node-stub:'.length);
-			const real = await import(`node:${name}`);
+			// Deliberately dynamic: which built-in is only known per import.
+			const real = await import(/* @vite-ignore */ `node:${name}`);
 			const keys = Object.keys(real).filter((k) => k !== 'default' && /^[A-Za-z_$][\w$]*$/.test(k));
 			const given = AT_LOAD[name] ?? {};
 			const lines = [
