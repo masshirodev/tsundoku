@@ -249,6 +249,258 @@ TypeScript. Each part is checked against the real thing in
   the answer is the same. Anything that needs a real per-request store must not
   rely on it.
 
+## The fetcher
+
+A page cannot read a response from another site unless that site allows it,
+and no source does; nor can it set `Cookie`, `Referer` or `User-Agent`. A
+browser extension with host permissions can do both, so the web edition's
+network goes through one: **the fetcher**, a Manifest V3 extension, one build
+for Chromium and Firefox. It fetches and nothing else: a URL, a method, headers
+and a body in; the status, headers and bytes out. It knows nothing about any
+source, so it rarely needs updating and holds nothing worth reviewing beyond
+"it makes requests" (the design's reasons are in the private design
+repository's `plans/WEB-EDITION.md`, "The fetcher extension").
+
+| Where                           | What                                                                                                                                         |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/fetcher/`              | Everything the extension decides: the protocol, the origin check, headers, cookies, rules, bytes, the suffix list. Pure, with no `chrome.*`. |
+| `src/lib/web/fetcher-client.ts` | The page's side: the handshake, and `fetch()` through the extension.                                                                         |
+| `fetcher/background.ts`         | The background (a service worker in Chromium, an event page in Firefox): hands the browser's APIs to `src/lib/fetcher/service.ts`.           |
+| `fetcher/content.ts`            | The content script: hands the page's window to `src/lib/fetcher/relay.ts`.                                                                   |
+| `fetcher/manifest.json`         | The manifest. `fetcher/webext.d.ts` types the few WebExtension calls made, and is the whole list of them.                                    |
+| `fetcher/build.ts`              | `yarn run build:fetcher`: bundles each script into one unminified classic file in `build-fetcher/`, which loads in both browsers as it is.   |
+
+The logic lives in `src/lib/fetcher/` rather than beside the manifest because
+the page and the extension share its protocol (one `FETCHER_PROTOCOL`, one set
+of message types, imported by both, so they cannot drift), and because there
+it is typechecked by `yarn run check` and measured by the unit suite's
+coverage like the rest of `src/lib`. The glue in `fetcher/` is checked by
+`tsc -p fetcher/tsconfig.json`, part of `yarn run check`, and exercised by the
+browser test. The extension needs a build step anyway: a content script cannot
+be a module, so whatever it shares must be bundled into it.
+
+### The message protocol
+
+The page and the content script share the page's window and talk by
+`window.postMessage` on it, to the page's own origin; each side reads only
+messages whose `source` is that window, whose origin is its own, whose
+`channel` is `tsundoku-fetcher`, and whose `from` is the other side.
+
+| Message                                                                               | Direction      | What                                                                                        |
+| ------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------- |
+| `ping`                                                                                | page → fetcher | Is a fetcher here?                                                                          |
+| `hello` `{ protocol, version, transport }`                                            | fetcher → page | Sent at start and to every ping, once the background has answered the probe (below).        |
+| `request` `{ id, request: { url, method, headers, body } }`                           | page → fetcher | `headers` is a list of `[name, value]` pairs (order and repeats kept); `body` a Uint8Array. |
+| `response` `{ id, response: { status, statusText, url, redirected, headers, body } }` | fetcher → page | `url` is the final one after redirects; `body` a Uint8Array whose buffer is transferred.    |
+| `error` `{ id, message }`                                                             | fetcher → page | In words: `network error: …`, `only http and https are fetched, not file:`, …               |
+
+Between the content script and the background, runtime messages: a `probe`
+of bytes, echoed, and `fetch` `{ transport, request }`, answered by
+`fetched` `{ ok, response | message }`.
+
+### The handshake
+
+The extension announces `FETCHER_PROTOCOL` (`src/lib/fetcher/protocol.ts`),
+a whole number raised only when a message changes shape. `connectFetcher()`
+pings and waits for the hello, and answers one of four:
+
+- `ready`, with a `fetcher` whose `fetch(request)` resolves to the response
+  or rejects with the fetcher's words;
+- `missing`: no hello within the timeout (1.5 s by default): not installed, or
+  not allowed on this origin;
+- `too-old`: the extension speaks an older protocol than the page. Update the
+  extension;
+- `too-new`: the extension is newer than the page. Reload for the new app.
+
+A fetcher on any other protocol is refused whole rather than half-used. The
+hello waits for the background's answer to the probe, so a hello also means
+the background is alive.
+
+### Who it answers
+
+`https://tsundoku.lt`, and a development server at `http://127.0.0.1` or
+`http://localhost` on any port. Nothing else: a fetcher that answered any page
+would let every site act inside the visitor's sessions elsewhere. Checked three
+times:
+
+1. **The manifest's content-script matches** carry no port (Firefox ignores a
+   pattern with one; one without matches every port), top frame only.
+2. **The content script** checks `location.origin` against the list before it
+   listens at all (`startRelay`).
+3. **The background** answers only its own content script (`sender.id`), in a
+   tab, in the top frame, on an allowed origin: `sender.origin` in Chromium,
+   the origin of `sender.url` in Firefox, which gives no `sender.origin`
+   (`mayAnswer`).
+
+`tests/fetcher-protocol.spec.ts` holds the manifest's matches to the list.
+
+### What it sends
+
+Each header the page asks for is sorted three ways (`src/lib/fetcher/plan.ts`):
+
+| Header                                                                                                      | Goes                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Most (`Accept`, `Content-Type`, `X-Requested-With`, …)                                                      | Through `fetch()` itself.                                                                                                                                                                 |
+| `User-Agent`, `Referer`, `Origin`, `Accept-Charset`, `Date`, `DNT`, `Via`                                   | Through the request's session rule: `fetch()` drops them without a word. An `Origin` the page did not ask for is removed, so the extension's own (`chrome-extension://…`) never goes out. |
+| `Cookie`                                                                                                    | Replaced by the browser's own (below). The page's is never sent.                                                                                                                          |
+| `Accept-Encoding`; `Host`, `Connection`, `Content-Length` and the other framing headers; `Sec-*`, `Proxy-*` | Never. The browser writes its own `Accept-Encoding` and decodes the body; the framing is the browser's; `Sec-*` are its account of the request.                                           |
+
+The fragment is dropped (it never reaches a network). Only `http` and `https`
+are fetched, with the methods a rule can be scoped to (`GET`, `HEAD`, `POST`,
+`PUT`, `PATCH`, `DELETE`, `OPTIONS`), and a `GET` or `HEAD` carries no body.
+`fetch()` is called with `credentials: 'include'` (cookies the site sets in
+reply are kept by the browser), `referrerPolicy: 'no-referrer'` (a Referer is
+the page's or none), `cache: 'no-store'` (the engine keeps its own cache) and
+`redirect: 'follow'`. In the answer, a body the browser decoded loses its
+`Content-Encoding` and `Content-Length`, which described the encoded bytes.
+
+### Cookies
+
+**The browser's cookies are the only cookies.** A request made by an extension
+belongs to no site, so the browser leaves out the cookies a site keeps in its
+own partition (CHIPS), and Cloudflare's `cf_clearance` is one of them. So the
+fetcher builds the Cookie header itself through the `cookies` permission: the
+unpartitioned cookies for the URL, plus those in the site's own partition,
+`cookies.getAll({ url, partitionKey: { topLevelSite } })`. A cookie both reads
+return is sent once; longer paths come first, as a browser orders them.
+Nothing is copied between jars. A browser that refuses `partitionKey` gives
+the unpartitioned cookies alone.
+
+The partition is named by the **Public Suffix List**: scheme plus registrable
+domain (`https://a.b.example.co.uk` is in `https://example.co.uk`'s), with the
+list's private section counted, as both browsers count it
+(`someone.github.io` is a site of its own). The last two labels would name
+`co.uk`, and find nothing.
+
+Over plain http to a loopback host (`localhost`, `127.x`, `[::1]`), the URL's
+https form is asked too. Both browsers count loopback as a secure context and
+send it Secure cookies, and a partitioned cookie is always Secure, but
+Firefox's `cookies.getAll({ url })` matches the scheme strictly and leaves
+them out. Found by the browser test: Firefox stored the test's partitioned
+cookie, sent it itself to a tab on `http://localhost`, and returned it to the
+extension only for the https form. It touches only development; sources are
+https.
+
+### The suffix list: vendored, not a dependency
+
+The list is `src/lib/fetcher/public_suffix_list.dat`, a copy of
+`https://publicsuffix.org/list/public_suffix_list.dat`, read by a matcher of
+under a hundred lines in `src/lib/fetcher/psl.ts` that follows the list's own
+format (exact rules, `*.` wildcards, `!` exceptions, the default `*`, IDN rules
+in punycode). It is bundled into `background.js` unmodified, its MPL-2.0
+notice included, and parsed on the first request after the background starts.
+It is 345 KB of the extension's 379 KB.
+
+Why not `tldts` or `psl` from npm: either would be a dependency inside an
+extension that can read every site's cookies, more code for a store reviewer
+and a supply chain to watch, for an algorithm the list's format specifies in a
+page. The list itself cannot be fetched at build time, which has no network.
+So the data is vendored and the code is ours, and both are tested
+(`tests/fetcher-psl.spec.ts`, which reads the vendored copy).
+
+**Refreshing it**: `yarn run fetcher:psl` downloads the list, refuses a
+download without both sections or with fewer than 5,000 rules, writes the file
+and prints its `VERSION`; commit the result. Do it before each release of the
+fetcher. A stale list only matters for a suffix added since: a site under it
+would be named one label too wide, its partitioned cookies not found, and a
+Cloudflare source would answer 403 until the list is refreshed.
+
+### The User-Agent
+
+A Cloudflare clearance is valid only with the User-Agent that earned it, which
+is the browser's. So **a host holding a `cf_clearance` cookie** (in either jar)
+gets the browser's own User-Agent whatever the page asked; any other host gets
+the one the page (the engine) asked for, or the browser's when it asked for
+none (`chooseUserAgent`).
+
+### Session rules
+
+Every request gets its own `declarativeNetRequest` session rule
+(`buildRule`), carrying its User-Agent, Referer, Origin and Cookie:
+
+- **Scoped to the one request**: this exact URL (`urlFilter: |url|`, case
+  sensitive), this method, resource types `xmlhttprequest` and `other`, and
+  `tabIds: [-1]`, the requests that belong to no tab, so nothing a tab loads is
+  ever touched. A URL with `*` or `^` in it, which a urlFilter reads as
+  wildcards, is matched by an escaped, anchored `regexFilter` instead.
+- **Removed when the answer is in**, or on failure. A rule that could not be
+  removed keeps its id for good.
+- **Unique ids under concurrency**: each request takes the smallest id not in
+  use and gives it back after (`RuleIds`). Session rules outlive the background
+  (a stopped service worker or event page leaves its rules), while requests do
+  not, so every rule present when the background starts is a leftover and is
+  removed before the first is added.
+- **One request at a time per method and URL**: two in flight to the same URL
+  would each match the other's rule, and which rule's headers win is not
+  defined. So those queue (`KeyedQueue`), and each reads the cookies in turn,
+  after the one before it was answered. Requests to anything else run at once.
+
+### Bytes
+
+| Leg                         | Chromium 153                                       | Firefox 155                              |
+| --------------------------- | -------------------------------------------------- | ---------------------------------------- |
+| page ↔ content script       | structured clone; the answer's buffer transferred  | the same                                 |
+| content script ↔ background | JSON: a Uint8Array arrives as an object, so base64 | structured clone: a Uint8Array as itself |
+
+Which form a browser takes is not assumed from its name: the content script
+sends the background a probe of all 256 byte values on start and keeps
+`binary` if they come back intact, `base64` otherwise (`src/lib/fetcher/bytes.ts`).
+The browser test asserts what each browser did, so a Chromium that starts
+cloning shows up there. Base64 costs a third more bytes and a pass each way;
+Chromium caps one runtime message at 64 MiB, far above a page image.
+
+### Loading it by hand
+
+Build it first: `yarn run build:fetcher` writes `build-fetcher/`.
+
+- **Chrome, Edge**: `chrome://extensions`, turn on Developer mode, **Load
+  unpacked**, pick `build-fetcher/`. After a rebuild, press its reload button.
+- **Firefox**: `about:debugging#/runtime/this-firefox`, **Load Temporary
+  Add-on…**, pick `build-fetcher/manifest.json`. Manifest V3 host permissions
+  are opt-in in Firefox: in `about:addons`, the fetcher's **Permissions** tab,
+  allow it to access data for all websites, or every fetch fails. A temporary
+  add-on lasts until Firefox closes. `npx web-ext run --source-dir
+build-fetcher` does the same in a fresh profile.
+
+Then open tsundoku on `http://localhost:<port>` or `http://127.0.0.1:<port>`;
+`connectFetcher()` answers `ready`.
+
+### How it is tested
+
+- **Unit specs**, no browser: `tests/fetcher-protocol.spec.ts` (origins, the
+  sender check, the manifest), `fetcher-psl` (the format and the vendored
+  list), `fetcher-cookies`, `fetcher-plan` (headers, User-Agent, the rule),
+  `fetcher-schedule` (ids, the queue), `fetcher-bytes`, `fetcher-service` (the
+  background on a fake browser: rules added and removed, concurrency,
+  failures) and `fetcher-client` (the real client, relay and background on a
+  fake window, crossing as each browser does). They cover `src/lib/fetcher/`
+  and the client whole.
+- **The browser test**, `yarn run test:fetcher`: the built extension in
+  Playwright's Chromium and in the system Firefox, fetching from a local
+  server that records what it received, partitioned cookie included
+  (doc/TESTING.md, "The fetcher extension").
+
+### Open
+
+- **Redirects.** The rule matches the URL asked for, not where a redirect
+  leads, so a later hop goes with the browser's own User-Agent, no Referer and
+  only the cookies the browser attaches itself (no partitioned ones). The
+  answer says `redirected` and its final `url`. If a source needs its headers
+  on every hop, the fetcher must follow redirects itself.
+- **Set-Cookie** never reaches the page (`fetch()` hides it). The browser
+  keeps the cookie, so the next request carries it.
+- **No abort or timeout message.** A request the page stops waiting for still
+  runs to its end.
+- **Development origins ship.** The store build still answers loopback pages,
+  so any local web server could ask it for requests. Drop them from a store
+  build, or keep them behind a setting, before publishing.
+- **A Firefox install without the host permission** fails every fetch as a
+  network error; the page cannot tell that from a source being down. The
+  extension could report its permission in the hello
+  (`permissions.contains`).
+- **Store review**, as the design warns: `<all_urls>` and `cookies` are what
+  a reviewer looks at hardest.
+
 ## The proof
 
 Run on the workstation on 2026-11-25, in Chromium (Playwright's) and Firefox:

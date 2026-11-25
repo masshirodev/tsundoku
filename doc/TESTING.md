@@ -187,6 +187,55 @@ book, and a folder with no JSON. `import-db.spec.ts` runs the real importer
 over it. The e2e server gets an empty `LIBRARY_ROOT`, so START SCAN there can
 never import into the database the suite asserts against.
 
+## The fetcher extension
+
+```sh
+yarn run test:fetcher   # builds build-fetcher/, lints it for Firefox, runs both browsers
+```
+
+The fetcher (doc/WEB-EDITION.md, "The fetcher") is tested twice. Its logic is
+in `src/lib/fetcher/` with `tests/fetcher-*.spec.ts` in the unit suite, like
+any spec. The built extension in real browsers is `fetcher/test/browsers.e2e.ts`
+under its own config (`fetcher/playwright.config.ts`), outside `tests/` so the
+app's e2e suite and its table never collect it. Run it after changing anything
+in `fetcher/` or `src/lib/fetcher/`; nothing else runs it, CI included.
+
+- **One server plays every part** on one port (`fetcher/test/server.ts`):
+  tsundoku's page at `http://127.0.0.1`, a source holding a clearance at
+  `http://localhost`, a source with none at `http://[::1]`. A site is scheme
+  and host, never port, so they are three sites. The test page is the real
+  client (`src/lib/web/fetcher-client.ts`), bundled when the test starts; it
+  posts what it saw to the server, and the test asserts against both that and
+  what the server received.
+- **The partitioned cookie** is set as a source would set Cloudflare's: a tab
+  visits `http://localhost/set-cookies`, which answers `cf_clearance=…; Secure;
+SameSite=None; Partitioned`. Partitioned needs Secure, and both browsers
+  allow Secure over http on localhost, a secure context, so no certificate is
+  needed. In Chromium the test also reads the jars from the service worker, to
+  prove the cookie really is in the site's partition and not the plain jar.
+- **Chromium** is Playwright's, with the unpacked extension in a persistent
+  context (`--load-extension`), headless. The test also asserts that no
+  session rule is left once every request is answered.
+- **Firefox** is the system one (`/usr/bin/firefox`, or `FIREFOX`): Playwright
+  cannot load an add-on into Firefox, so `web-ext run` installs the extension
+  as a temporary add-on in a headless Firefox, with
+  `extensions.originControls.grantByDefault` granting the host permission a
+  visitor grants on install. Its start URLs open the cookie visit, the page and
+  a page on a foreign origin; the page waits for the cookie visit before it
+  fetches. The test is skipped where there is no Firefox.
+- **What it asserts**, in both: the handshake; both jars' cookies with the
+  page's own Cookie dropped; the browser's User-Agent for the clearance host
+  and the engine's elsewhere; Referer and Origin as asked; the page's
+  `Accept-Encoding` not sent; bytes intact both ways; a gzip answer decoded
+  without its encoding headers; a redirect's final URL; eight concurrent
+  requests to one URL each with its own Referer, and eight to different URLs
+  each with its own User-Agent; a network failure and a `file:` URL refused in
+  words; no fetcher on a foreign origin; and how the browser carried bytes
+  (base64 in Chromium, binary in Firefox).
+- **Nothing is left behind**: both browser profiles are under
+  `test-results/fetcher/` and removed when each test ends, and the Firefox
+  process group web-ext started is stopped.
+
 ## E2E specs
 
 **The browsers are Playwright's own: `yarn run test:e2e:install`** installs
