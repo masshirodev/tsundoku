@@ -2,6 +2,7 @@
 	import { leave } from '$lib/motion';
 	import { lockPage } from '$lib/scroll-lock';
 	import { goto } from '$app/navigation';
+	import { enhance } from '$app/forms';
 
 	/**
 	 * + NEW, the last tab on the phone and tablet (Library Filters 3g): one
@@ -46,7 +47,7 @@
 			<a class="x" href={closeHref} aria-label="Close" data-sveltekit-noscroll>✕</a>
 		</div>
 		<!-- eslint-enable svelte/no-navigation-without-resolve -->
-		<form method="POST" action="?/newShelf">
+		<form method="POST" action="?/newShelf" use:enhance>
 			{#if band}<input type="hidden" name="band" value={band} />{/if}
 			<div class="field">
 				<!-- The sheet exists to take this one name. -->

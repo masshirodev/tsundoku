@@ -161,7 +161,7 @@
 					<!-- Reading first, adding beside it: ▶ continues a record, or starts the
 						     first episode or chapter. -->
 					<div class="cta-bar">
-						<form method="POST" action="?/open" class="cta-go">
+						<form method="POST" action="?/open" class="cta-go" use:enhance>
 							<button
 								type="submit"
 								class="cta"
@@ -250,7 +250,7 @@
 									<span class="short">{keptLine(data.record, Date.now(), KEEP_DAYS, true)}</span>
 								</div>
 							</div>
-							<form method="POST" action="?/forget" class="lc-form">
+							<form method="POST" action="?/forget" class="lc-form" use:enhance>
 								<button type="submit" class="lc">FORGET</button>
 							</form>
 						</div>
@@ -336,7 +336,7 @@
 					</div>
 					<!-- Every row opens without ADD (doc/READING-ONLINE.md): one form, a
 						     button per row, so it works without script. -->
-					<form method="POST" action="?/open">
+					<form method="POST" action="?/open" use:enhance>
 						<ol>
 							{#each m.chapters as c (c.id)}
 								{@const look = rowLook('states' in m ? m.states[c.id] : null, anime)}

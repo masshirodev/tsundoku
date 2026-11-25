@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
+	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 
 	let { data } = $props();
@@ -35,6 +37,19 @@
 	const live = $derived(data.step === 'code' && data.state === 'live');
 
 	let form: HTMLFormElement | undefined = $state();
+
+	/**
+	 * PAIR →'s post, enhanced (the web edition answers a plain post only with
+	 * a redirect, doc/WEB-EDITION.md). A plain post loaded the page again, so
+	 * the next try started with empty cells; the enhanced one keeps this
+	 * screen, so it empties them itself.
+	 */
+	const pair: SubmitFunction =
+		() =>
+		async ({ update }) => {
+			typed = '';
+			await update();
+		};
 
 	/** PAIR → presses itself when the sixth arrives. */
 	function oninput(e: Event & { currentTarget: HTMLInputElement }) {
@@ -139,7 +154,7 @@
 			<div class="meta">{data.host} ✓ ANSWERED</div>
 		</div>
 
-		<form class="safe digits" method="POST" bind:this={form}>
+		<form class="safe digits" method="POST" bind:this={form} use:enhance={pair}>
 			<!-- The keys land here: a remote's number keys and ←, as the design says.
 			     On a phone the field lies over the six cells, so a tap on any of
 			     them is a tap on the field and Android raises its keyboard. -->

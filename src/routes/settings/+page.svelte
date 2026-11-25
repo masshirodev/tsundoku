@@ -378,9 +378,20 @@
 		void syncDevice({ register: true }).then((ok) => {
 			if (ok) void invalidateAll();
 		});
+		return stop;
+	});
+
+	/**
+	 * `?section=` opens the page at that section (SEARCH's `/settings watching`,
+	 * doc/SETTINGS.md). After a navigation, not on mount: arriving by a
+	 * client-side navigation, SvelteKit puts the scroll back at the top after
+	 * the page has mounted, which undid a scroll made in `onMount`. A change of
+	 * this page's own URL keeps its place.
+	 */
+	afterNavigate((nav) => {
+		if (nav.type !== 'enter' && nav.from?.route.id === nav.to?.route.id) return;
 		const target = sectionFor(page.url.searchParams.get('section') ?? '');
 		if (target) document.getElementById(`s-${target}`)?.scrollIntoView();
-		return stop;
 	});
 	const other = $derived(
 		showing && showing !== myId ? (data.devices.find((d) => d.id === showing) ?? null) : null

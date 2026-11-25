@@ -3,6 +3,7 @@
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { resolve } from '$app/paths';
+	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { untrack } from 'svelte';
@@ -722,7 +723,7 @@
 						</div>
 					</div>
 				{:else}
-					<form class="confirm" method="POST" action="?/move">
+					<form class="confirm" method="POST" action="?/move" use:enhance>
 						<a class="cancel" href={clearTo()} data-sveltekit-noscroll data-focus-mark="in"
 							>← CANCEL</a
 						>

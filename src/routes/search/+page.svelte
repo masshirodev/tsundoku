@@ -405,25 +405,42 @@
 		};
 	});
 
-	function onsubmit(e: SubmitEvent) {
-		if (plain) return;
+	/**
+	 * The search bar's post, enhanced: a plain post needs no script, but in
+	 * the web edition it would be a navigation its service worker can only
+	 * answer with a redirect (doc/WEB-EDITION.md), so this page posts by
+	 * `use:enhance` like the rest. `enhance` ignores a form's own
+	 * `preventDefault`, so what the bar does instead of posting is decided
+	 * here, and cancels the post.
+	 */
+	const submit: SubmitFunction = ({ cancel }) => {
+		if (takeOver()) return cancel();
+		// The post used to be a page load, which ends SELECT as a reload does;
+		// it still ends it, so a command does the same thing either way.
+		return async ({ update }) => {
+			stopSelecting();
+			await update();
+		};
+	};
+
+	/** Whether the bar answers this Enter itself, instead of posting it. */
+	function takeOver(): boolean {
+		if (plain) return false;
 		const input = parseSearch(q);
 		// Enter on a query while selecting: the results already follow the
-		// typing, and the form's post is a page load, which would end SELECT as
-		// a reload does. The pending replace is made at once instead.
+		// typing, and posting would end SELECT. The pending replace is made at
+		// once instead.
 		if (selecting && (input.type === 'query' || input.type === 'empty')) {
-			e.preventDefault();
 			clearTimeout(timer);
 			const target = withKind(searchHref(input.type === 'query' ? input.text : ''));
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- searchHref() resolves
 			void goto(target, { replaceState: true, keepFocus: true, noScroll: true });
-			return;
+			return true;
 		}
-		if (input.type !== 'command' || !(input.command in PURPOSE)) return;
-		e.preventDefault();
+		if (input.type !== 'command' || !(input.command in PURPOSE)) return false;
 		// A second ceremony cancels the first's prompt, and that refusal then
 		// lands as NOT UNLOCKED on a device that accepted.
-		if (gate?.status === 'waiting') return;
+		if (gate?.status === 'waiting') return true;
 		// A TV has no fingerprint and no screen lock: say
 		// so rather than raise a prompt it cannot answer.
 		if (input.command === 'reveal' && tvScreen.current) {
@@ -433,9 +450,10 @@
 				status: 'done',
 				text: 'NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER'
 			};
-			return;
+			return true;
 		}
 		void ceremony(input.command as keyof typeof PURPOSE);
+		return true;
 	}
 
 	/**
@@ -514,9 +532,9 @@
 			return fail(unanswered);
 		}
 		if (purpose === 'reveal') {
-			// The plain /reveal is a form post, a page load, which ends SELECT as a
-			// reload does; through the lock it is a `goto`, so it ends it here,
-			// for the same command to do the same thing either way.
+			// The plain /reveal is the bar's post, which ends SELECT (`submit`);
+			// through the lock it is a `goto`, so it ends it here, for the same
+			// command to do the same thing either way.
 			stopSelecting();
 			return goto(resolve('/'), { invalidateAll: true });
 		}
@@ -534,7 +552,7 @@
 
 <svelte:head><title>search · tsundoku</title></svelte:head>
 
-<form method="POST" class="search" bind:this={form} {onsubmit}>
+<form method="POST" class="search" bind:this={form} use:enhance={submit}>
 	<TopBar strong label="Search bar">
 		{#snippet left()}
 			<a class="cell" href={resolve('/')} aria-label="Back to library" onclick={back}>←</a>

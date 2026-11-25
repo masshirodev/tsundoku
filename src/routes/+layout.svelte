@@ -395,7 +395,7 @@
 						href={(k) => shelfHref(page.url, k)}
 					/>
 					{#if naming}
-						<form class="new-shelf" method="POST" action="/?/newShelf">
+						<form class="new-shelf" method="POST" action="/?/newShelf" use:enhance>
 							<!-- The field exists to take this one name. -->
 							<!-- svelte-ignore a11y_autofocus -->
 							<input

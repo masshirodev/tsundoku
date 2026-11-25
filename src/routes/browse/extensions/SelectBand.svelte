@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
+	import { enhance } from '$app/forms';
 	import { count } from '$lib/library/downloads';
 
 	/**
@@ -198,7 +199,7 @@
 	<Band title={flagsTitle} detail={flagsDetail} ondismiss={dismiss}>
 		{#snippet action()}
 			{#if flags.facts.length}
-				<form method="POST" action={undoAction}>
+				<form method="POST" action={undoAction} use:enhance>
 					<input type="hidden" name="flag" value={flags.flag} />
 					<input type="hidden" name="to" value={flags.to ? '1' : '0'} />
 					<input type="hidden" name="from" value={factsUrl} />
@@ -215,7 +216,7 @@
 	<Band title={updateTitle} detail={updateDetail} ondismiss={dismiss}>
 		{#snippet action()}
 			{#if update.done.length}
-				<form method="POST" action="{base}?/undoUpdate">
+				<form method="POST" action="{base}?/undoUpdate" use:enhance>
 					{#each update.done as pkg, i (pkg)}<input type="hidden" name="pkg" value={pkg} /><input
 							type="hidden"
 							name="ver"
