@@ -13,6 +13,10 @@
 //    and its requests wait in the service worker until a leader is ready.
 //
 // The message names are `MESSAGES` in src/lib/web/relay.ts.
+import { connectFetcher } from '$lib/web/fetcher-client';
+import { ENGINE_ORIGIN } from './engine-port.js';
+import { ENGINE_JAR, engineStarter } from './engine-start.js';
+
 const LOCK = 'tsundoku-server';
 const MSG = {
 	request: 'tsundoku-request',
@@ -90,6 +94,7 @@ function lead(options) {
 			status('ready');
 			announce();
 			ready();
+			startEngine();
 			return new Promise(() => {});
 		})
 		.catch((e) => {
@@ -97,6 +102,33 @@ function lead(options) {
 			fail(e);
 		});
 	return { got, serving };
+}
+
+/**
+ * The extension engine, once this tab's server is up (doc/WEB-EDITION.md,
+ * "The engine"): started in its own worker, only when a fetcher answers, and
+ * tried again when the tab is focused (a fetcher installed meanwhile).
+ */
+function startEngine() {
+	if (!server) return;
+	const starter = engineStarter({
+		server,
+		connect: () => connectFetcher(),
+		makeWorker: () => new Worker('/engine-worker.js'),
+		// A static host may answer a missing file with the app's page: only a
+		// jar is a jar.
+		hasJar: () =>
+			fetch(ENGINE_JAR, { headers: { range: 'bytes=0-0' } }).then(
+				(r) => r.ok && (r.headers.get('content-type') ?? '').includes('java-archive'),
+				() => false
+			),
+		origin: ENGINE_ORIGIN,
+		onNews: (news) => {
+			document.documentElement.dataset.webEngine = news.state;
+		}
+	});
+	void starter.attempt();
+	window.addEventListener('focus', () => void starter.attempt());
 }
 
 async function boot() {

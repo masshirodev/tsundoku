@@ -6,7 +6,9 @@
 //     index.html                 the app's shell (SvelteKit's SPA fallback), started by boot.js
 //     _app/...                   the client, exactly as the Node build has it
 //     service-worker.js          the app's own service worker, built with __WEB_EDITION__
-//     boot.js                    starts the tab: the service worker, the lead, the server
+//     boot.js                    starts the tab: the service worker, the lead, the server, the engine
+//     engine-worker.js           the extension engine's worker (CheerpJ, from its CDN)
+//     engine/engine-browser.jar  tsundoku-engine's slim browser jar, when the build is given one
 //     server/worker.js           SvelteKit's Server and every route's server code, for a Worker
 //     server/files.json          the files above that the service worker keeps for offline use
 //
@@ -72,7 +74,35 @@ export default function webAdapter({ out = 'build-web' } = {}) {
 				holdTheStart(readFileSync(join(out, 'index.html'), 'utf8'))
 			);
 
-			cpSync(here('./boot.js'), join(out, 'boot.js'));
+			// boot.js and the engine's worker are the tab's own code, built from
+			// web/ with the app's $lib, not the server's stand-ins.
+			const lib = fileURLToPath(new URL('../src/lib', import.meta.url));
+			/** @param {string} entry @param {'es' | 'iife'} format @param {string} file */
+			const tabBuild = (entry, format, file) =>
+				build({
+					configFile: false,
+					logLevel: 'warn',
+					resolve: { alias: { $lib: lib } },
+					build: {
+						outDir: out,
+						emptyOutDir: false,
+						target: 'es2022',
+						minify: true,
+						lib: { entry: here(entry), formats: [format], name: 'tsundoku', fileName: () => file }
+					}
+				});
+			await tabBuild('./boot.js', 'es', 'boot.js');
+			// A classic worker: CheerpJ's loader is a classic script, read by importScripts.
+			await tabBuild('./engine-worker.js', 'iife', 'engine-worker.js');
+
+			// The engine (doc/WEB-EDITION.md, "The engine") comes from
+			// tsundoku-engine's `:browser:slimJar`. Without one, the build has no
+			// engine: the tab says so and the library works without sources.
+			const engineJar = process.env.TSUNDOKU_ENGINE_JAR;
+			if (engineJar) {
+				mkdirSync(join(out, 'engine'), { recursive: true });
+				cpSync(engineJar, join(out, 'engine', 'engine-browser.jar'));
+			} else builder.log.warn('tsundoku-web: no TSUNDOKU_ENGINE_JAR, so this build has no engine');
 
 			await build({
 				configFile: false,
@@ -111,9 +141,15 @@ export default function webAdapter({ out = 'build-web' } = {}) {
 			});
 			// What the service worker keeps beside the client's own files (which
 			// `$service-worker` lists for it): the shell, boot.js and the server.
-			const own = ['/index.html', '/boot.js', ...files(join(out, 'server'), out)];
+			const own = [
+				'/index.html',
+				'/boot.js',
+				'/engine-worker.js',
+				...(engineJar ? ['/engine/engine-browser.jar'] : []),
+				...files(join(out, 'server'), out)
+			];
 			writeFileSync(join(out, 'server', 'files.json'), JSON.stringify(own));
-			builder.log.minor(`tsundoku-web: ${out}/ (server/worker.js and ${own.length - 3} chunks)`);
+			builder.log.minor(`tsundoku-web: ${out}/ (${own.length} files of its own)`);
 		}
 	};
 }

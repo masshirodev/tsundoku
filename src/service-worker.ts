@@ -39,7 +39,11 @@ const server = (req: Request): Promise<Response> => (web ? web.send(req) : fetch
  * the server worker's code. Plain network files, like the client's.
  */
 const webFile = (path: string) =>
-	path === '/index.html' || path === '/boot.js' || path.startsWith('/server/');
+	path === '/index.html' ||
+	path === '/boot.js' ||
+	path === '/engine-worker.js' ||
+	path.startsWith('/server/') ||
+	path.startsWith('/engine/');
 
 /** Every file the build puts on the network, kept or not (the dictionary is
  * one): in the web edition, the requests that are not the server's. */
@@ -124,7 +128,33 @@ async function networkFirst(
 async function episodeFile(req: Request): Promise<Response> {
 	const hit = await (await caches.open(EPISODES)).match(req.url);
 	if (!hit) return server(req);
-	const range = req.headers.get('range');
+	return sliced(hit, req.headers.get('range'), 'video/x-matroska');
+}
+
+/**
+ * The web edition's engine jar (doc/WEB-EDITION.md, "The engine"). CheerpJ
+ * reads a jar by byte ranges, and the browser's HTTP cache keeps no ranged
+ * answer, so every visit would fetch the whole jar again in pieces. The jar
+ * is kept whole, with the shell's copy (a new build, a new jar), and each
+ * range is cut from it here.
+ */
+async function engineFile(req: Request): Promise<Response> {
+	const shell = await caches.open(SHELL);
+	let whole = await shell.match(req.url);
+	if (!whole) {
+		const res = await fetch(req.url);
+		// A static host may answer a missing file with the app's page; that is
+		// not a jar, and must never be kept as one.
+		if (!res.ok || !(res.headers.get('content-type') ?? '').includes('java-archive'))
+			return new Response('no engine in this build', { status: 404 });
+		await shell.put(req.url, res.clone());
+		whole = res;
+	}
+	return sliced(whole, req.headers.get('range'), 'application/java-archive');
+}
+
+/** A kept file, whole, or the range asked for (206), or 416 when it is past the end. */
+async function sliced(hit: Response, range: string | null, type: string): Promise<Response> {
 	if (!range) return hit;
 	const blob = await hit.blob();
 	const r = byteRange(range, blob.size);
@@ -136,7 +166,7 @@ async function episodeFile(req: Request): Promise<Response> {
 	return new Response(blob.slice(r.start, r.end + 1), {
 		status: 206,
 		headers: {
-			'content-type': hit.headers.get('content-type') ?? 'video/x-matroska',
+			'content-type': hit.headers.get('content-type') ?? type,
 			'content-length': String(r.end - r.start + 1),
 			'content-range': `bytes ${r.start}-${r.end}/${blob.size}`,
 			'accept-ranges': 'bytes'
@@ -159,6 +189,10 @@ sw.addEventListener('fetch', (event) => {
 		return;
 	}
 
+	if (web && path.startsWith('/engine/')) {
+		event.respondWith(engineFile(req));
+		return;
+	}
 	if (ASSETS.has(path) || (web && webFile(path))) {
 		event.respondWith(caches.match(req).then((hit) => hit ?? fetch(req)));
 		return;

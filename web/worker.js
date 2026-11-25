@@ -3,6 +3,7 @@
 // The service worker hands it the page's requests through the page (boot.js);
 // it answers with exactly what the Node server would have.
 import './process.js';
+import { enginePort } from './engine-port.js';
 import { ready } from './sqlite.js';
 import { Server } from 'tsundoku-web:server';
 import { manifest } from 'tsundoku-web:manifest';
@@ -17,7 +18,15 @@ const started = (async () => {
 	return server;
 })();
 
-self.onmessage = async ({ data }) => {
+// Before any server code runs a request: its calls to ENGINE_URL go to the
+// engine's worker, every other fetch is the browser's.
+const engine = enginePort(globalThis.fetch.bind(globalThis));
+globalThis.fetch = engine.fetch;
+
+self.onmessage = async ({ data, ports }) => {
+	// The tab's word on the engine (web/boot.js): a port when it starts one,
+	// then each change of state.
+	if (data?.type === 'tsundoku-engine') return engine.set(data, ports[0]);
 	if (data?.type !== 'tsundoku-request') return;
 	const { id, url, method, headers, body } = data;
 	try {

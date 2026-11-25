@@ -98,3 +98,18 @@ test('static files stay static: the server answers only the app’s own requests
 	const api = await page.evaluate(async () => (await fetch('/api/does-not-exist')).status);
 	expect(api).toBe(404);
 });
+
+test('with no engine in the build, the tab says so and the library works without it', async ({
+	page
+}) => {
+	await open(page);
+	// test:web builds without TSUNDOKU_ENGINE_JAR (doc/WEB-EDITION.md, "The engine").
+	await expect(page.locator('html')).toHaveAttribute('data-web-engine', 'off');
+	await expect(page.getByRole('link', { name: '+ NEW SHELF' })).toBeVisible();
+	// And the jar's address is not answered with the app's page, nor kept as a jar.
+	const jar = await page.evaluate(async () => {
+		const r = await fetch('/engine/engine-browser.jar', { headers: { range: 'bytes=0-0' } });
+		return r.status;
+	});
+	expect(jar).toBe(404);
+});

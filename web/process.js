@@ -8,7 +8,12 @@ const env = {
 	NODE_ENV: 'production',
 	DATABASE_PATH: '/tsundoku.sqlite',
 	TSUNDOKU_HOME: '/tsundoku',
-	TSUNDOKU_EDITION: 'web'
+	TSUNDOKU_EDITION: 'web',
+	// The extension engine runs in a worker of the tab, reached by an origin
+	// that exists nowhere (web/engine-port.js). The client sends the token as
+	// it always does; there is no listener for anyone else to reach.
+	ENGINE_URL: 'http://engine.tsundoku.invalid',
+	ENGINE_TOKEN: 'web-edition'
 };
 
 globalThis.Buffer ??= Buffer;
