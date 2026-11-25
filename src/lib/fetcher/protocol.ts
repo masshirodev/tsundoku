@@ -8,21 +8,35 @@
  * page refuses a fetcher whose number differs from its own
  * (fetcher-client.ts), so a stale extension is reported, never half-used.
  */
-export const FETCHER_PROTOCOL = 1;
+export const FETCHER_PROTOCOL = 2;
 
 /** Every window message of the protocol carries this, so others are ignored. */
 export const FETCHER_CHANNEL = 'tsundoku-fetcher';
 
 /**
- * The origins the fetcher answers. Production, and a development server on
- * the loopback address at any port. Anything else, any site that is not
+ * Which build of the extension this is. The store build answers production
+ * only. The development build also answers a development server on the
+ * loopback address at any port, and must never be published: any page there
+ * (a dev server, a local tool, something an npm package started) would get a
+ * fetcher that sends the visitor's cookies for every site. The build picks
+ * one (fetcher/build.ts) and passes it to every check below and to the
+ * manifest, so this file is the one place the decision lives.
+ */
+export type FetcherEdition = 'store' | 'development';
+
+/**
+ * The origins the fetcher answers. Anything else, any site that is not
  * tsundoku, gets no fetcher: one that fetched for any page would let every site
  * act inside the visitor's sessions elsewhere.
  */
 export const PRODUCTION_ORIGINS: readonly string[] = ['https://tsundoku.lt'];
+/** Added in the development build only, over http, at any port. */
 export const DEVELOPMENT_HOSTS: readonly string[] = ['127.0.0.1', 'localhost'];
 
-export function isAllowedOrigin(origin: string | undefined | null): boolean {
+export function isAllowedOrigin(
+	origin: string | undefined | null,
+	edition: FetcherEdition
+): boolean {
 	if (!origin) return false;
 	let url: URL;
 	try {
@@ -34,7 +48,63 @@ export function isAllowedOrigin(origin: string | undefined | null): boolean {
 	// the caller passed a URL where an origin was expected.
 	if (url.origin !== origin) return false;
 	if (PRODUCTION_ORIGINS.includes(origin)) return true;
-	return url.protocol === 'http:' && DEVELOPMENT_HOSTS.includes(url.hostname);
+	return (
+		edition === 'development' &&
+		url.protocol === 'http:' &&
+		DEVELOPMENT_HOSTS.includes(url.hostname)
+	);
+}
+
+/**
+ * The content script's match patterns for an edition. None carries a port:
+ * Firefox ignores a pattern with one, and one without matches every port.
+ */
+export function contentScriptMatches(edition: FetcherEdition): string[] {
+	const production = PRODUCTION_ORIGINS.map((origin) => `${origin}/*`);
+	if (edition === 'store') return production;
+	return [...production, ...DEVELOPMENT_HOSTS.map((host) => `http://${host}/*`)];
+}
+
+/**
+ * The manifest an edition ships: the template (fetcher/manifest.json) with
+ * the content script's matches filled in, and the development build named as
+ * one so the two are never confused in a browser's list.
+ */
+export function manifestFor<T extends { name: string; content_scripts: object[] }>(
+	template: T,
+	edition: FetcherEdition
+): T {
+	const manifest = structuredClone(template);
+	manifest.content_scripts = manifest.content_scripts.map((script) => ({
+		...script,
+		matches: contentScriptMatches(edition)
+	}));
+	if (edition === 'development') manifest.name = `${manifest.name} (development)`;
+	return manifest;
+}
+
+/**
+ * How much of the web the visitor let the extension reach. Firefox makes
+ * host permissions opt-in, and Chromium lets a visitor narrow them to some
+ * sites; without access a fetch fails as a bare network error, so the hello
+ * says which it is.
+ */
+export type SiteAccess = 'all' | 'some' | 'none';
+
+/**
+ * Site access from what the browser reports: whether `<all_urls>` is held,
+ * and the origins granted. The content script's own matches do not count:
+ * Chromium lists them as granted origins, but they are tsundoku's pages, not
+ * sites to fetch from.
+ */
+export function siteAccessFrom(
+	all: boolean,
+	granted: readonly string[],
+	edition: FetcherEdition
+): SiteAccess {
+	if (all) return 'all';
+	const own = new Set(contentScriptMatches(edition));
+	return granted.some((origin) => !own.has(origin)) ? 'some' : 'none';
 }
 
 /** The part of a runtime.onMessage sender the origin check reads. */
@@ -66,12 +136,16 @@ export function senderOrigin(sender: MessageSenderLike): string | null {
  * script checks the origin too; this second check holds even if a content
  * script ever runs somewhere it should not.
  */
-export function mayAnswer(sender: MessageSenderLike, extensionId: string): boolean {
+export function mayAnswer(
+	sender: MessageSenderLike,
+	extensionId: string,
+	edition: FetcherEdition
+): boolean {
 	return (
 		sender.id === extensionId &&
 		sender.tab !== undefined &&
 		sender.frameId === 0 &&
-		isAllowedOrigin(senderOrigin(sender))
+		isAllowedOrigin(senderOrigin(sender), edition)
 	);
 }
 
@@ -100,7 +174,8 @@ export interface FetcherResponse {
 
 /** Page and content script, over window.postMessage on the page itself. */
 export type PageMessage =
-	| { channel: typeof FETCHER_CHANNEL; from: 'page'; kind: 'ping' }
+	/** `nonce` is echoed by the hello that answers it, so a client takes only its own answer. */
+	| { channel: typeof FETCHER_CHANNEL; from: 'page'; kind: 'ping'; nonce: string }
 	| {
 			channel: typeof FETCHER_CHANNEL;
 			from: 'page';
@@ -114,10 +189,14 @@ export type FetcherMessage =
 			channel: typeof FETCHER_CHANNEL;
 			from: 'fetcher';
 			kind: 'hello';
+			/** The ping's nonce: a hello answers one ping, never another client's. */
+			to: string;
 			protocol: number;
 			version: string;
 			/** How bodies cross inside the extension in this browser (bytes.ts). */
 			transport: 'binary' | 'base64';
+			/** Checked afresh for every hello, so access granted later is seen. */
+			access: SiteAccess;
 	  }
 	| {
 			channel: typeof FETCHER_CHANNEL;

@@ -1,18 +1,23 @@
 // The built fetcher extension in real Chromium and Firefox, against a local
-// server that records what it received (server.ts). Run with
-// `yarn run test:fetcher`, which builds build-fetcher/ first; doc/TESTING.md,
-// "The fetcher extension".
+// server that records what it received (server.ts), and the store build's
+// refusal of loopback pages. Run with `yarn run test:fetcher`, which builds
+// both editions first; doc/TESTING.md, "The fetcher extension".
 import { expect, test, chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 import { build } from 'vite';
 import { startServer, type Received } from './server.ts';
 import { BINARY_ANSWER, ENGINE_AGENT } from './shared.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const extension = `${root}build-fetcher`;
-const manifest = JSON.parse(readFileSync(`${extension}/manifest.json`, 'utf8'));
+// The development build answers the test server's loopback page; the store
+// build must not.
+const extension = `${root}build-fetcher/development`;
+const store = `${root}build-fetcher/store`;
+const built = existsSync(`${extension}/manifest.json`) && existsSync(`${store}/manifest.json`);
+const manifest = built ? JSON.parse(readFileSync(`${extension}/manifest.json`, 'utf8')) : {};
 // The system Firefox: Playwright's own build cannot install add-ons, and
 // web-ext drives a release one.
 const firefoxBinary = process.env.FIREFOX ?? '/usr/bin/firefox';
@@ -38,14 +43,21 @@ test.beforeAll(async () => {
 	pageScript = first.output[0].code;
 });
 
-/** Waits until the page and the foreign page have both reported. */
-async function results(server: Awaited<ReturnType<typeof startServer>>) {
+type Server = Awaited<ReturnType<typeof startServer>>;
+
+/** Waits until every labelled page has reported. */
+async function reported(server: Server, labels: string[]) {
 	await expect
-		.poll(() => server.results.has('page') && server.results.has('foreign'), {
+		.poll(() => labels.every((label) => server.results.has(label)), {
 			timeout: 60_000,
-			message: 'both pages report what they saw'
+			message: `${labels.join(' and ')} report what they saw`
 		})
 		.toBe(true);
+}
+
+/** Waits until the page and the foreign page have both reported. */
+async function results(server: Server) {
+	await reported(server, ['page', 'foreign']);
 	return {
 		page: server.results.get('page') as PageResult,
 		foreign: server.results.get('foreign') as { state: string }
@@ -70,6 +82,7 @@ interface PageResult {
 	protocol: number;
 	version: string;
 	transport: string;
+	access: string;
 	userAgent: string;
 	cases: Record<string, CaseResult<Summary>> & {
 		same: CaseResult<number[]>;
@@ -108,8 +121,9 @@ function assertRun(
 ) {
 	expect(foreign.state, 'no fetcher on a foreign origin').toBe('missing');
 	expect(page.state).toBe('ready');
-	expect(page.protocol).toBe(1);
+	expect(page.protocol).toBe(2);
 	expect(page.version).toBe(manifest.version);
+	expect(page.access, 'site access, granted').toBe('all');
 	expect(page.transport, 'how this browser carries bytes in runtime messages').toBe(transport);
 	const { cases } = page;
 
@@ -175,7 +189,7 @@ function assertRun(
 
 // eslint-disable-next-line no-empty-pattern -- Playwright needs the object pattern
 test('the fetcher in Chromium', async ({}, testInfo) => {
-	test.skip(!existsSync(`${extension}/manifest.json`), 'run yarn run build:fetcher first');
+	test.skip(!built, 'run yarn run test:fetcher, which builds both editions');
 	const server = await startServer(pageScript);
 	const profile = testInfo.outputPath('chromium-profile');
 	const context = await chromium.launchPersistentContext(profile, {
@@ -204,7 +218,9 @@ test('the fetcher in Chromium', async ({}, testInfo) => {
 		}, at.setCookies);
 		expect(jars.unpartitioned).toEqual(['plain']);
 		expect(jars.partition).toContain('cf_clearance');
-		console.log(`chromium: transport ${run.page.transport}, ${run.page.userAgent}`);
+		console.log(
+			`chromium: transport ${run.page.transport}, access ${run.page.access}, ${run.page.userAgent}`
+		);
 		assertRun(server.port, server.received, run, 'base64');
 		// Every request's rule was removed once it was answered.
 		expect(await worker.evaluate(() => chrome.declarativeNetRequest.getSessionRules())).toEqual([]);
@@ -215,17 +231,15 @@ test('the fetcher in Chromium', async ({}, testInfo) => {
 	}
 });
 
-// eslint-disable-next-line no-empty-pattern -- Playwright needs the object pattern
-test('the fetcher in Firefox', async ({}, testInfo) => {
-	test.skip(!existsSync(`${extension}/manifest.json`), 'run yarn run build:fetcher first');
-	test.skip(!existsSync(firefoxBinary), `no Firefox at ${firefoxBinary} (set FIREFOX)`);
-	const server = await startServer(pageScript);
-	const profile = testInfo.outputPath('firefox-profile');
-	const at = urls(server.port);
-	// web-ext installs the extension as a temporary add-on, which is how a
-	// developer loads it by hand too. Its start URLs open as tabs; the page
-	// waits until the cookie visit is done before it fetches.
-	const firefox = spawn(
+/**
+ * Starts headless Firefox with the extension installed by web-ext as a
+ * temporary add-on, which is how a developer loads it by hand too. Its start
+ * URLs open as tabs. No preference grants site access: Firefox 155 grants
+ * the manifest's host permissions when the add-on is installed (a visitor can
+ * withdraw them later in about:addons, which is the hello's `none`).
+ */
+function firefox(profile: string, startUrls: string[]) {
+	const child = spawn(
 		`${root}node_modules/.bin/web-ext`,
 		[
 			'run',
@@ -240,38 +254,130 @@ test('the fetcher in Firefox', async ({}, testInfo) => {
 			'--no-reload',
 			'--no-input',
 			'--arg=--headless',
-			// Manifest V3 host permissions are opt-in in Firefox: a visitor
-			// grants them when installing, this grants them here.
-			'--pref',
-			'extensions.originControls.grantByDefault=true',
-			'--start-url',
-			at.setCookies,
-			'--start-url',
-			at.page,
-			'--start-url',
-			at.foreign
+			...startUrls.flatMap((url) => ['--start-url', url])
 		],
 		{ stdio: ['ignore', 'pipe', 'pipe'], detached: true }
 	);
 	let log = '';
-	firefox.stdout.on('data', (d) => (log += d));
-	firefox.stderr.on('data', (d) => (log += d));
+	child.stdout.on('data', (d) => (log += d));
+	child.stderr.on('data', (d) => (log += d));
+	return {
+		log: () => log.slice(-4000),
+		async stop() {
+			// web-ext and the Firefox it started share the process group it was
+			// given, and nothing else is in it.
+			try {
+				process.kill(-child.pid!, 'SIGTERM');
+			} catch {
+				// Already gone.
+			}
+			await new Promise((r) => child.once('exit', r).once('error', r));
+		}
+	};
+}
+
+// eslint-disable-next-line no-empty-pattern -- Playwright needs the object pattern
+test('the fetcher in Firefox', async ({}, testInfo) => {
+	test.skip(!built, 'run yarn run test:fetcher, which builds both editions');
+	test.skip(!existsSync(firefoxBinary), `no Firefox at ${firefoxBinary} (set FIREFOX)`);
+	const server = await startServer(pageScript);
+	const profile = testInfo.outputPath('firefox-profile');
+	const at = urls(server.port);
+	// The page waits until the cookie visit is done before it fetches.
+	const browser = firefox(profile, [at.setCookies, at.page, at.foreign]);
 	try {
 		const run = await results(server).catch((error) => {
-			throw new Error(`${error.message}\n--- web-ext ---\n${log.slice(-4000)}`);
+			throw new Error(`${error.message}\n--- web-ext ---\n${browser.log()}`);
 		});
-		console.log(`firefox: transport ${run.page.transport}, ${run.page.userAgent}`);
+		console.log(
+			`firefox: transport ${run.page.transport}, access ${run.page.access}, ${run.page.userAgent}`
+		);
 		assertRun(server.port, server.received, run, 'binary');
 	} finally {
-		// web-ext and the Firefox it started share the process group it was
-		// given, and nothing else is in it.
-		try {
-			process.kill(-firefox.pid!, 'SIGTERM');
-		} catch {
-			// Already gone.
-		}
-		await new Promise((r) => firefox.once('exit', r).once('error', r));
+		await browser.stop();
 		await server.close();
 		rmSync(profile, { recursive: true, force: true });
 	}
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright needs the object pattern
+test('the store build gives a loopback page no fetcher, in Chromium', async ({}, testInfo) => {
+	test.skip(!built, 'run yarn run test:fetcher, which builds both editions');
+	const server = await startServer(pageScript);
+	const profile = testInfo.outputPath('chromium-store-profile');
+	const context = await chromium.launchPersistentContext(profile, {
+		channel: 'chromium',
+		headless: true,
+		args: [`--disable-extensions-except=${store}`, `--load-extension=${store}`]
+	});
+	try {
+		// The extension is loaded and running: only the origin keeps it out.
+		const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+		expect(await worker.evaluate(() => chrome.runtime.getManifest().name)).toBe('tsundoku fetcher');
+		await (await context.newPage()).goto(urls(server.port).page);
+		await reported(server, ['page']);
+		expect(server.results.get('page')).toEqual({ state: 'missing' });
+	} finally {
+		await context.close();
+		await server.close();
+		rmSync(profile, { recursive: true, force: true });
+	}
+});
+
+/**
+ * Runs one built script in a fresh context with a fake browser, and returns
+ * what it registered. Read from the bundles themselves, so what is checked is
+ * what ships.
+ */
+function runBundle(file: string, origin: string) {
+	const messageListeners: ((...args: unknown[]) => boolean)[] = [];
+	const windowListeners: unknown[] = [];
+	const sent: unknown[] = [];
+	const api = {
+		runtime: {
+			id: 'ext',
+			getManifest: () => ({ version: '0.0.0' }),
+			sendMessage: async (message: unknown) => {
+				sent.push(message);
+				return undefined;
+			},
+			onMessage: { addListener: (l: (...args: unknown[]) => boolean) => messageListeners.push(l) }
+		},
+		cookies: { getAll: async () => [] },
+		permissions: { contains: async () => true, getAll: async () => ({ origins: [] }) },
+		declarativeNetRequest: { getSessionRules: async () => [], updateSessionRules: async () => {} }
+	};
+	const window = {
+		location: { origin },
+		addEventListener: (_: string, l: unknown) => windowListeners.push(l),
+		removeEventListener: () => {},
+		postMessage: () => {}
+	};
+	vm.runInNewContext(readFileSync(file, 'utf8'), { chrome: api, window, fetch, URL, console });
+	return { messageListeners, windowListeners, sent };
+}
+
+test('the store bundles refuse loopback pages, and the development bundles answer them', () => {
+	test.skip(!built, 'run yarn run test:fetcher, which builds both editions');
+	const probe = { kind: 'probe', bytes: new Uint8Array(1) };
+	const sender = (origin: string) => ({ id: 'ext', tab: {}, frameId: 0, origin });
+	for (const [dir, loopback] of [
+		[store, false],
+		[extension, true]
+	] as const) {
+		const content = runBundle(`${dir}/content.js`, 'http://127.0.0.1:42160');
+		expect(content.windowListeners.length > 0, `${dir}: content script listens`).toBe(loopback);
+		expect(content.sent.length > 0, `${dir}: content script probes`).toBe(loopback);
+		expect(runBundle(`${dir}/content.js`, 'https://tsundoku.lt').windowListeners).toHaveLength(1);
+
+		const [listener] = runBundle(`${dir}/background.js`, '').messageListeners;
+		const keepsOpen = (origin: string) => listener(probe, sender(origin), () => {});
+		expect(keepsOpen('http://localhost:5173'), `${dir}: background answers loopback`).toBe(
+			loopback
+		);
+		expect(keepsOpen('https://tsundoku.lt')).toBe(true);
+		expect(keepsOpen('https://example.com')).toBe(false);
+	}
+	const storeManifest = readFileSync(`${store}/manifest.json`, 'utf8');
+	expect(storeManifest).not.toMatch(/127\.0\.0\.1|localhost/);
 });

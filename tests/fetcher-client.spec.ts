@@ -6,7 +6,7 @@
  * Firefox, JSON in Chromium).
  */
 import { describe, expect, it } from 'vitest';
-import { FETCHER_CHANNEL } from '../src/lib/fetcher/protocol.ts';
+import { FETCHER_CHANNEL, type SiteAccess } from '../src/lib/fetcher/protocol.ts';
 import { startRelay, type MessageWindow } from '../src/lib/fetcher/relay.ts';
 import { parseSuffixList } from '../src/lib/fetcher/psl.ts';
 import { createFetcherService, type RuntimeReply } from '../src/lib/fetcher/service.ts';
@@ -50,16 +50,28 @@ function deliver(win: ReturnType<typeof fakeWindow>, data: unknown, from = {}) {
 	}
 }
 
+/** The nonce of the last ping the client posted, which its hello must echo. */
+function nonceOf(win: ReturnType<typeof fakeWindow>): string {
+	const pings = win.posted.filter((m) => (m as { kind: string }).kind === 'ping');
+	return (pings.at(-1) as { nonce: string }).nonce;
+}
+
 const crossings = {
 	firefox: <T>(value: T): T => structuredClone(value),
 	chromium: <T>(value: T): T => (value === undefined ? value : JSON.parse(JSON.stringify(value)))
 };
 
 /** The extension on a fake browser whose network answers with what it was sent. */
-function extension(browser: keyof typeof crossings, win = fakeWindow()) {
+function extension(
+	browser: keyof typeof crossings,
+	win = fakeWindow(),
+	access: { now: SiteAccess } = { now: 'all' }
+) {
 	const cross = crossings[browser];
 	const service = createFetcherService({
 		extensionId: 'ext',
+		edition: 'store',
+		siteAccess: async () => access.now,
 		suffixes: () => parseSuffixList('example'),
 		getCookies: async () => [],
 		addRule: async () => undefined,
@@ -76,6 +88,7 @@ function extension(browser: keyof typeof crossings, win = fakeWindow()) {
 	const relay = startRelay({
 		win,
 		version: '0.1.0',
+		edition: 'store',
 		send: async (message) => cross(await service.answer(cross(message), sender)!)
 	});
 	return { win, relay };
@@ -90,9 +103,10 @@ describe('the handshake', () => {
 			expect(connection.state).toBe('ready');
 			if (connection.state !== 'ready') return;
 			expect(connection.fetcher).toMatchObject({
-				protocol: 1,
+				protocol: 2,
 				version: '0.1.0',
-				transport: browser === 'firefox' ? 'binary' : 'base64'
+				transport: browser === 'firefox' ? 'binary' : 'base64',
+				access: 'all'
 			});
 			connection.fetcher.close();
 		}
@@ -111,9 +125,49 @@ describe('the handshake', () => {
 		expect(win.posted.every((m) => (m as { from: string }).from === 'page')).toBe(true);
 	});
 
+	it('says no-access when the visitor has not granted site access, and ready once granted, without a reload', async () => {
+		const access: { now: SiteAccess } = { now: 'none' };
+		const { win } = extension('firefox', fakeWindow(), access);
+		expect(await connectFetcher(win)).toEqual({ state: 'no-access', version: '0.1.0' });
+		access.now = 'all';
+		const again = await connectFetcher(win);
+		expect(again.state === 'ready' && again.fetcher.access).toBe('all');
+	});
+
+	it('is ready with access to some sites, and says so', async () => {
+		const { win } = extension('chromium', fakeWindow(), { now: 'some' });
+		const connection = await connectFetcher(win);
+		expect(connection.state === 'ready' && connection.fetcher.access).toBe('some');
+	});
+
+	it('says missing when the background does not answer at all', async () => {
+		const win = fakeWindow();
+		startRelay({
+			win,
+			version: '0.1.0',
+			edition: 'store',
+			send: () => Promise.reject(new Error('Receiving end does not exist.'))
+		});
+		expect(await connectFetcher(win, { timeoutMs: 30 })).toEqual({ state: 'missing' });
+	});
+
+	it('says missing when the background answers the probe with something else', async () => {
+		const win = fakeWindow();
+		startRelay({ win, version: '0.1.0', edition: 'store', send: async () => undefined });
+		expect(await connectFetcher(win, { timeoutMs: 30 })).toEqual({ state: 'missing' });
+	});
+
+	it('says missing on a loopback page in the store build', async () => {
+		const win = fakeWindow('http://localhost:5173');
+		expect(
+			startRelay({ win, version: '0.1.0', edition: 'store', send: async () => undefined })
+		).toBeNull();
+		expect(await connectFetcher(win, { timeoutMs: 20 })).toEqual({ state: 'missing' });
+	});
+
 	it.each([
-		[0, 'too-old'],
-		[2, 'too-new']
+		[1, 'too-old'],
+		[3, 'too-new']
 	])('refuses a fetcher on protocol %i as %s', async (protocol, state) => {
 		const win = fakeWindow();
 		const pending = connectFetcher(win);
@@ -121,6 +175,7 @@ describe('the handshake', () => {
 			channel: FETCHER_CHANNEL,
 			from: 'fetcher',
 			kind: 'hello',
+			to: nonceOf(win),
 			protocol,
 			version: '9.9.9',
 			transport: 'base64'
@@ -132,17 +187,20 @@ describe('the handshake', () => {
 	it('hears only hellos from its own window and origin, and only the first', async () => {
 		const win = fakeWindow();
 		const pending = connectFetcher(win);
-		const hello = (version: string) => ({
+		const hello = (version: string, to = nonceOf(win)) => ({
 			channel: FETCHER_CHANNEL,
 			from: 'fetcher',
 			kind: 'hello',
-			protocol: 1,
+			to,
+			protocol: 2,
 			version,
-			transport: 'binary'
+			transport: 'binary',
+			access: 'all'
 		});
 		deliver(win, hello('from a frame'), { source: {} });
 		deliver(win, hello('from elsewhere'), { origin: 'https://example.com' });
 		deliver(win, { channel: 'another', from: 'fetcher', kind: 'hello' });
+		deliver(win, hello('for another client', 'another-nonce'));
 		deliver(win, hello('the one'));
 		deliver(win, hello('a second'));
 		const connection = await pending;
@@ -196,9 +254,11 @@ describe('requests', () => {
 			channel: FETCHER_CHANNEL,
 			from: 'fetcher',
 			kind: 'hello',
-			protocol: 1,
+			to: nonceOf(win),
+			protocol: 2,
 			version: '0.1.0',
-			transport: 'binary'
+			transport: 'binary',
+			access: 'all'
 		});
 		const connection = await pending;
 		if (connection.state !== 'ready') throw new Error(connection.state);
@@ -225,15 +285,29 @@ describe('requests', () => {
 });
 
 describe('the relay', () => {
+	/** A relay whose background answers probes properly and fetches with `send`. */
 	function relayWith(send: (message: unknown) => Promise<RuntimeReply | undefined>) {
 		const win = fakeWindow();
-		const relay = startRelay({ win, version: '0.1.0', send });
+		const relay = startRelay({
+			win,
+			version: '0.1.0',
+			edition: 'store',
+			send: (message) =>
+				message.kind === 'probe'
+					? Promise.resolve({ kind: 'probe', bytes: message.bytes, access: 'all' })
+					: send(message)
+		});
 		return { win, relay: relay! };
 	}
 
 	it('falls back to base64 when the background does not answer the probe', async () => {
-		const { relay } = relayWith(() => Promise.reject(new Error('Receiving end does not exist.')));
-		expect(await relay.transport).toBe('base64');
+		const relay = startRelay({
+			win: fakeWindow(),
+			version: '0.1.0',
+			edition: 'store',
+			send: () => Promise.reject(new Error('Receiving end does not exist.'))
+		});
+		expect(await relay!.transport).toBe('base64');
 	});
 
 	it('tells the page when the background gives no answer', async () => {
@@ -246,8 +320,7 @@ describe('the relay', () => {
 	});
 
 	it('passes on a failure that is not an Error', async () => {
-		const { win } = relayWith(async (message) => {
-			if ((message as { kind: string }).kind === 'probe') return undefined;
+		const { win } = relayWith(async () => {
 			throw 'gone';
 		});
 		const connection = await connectFetcher(win);
@@ -265,9 +338,16 @@ describe('the relay', () => {
 		});
 		deliver(win, { channel: FETCHER_CHANNEL, from: 'page', kind: 'request', request: {} });
 		deliver(win, { channel: FETCHER_CHANNEL, from: 'page', kind: 'request', id: 'x' });
-		deliver(win, { channel: FETCHER_CHANNEL, from: 'page', kind: 'ping' }, { source: {} });
+		deliver(
+			win,
+			{ channel: FETCHER_CHANNEL, from: 'page', kind: 'ping', nonce: 'n' },
+			{ source: {} }
+		);
+		deliver(win, { channel: FETCHER_CHANNEL, from: 'page', kind: 'ping' });
 		await new Promise((r) => setTimeout(r, 10));
-		expect(sent).toEqual([{ kind: 'probe', bytes: expect.any(Uint8Array) }]);
+		// Neither request was sent, and neither ping answered.
+		expect(sent).toEqual([]);
+		expect(win.posted.filter((m) => (m as { from: string }).from === 'fetcher')).toEqual([]);
 		relay.stop();
 		expect(win.listeners.size).toBe(0);
 	});

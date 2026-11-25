@@ -9,7 +9,8 @@ import {
 	isFetcherMessage,
 	type FetcherRequest,
 	type FetcherResponse,
-	type PageMessage
+	type PageMessage,
+	type SiteAccess
 } from '../fetcher/protocol.ts';
 import type { MessageWindow } from '../fetcher/relay.ts';
 
@@ -19,6 +20,11 @@ export interface Fetcher {
 	version: string;
 	/** How the extension moves bodies inside itself in this browser. */
 	transport: 'binary' | 'base64';
+	/**
+	 * `all`, or `some` when the visitor narrowed it to some sites: a fetch to
+	 * a site outside them fails as a network error.
+	 */
+	access: Exclude<SiteAccess, 'none'>;
 	fetch(request: FetcherRequest): Promise<FetcherResponse>;
 	/** Stops listening; requests still pending are rejected. */
 	close(): void;
@@ -28,6 +34,12 @@ export type FetcherConnection =
 	| { state: 'ready'; fetcher: Fetcher }
 	/** No fetcher answered: not installed, or not allowed on this origin. */
 	| { state: 'missing' }
+	/**
+	 * Installed, but with no site access: Firefox makes it opt-in. The visitor
+	 * grants it in the browser's add-on settings; connect again afterwards
+	 * (on focus, say), no reload needed.
+	 */
+	| { state: 'no-access'; version: string }
 	/** The extension speaks an older protocol than this page: update the extension. */
 	| { state: 'too-old'; protocol: number; version: string }
 	/** The extension is newer than this page: reload the page for the new app. */
@@ -51,6 +63,7 @@ export function connectFetcher(
 	const post = (message: PageMessage) => win.postMessage(message, origin);
 	// Unique per client: two clients on one page see each other's answers.
 	const prefix = crypto.randomUUID();
+	const nonce = crypto.randomUUID();
 	let next = 0;
 	const pending = new Map<
 		string,
@@ -64,10 +77,10 @@ export function connectFetcher(
 			const message = event.data;
 			if (!isFetcherMessage(message)) return;
 			if (message.kind === 'hello') {
-				if (connected) return;
+				if (connected || message.to !== nonce) return;
 				connected = true;
 				clearTimeout(timer);
-				const { protocol, version, transport } = message;
+				const { protocol, version, transport, access } = message;
 				if (protocol !== FETCHER_PROTOCOL) {
 					win.removeEventListener('message', listener);
 					resolve({
@@ -77,7 +90,12 @@ export function connectFetcher(
 					});
 					return;
 				}
-				resolve({ state: 'ready', fetcher: fetcher(protocol, version, transport) });
+				if (access !== 'all' && access !== 'some') {
+					win.removeEventListener('message', listener);
+					resolve({ state: 'no-access', version });
+					return;
+				}
+				resolve({ state: 'ready', fetcher: fetcher(protocol, version, transport, access) });
 				return;
 			}
 			const waiting = pending.get(message.id);
@@ -90,11 +108,13 @@ export function connectFetcher(
 		const fetcher = (
 			protocol: number,
 			version: string,
-			transport: Fetcher['transport']
+			transport: Fetcher['transport'],
+			access: Fetcher['access']
 		): Fetcher => ({
 			protocol,
 			version,
 			transport,
+			access,
 			fetch(request) {
 				const id = `${prefix}:${next++}`;
 				return new Promise((resolve, reject) => {
@@ -114,6 +134,6 @@ export function connectFetcher(
 			resolve({ state: 'missing' });
 		}, timeoutMs);
 		win.addEventListener('message', listener);
-		post({ channel: FETCHER_CHANNEL, from: 'page', kind: 'ping' });
+		post({ channel: FETCHER_CHANNEL, from: 'page', kind: 'ping', nonce });
 	});
 }

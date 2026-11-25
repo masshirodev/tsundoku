@@ -120,6 +120,7 @@ async function main() {
 		protocol: fetcher.protocol,
 		version: fetcher.version,
 		transport: fetcher.transport,
+		access: fetcher.access,
 		userAgent: navigator.userAgent,
 		cases
 	});

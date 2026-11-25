@@ -12,7 +12,7 @@
 		"serve:web": "node web/serve.js",
 		"test:web": "playwright test -c playwright.web.config.ts",
 		"build:fetcher": "node --experimental-strip-types fetcher/build.ts",
-		"test:fetcher": "node --experimental-strip-types fetcher/build.ts && web-ext lint --source-dir build-fetcher && playwright test -c fetcher/playwright.config.ts",
+		"test:fetcher": "node --experimental-strip-types fetcher/build.ts && node --experimental-strip-types fetcher/build.ts --dev && web-ext lint --source-dir build-fetcher/store && playwright test -c fetcher/playwright.config.ts",
 		"fetcher:psl": "node --experimental-strip-types fetcher/update-psl.ts",
 		"preview": "vite preview --port 42143",
 		"prepare": "node scripts/i18n.mjs || echo ''; svelte-kit sync || echo ''; husky || true; node node_modules/kotoba/scripts/sync-dict.js static/dict || true",

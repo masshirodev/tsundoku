@@ -12,7 +12,6 @@
 	"permissions": ["declarativeNetRequestWithHostAccess", "cookies"],
 	"content_scripts": [
 		{
-			"matches": ["https://tsundoku.lt/*", "http://127.0.0.1/*", "http://localhost/*"],
 			"js": ["content.js"],
 			"run_at": "document_start"
 		}

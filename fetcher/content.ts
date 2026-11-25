@@ -9,5 +9,6 @@ const api = typeof browser === 'undefined' ? chrome : browser;
 startRelay({
 	win: window,
 	send: (message) => api.runtime.sendMessage(message) as Promise<RuntimeReply | undefined>,
-	version: api.runtime.getManifest().version
+	version: api.runtime.getManifest().version,
+	edition: __FETCHER_EDITION__
 });

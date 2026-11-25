@@ -12,20 +12,27 @@ import {
 	PRODUCTION_ORIGINS,
 	isAllowedOrigin,
 	isFetcherMessage,
+	contentScriptMatches,
 	isPageMessage,
+	manifestFor,
 	mayAnswer,
-	senderOrigin
+	senderOrigin,
+	siteAccessFrom
 } from '../src/lib/fetcher/protocol.ts';
 
 describe('isAllowedOrigin', () => {
+	it.each(['store', 'development'] as const)('answers production in the %s build', (edition) => {
+		expect(isAllowedOrigin('https://tsundoku.lt', edition)).toBe(true);
+	});
+
 	it.each([
-		'https://tsundoku.lt',
 		'http://127.0.0.1:42160',
 		'http://127.0.0.1',
 		'http://localhost:5173',
 		'http://localhost'
-	])('answers %s', (origin) => {
-		expect(isAllowedOrigin(origin)).toBe(true);
+	])('answers %s in the development build only', (origin) => {
+		expect(isAllowedOrigin(origin, 'development')).toBe(true);
+		expect(isAllowedOrigin(origin, 'store')).toBe(false);
 	});
 
 	it.each([
@@ -44,13 +51,14 @@ describe('isAllowedOrigin', () => {
 		['an extension page', 'chrome-extension://abcdefghijklmnop'],
 		['nothing', ''],
 		['not a URL', 'tsundoku']
-	])('refuses %s', (_, origin) => {
-		expect(isAllowedOrigin(origin)).toBe(false);
+	])('refuses %s in either build', (_, origin) => {
+		expect(isAllowedOrigin(origin, 'development')).toBe(false);
+		expect(isAllowedOrigin(origin, 'store')).toBe(false);
 	});
 
 	it('refuses a missing origin', () => {
-		expect(isAllowedOrigin(undefined)).toBe(false);
-		expect(isAllowedOrigin(null)).toBe(false);
+		expect(isAllowedOrigin(undefined, 'development')).toBe(false);
+		expect(isAllowedOrigin(null, 'development')).toBe(false);
 	});
 });
 
@@ -75,7 +83,10 @@ describe('mayAnswer', () => {
 	const own = { id: 'ext', tab: {}, frameId: 0, url: 'https://tsundoku.lt/' };
 
 	it('answers its own content script in a top frame on an allowed origin', () => {
-		expect(mayAnswer(own, 'ext')).toBe(true);
+		expect(mayAnswer(own, 'ext', 'store')).toBe(true);
+		const local = { ...own, url: 'http://localhost:5173/' };
+		expect(mayAnswer(local, 'ext', 'development')).toBe(true);
+		expect(mayAnswer(local, 'ext', 'store')).toBe(false);
 	});
 
 	it.each([
@@ -85,7 +96,7 @@ describe('mayAnswer', () => {
 		['another origin', { ...own, url: 'https://example.com/' }],
 		['no origin at all', { id: 'ext', tab: {}, frameId: 0 }]
 	])('ignores %s', (_, sender) => {
-		expect(mayAnswer(sender, 'ext')).toBe(false);
+		expect(mayAnswer(sender, 'ext', 'development')).toBe(false);
 	});
 });
 
@@ -105,32 +116,76 @@ describe('message guards', () => {
 });
 
 describe('the manifest', () => {
-	const manifest = JSON.parse(
+	const template = JSON.parse(
 		readFileSync(new URL('../fetcher/manifest.json', import.meta.url), 'utf8')
 	);
+	const loopback = /127\.0\.0\.1|localhost|\[::1\]/;
 
-	it('injects the content script on exactly the allowed origins, with no port in a pattern', () => {
-		// Firefox ignores a match pattern with a port; one without matches every port.
+	it('leaves the matches to the build, so the template cannot ship loopback', () => {
+		expect(template.content_scripts).toHaveLength(1);
+		expect(template.content_scripts[0].matches).toBeUndefined();
+	});
+
+	it('gives the store build production only: no loopback host anywhere in it', () => {
+		const store = manifestFor(template, 'store');
+		expect(store.content_scripts[0].matches).toEqual(['https://tsundoku.lt/*']);
+		expect(JSON.stringify(store)).not.toMatch(loopback);
+		expect(store.name).toBe(template.name);
+		expect(contentScriptMatches('store')).toEqual(['https://tsundoku.lt/*']);
+		for (const host of DEVELOPMENT_HOSTS) {
+			expect(isAllowedOrigin(`http://${host}:42160`, 'store')).toBe(false);
+		}
+	});
+
+	it('gives the development build the loopback hosts too, with no port, and names it', () => {
+		const development = manifestFor(template, 'development');
 		const expected = [
 			...PRODUCTION_ORIGINS.map((o) => `${o}/*`),
 			...DEVELOPMENT_HOSTS.map((h) => `http://${h}/*`)
 		];
-		const [script] = manifest.content_scripts;
-		expect(manifest.content_scripts).toHaveLength(1);
+		const [script] = development.content_scripts;
 		expect([...script.matches].sort()).toEqual(expected.sort());
+		// Firefox ignores a match pattern with a port; one without matches every port.
 		for (const pattern of script.matches) expect(pattern).not.toMatch(/:\d+\//);
+		expect(development.name).toBe(`${template.name} (development)`);
+		// The template is left as it was.
+		expect(template.content_scripts[0].matches).toBeUndefined();
+	});
+
+	it('runs the content script in top frames at document start', () => {
+		const [script] = template.content_scripts;
 		expect(script.all_frames ?? false).toBe(false);
 		expect(script.run_at).toBe('document_start');
 	});
 
 	it('asks for what fetching needs and nothing more', () => {
-		expect(manifest.manifest_version).toBe(3);
-		expect([...manifest.permissions].sort()).toEqual([
+		expect(template.manifest_version).toBe(3);
+		expect([...template.permissions].sort()).toEqual([
 			'cookies',
 			'declarativeNetRequestWithHostAccess'
 		]);
-		expect(manifest.host_permissions).toEqual(['<all_urls>']);
-		expect(manifest.externally_connectable).toBeUndefined();
-		expect(manifest.web_accessible_resources).toBeUndefined();
+		expect(template.host_permissions).toEqual(['<all_urls>']);
+		expect(template.externally_connectable).toBeUndefined();
+		expect(template.web_accessible_resources).toBeUndefined();
+	});
+});
+
+describe('siteAccessFrom', () => {
+	it('is all with <all_urls>', () => {
+		expect(siteAccessFrom(true, [], 'store')).toBe('all');
+	});
+
+	it('is some when only some sites were granted', () => {
+		expect(siteAccessFrom(false, ['https://source.example/*'], 'store')).toBe('some');
+	});
+
+	it('is none when nothing beyond tsundoku’s own pages is granted', () => {
+		expect(siteAccessFrom(false, [], 'store')).toBe('none');
+		expect(siteAccessFrom(false, ['https://tsundoku.lt/*'], 'store')).toBe('none');
+		expect(
+			siteAccessFrom(false, ['https://tsundoku.lt/*', 'http://localhost/*'], 'development')
+		).toBe('none');
+		// The store build does not answer localhost, so access there is a site's.
+		expect(siteAccessFrom(false, ['http://localhost/*'], 'store')).toBe('some');
 	});
 });

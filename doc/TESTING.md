@@ -190,7 +190,7 @@ never import into the database the suite asserts against.
 ## The fetcher extension
 
 ```sh
-yarn run test:fetcher   # builds build-fetcher/, lints it for Firefox, runs both browsers
+yarn run test:fetcher   # builds both editions, lints the store one for Firefox, runs the browser tests
 ```
 
 The fetcher (doc/WEB-EDITION.md, "The fetcher") is tested twice. Its logic is
@@ -200,6 +200,13 @@ under its own config (`fetcher/playwright.config.ts`), outside `tests/` so the
 app's e2e suite and its table never collect it. Run it after changing anything
 in `fetcher/` or `src/lib/fetcher/`; nothing else runs it, CI included.
 
+- **Two builds.** The browsers run the development build
+  (`build-fetcher/development/`), since the test page is on loopback. The
+  store build (`build-fetcher/store/`) is held to refusing loopback twice: its
+  own bundles run in a Node `vm` with a fake browser API, where the content
+  script on `http://127.0.0.1` neither listens nor probes and the background
+  answers no loopback sender (the development bundles, in the same test, do
+  both); and loaded into Chromium, where the loopback page reports `missing`.
 - **One server plays every part** on one port (`fetcher/test/server.ts`):
   tsundoku's page at `http://127.0.0.1`, a source holding a clearance at
   `http://localhost`, a source with none at `http://[::1]`. A site is scheme
@@ -218,12 +225,12 @@ SameSite=None; Partitioned`. Partitioned needs Secure, and both browsers
   session rule is left once every request is answered.
 - **Firefox** is the system one (`/usr/bin/firefox`, or `FIREFOX`): Playwright
   cannot load an add-on into Firefox, so `web-ext run` installs the extension
-  as a temporary add-on in a headless Firefox, with
-  `extensions.originControls.grantByDefault` granting the host permission a
-  visitor grants on install. Its start URLs open the cookie visit, the page and
+  as a temporary add-on in a headless Firefox. No preference grants site
+  access: Firefox 155 grants the manifest's host permissions on install, and
+  the hello's `access` is asserted to be `all`. Its start URLs open the cookie visit, the page and
   a page on a foreign origin; the page waits for the cookie visit before it
   fetches. The test is skipped where there is no Firefox.
-- **What it asserts**, in both: the handshake; both jars' cookies with the
+- **What it asserts**, in both: the handshake, protocol 2 with access `all`; both jars' cookies with the
   page's own Cookie dropped; the browser's User-Agent for the clearance host
   and the engine's elsewhere; Referer and Origin as asked; the page's
   `Accept-Encoding` not sent; bytes intact both ways; a gzip answer decoded
@@ -235,6 +242,10 @@ SameSite=None; Partitioned`. Partitioned needs Secure, and both browsers
 - **Nothing is left behind**: both browser profiles are under
   `test-results/fetcher/` and removed when each test ends, and the Firefox
   process group web-ext started is stopped.
+- **Not shown in a browser**: `no-access`. Withdrawing a host permission
+  takes the browser's own settings, which the test does not drive (in a
+  profile with nothing granted, Firefox still granted them on install); the
+  specs cover it on a fake browser (`tests/fetcher-client.spec.ts`).
 
 ## E2E specs
 

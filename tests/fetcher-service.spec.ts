@@ -36,6 +36,8 @@ function fakeBrowser(
 	const sent: { url: string; init: RequestInit; rules: Rule[] }[] = [];
 	const deps: FetcherDeps = {
 		extensionId: 'ext',
+		edition: 'store',
+		siteAccess: async () => 'all',
 		suffixes: () => suffixes,
 		async getCookies(query) {
 			queries.push(query);
@@ -95,8 +97,39 @@ describe('who is answered', () => {
 		const bytes = new Uint8Array([0, 255]);
 		expect(await service.answer({ kind: 'probe', bytes }, SENDER)).toEqual({
 			kind: 'probe',
-			bytes
+			bytes,
+			access: 'all'
 		});
+	});
+
+	it('asks for site access afresh on every probe', async () => {
+		const browser = fakeBrowser();
+		let granted = false;
+		browser.deps.siteAccess = async () => (granted ? 'all' : 'none');
+		const service = createFetcherService(browser.deps);
+		const probe = () => service.answer({ kind: 'probe', bytes: new Uint8Array(0) }, SENDER);
+		expect(await probe()).toMatchObject({ access: 'none' });
+		granted = true;
+		expect(await probe()).toMatchObject({ access: 'all' });
+	});
+
+	it('reports no access when the browser cannot say', async () => {
+		const browser = fakeBrowser();
+		browser.deps.siteAccess = () => Promise.reject(new Error('no permissions API'));
+		const service = createFetcherService(browser.deps);
+		expect(await service.answer({ kind: 'probe', bytes: new Uint8Array(0) }, SENDER)).toMatchObject(
+			{ access: 'none' }
+		);
+	});
+
+	it('answers loopback pages in the development build only', () => {
+		const local = { ...SENDER, origin: 'http://localhost:5173' };
+		const message = { kind: 'probe', bytes: new Uint8Array(0) };
+		const store = fakeBrowser();
+		expect(createFetcherService(store.deps).answer(message, local)).toBeNull();
+		const development = fakeBrowser();
+		development.deps.edition = 'development';
+		expect(createFetcherService(development.deps).answer(message, local)).not.toBeNull();
 	});
 });
 

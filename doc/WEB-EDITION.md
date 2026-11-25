@@ -267,8 +267,8 @@ repository's `plans/WEB-EDITION.md`, "The fetcher extension").
 | `src/lib/web/fetcher-client.ts` | The page's side: the handshake, and `fetch()` through the extension.                                                                         |
 | `fetcher/background.ts`         | The background (a service worker in Chromium, an event page in Firefox): hands the browser's APIs to `src/lib/fetcher/service.ts`.           |
 | `fetcher/content.ts`            | The content script: hands the page's window to `src/lib/fetcher/relay.ts`.                                                                   |
-| `fetcher/manifest.json`         | The manifest. `fetcher/webext.d.ts` types the few WebExtension calls made, and is the whole list of them.                                    |
-| `fetcher/build.ts`              | `yarn run build:fetcher`: bundles each script into one unminified classic file in `build-fetcher/`, which loads in both browsers as it is.   |
+| `fetcher/manifest.json`         | The manifest's template: the build fills in the content script's matches. `fetcher/webext.d.ts` types the few WebExtension calls made.       |
+| `fetcher/build.ts`              | Bundles each script into one unminified classic file, in `build-fetcher/store/` or `build-fetcher/development/` (below).                     |
 
 The logic lives in `src/lib/fetcher/` rather than beside the manifest because
 the page and the extension share its protocol (one `FETCHER_PROTOCOL`, one set
@@ -279,6 +279,34 @@ coverage like the rest of `src/lib`. The glue in `fetcher/` is checked by
 browser test. The extension needs a build step anyway: a content script cannot
 be a module, so whatever it shares must be bundled into it.
 
+### Two builds: store and development
+
+**The store build answers `https://tsundoku.lt` only.** The development build
+also answers a development server on `http://127.0.0.1` or `http://localhost`
+at any port, and must never be published: any page there (a dev server, a
+local tool, something an npm package started) would get a fetcher that sends
+the visitor's cookies for every site.
+
+```sh
+yarn run build:fetcher         # the store build:       build-fetcher/store/
+yarn run build:fetcher --dev   # the development build: build-fetcher/development/
+```
+
+The decision lives in one place, `src/lib/fetcher/protocol.ts`: the two origin
+lists, `isAllowedOrigin(origin, edition)`, `contentScriptMatches(edition)` and
+`manifestFor(template, edition)`. The build passes its edition to the code as
+the constant `__FETCHER_EDITION__` and writes the manifest through
+`manifestFor()`, so the manifest's matches, the content script's check and the
+background's check cannot disagree. `fetcher/manifest.json` carries no matches
+of its own, so a hand-copied template cannot ship loopback either. The
+development build is named "tsundoku fetcher (development)" in the browser's
+list, so the two are never mistaken for each other.
+
+Held by `tests/fetcher-protocol.spec.ts` (the store manifest and origin list
+name no loopback host) and by the browser test, which runs the built store
+bundles themselves on a loopback origin and finds them refusing it, and loads
+the store build into Chromium, where a loopback page gets no fetcher.
+
 ### The message protocol
 
 The page and the content script share the page's window and talk by
@@ -288,38 +316,57 @@ messages whose `source` is that window, whose origin is its own, whose
 
 | Message                                                                               | Direction      | What                                                                                        |
 | ------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------- |
-| `ping`                                                                                | page → fetcher | Is a fetcher here?                                                                          |
-| `hello` `{ protocol, version, transport }`                                            | fetcher → page | Sent at start and to every ping, once the background has answered the probe (below).        |
+| `ping` `{ nonce }`                                                                    | page → fetcher | Is a fetcher here, and what can it reach?                                                   |
+| `hello` `{ to, protocol, version, transport, access }`                                | fetcher → page | The answer to one ping (`to` is its nonce), once the background has answered a fresh probe. |
 | `request` `{ id, request: { url, method, headers, body } }`                           | page → fetcher | `headers` is a list of `[name, value]` pairs (order and repeats kept); `body` a Uint8Array. |
 | `response` `{ id, response: { status, statusText, url, redirected, headers, body } }` | fetcher → page | `url` is the final one after redirects; `body` a Uint8Array whose buffer is transferred.    |
 | `error` `{ id, message }`                                                             | fetcher → page | In words: `network error: …`, `only http and https are fetched, not file:`, …               |
 
 Between the content script and the background, runtime messages: a `probe`
-of bytes, echoed, and `fetch` `{ transport, request }`, answered by
-`fetched` `{ ok, response | message }`.
+of bytes, echoed with the site access (below), and `fetch`
+`{ transport, request }`, answered by `fetched` `{ ok, response | message }`.
 
 ### The handshake
 
 The extension announces `FETCHER_PROTOCOL` (`src/lib/fetcher/protocol.ts`),
 a whole number raised only when a message changes shape. `connectFetcher()`
-pings and waits for the hello, and answers one of four:
+pings and waits for the hello that answers its ping, and answers one of five:
 
 - `ready`, with a `fetcher` whose `fetch(request)` resolves to the response
-  or rejects with the fetcher's words;
-- `missing`: no hello within the timeout (1.5 s by default): not installed, or
-  not allowed on this origin;
+  or rejects with the fetcher's words, and whose `access` is `all`, or `some`
+  when the visitor narrowed the extension to some sites (a fetch to another
+  then fails as a network error);
+- `no-access`: installed, but allowed to reach no site. The visitor grants it
+  in the browser's extension settings; connect again afterwards (on focus,
+  say), and no reload is needed;
+- `missing`: no hello within the timeout (1.5 s by default): not installed, not
+  allowed on this origin, or its background not answering;
 - `too-old`: the extension speaks an older protocol than the page. Update the
   extension;
 - `too-new`: the extension is newer than the page. Reload for the new app.
 
-A fetcher on any other protocol is refused whole rather than half-used. The
-hello waits for the background's answer to the probe, so a hello also means
-the background is alive.
+A fetcher on any other protocol is refused whole rather than half-used.
+Protocol 2 added the nonce and `access`.
+
+**Site access is asked afresh for every ping.** The content script probes the
+background on each, and the background asks the browser:
+`permissions.contains({ origins: ['<all_urls>'] })` for `all`, else whether
+`permissions.getAll()` grants any origin besides the content script's own
+matches (Chromium lists those as granted, but they are tsundoku's pages, not
+sources) for `some`, else `none` (`siteAccessFrom`). A browser that cannot say
+counts as `none`. The hello answers its own ping by nonce, so an answer probed
+before a grant never reaches a client that asked after it.
+
+Firefox makes Manifest V3 host permissions something a visitor can withhold:
+Firefox 155 granted them when the add-on was installed (the browser test needs
+no preference for it), and the visitor can withdraw them in `about:addons`,
+which is `none`. Chromium grants them on install and lets a visitor narrow
+them to some sites, which is `some`.
 
 ### Who it answers
 
-`https://tsundoku.lt`, and a development server at `http://127.0.0.1` or
-`http://localhost` on any port. Nothing else: a fetcher that answered any page
+`https://tsundoku.lt`, and in the development build a development server at
+`http://127.0.0.1` or `http://localhost` on any port (above). Nothing else: a fetcher that answered any page
 would let every site act inside the visitor's sessions elsewhere. Checked three
 times:
 
@@ -451,16 +498,19 @@ Chromium caps one runtime message at 64 MiB, far above a page image.
 
 ### Loading it by hand
 
-Build it first: `yarn run build:fetcher` writes `build-fetcher/`.
+For a development server, build the development edition first:
+`yarn run build:fetcher --dev` writes `build-fetcher/development/`. (The store
+build in `build-fetcher/store/` answers `https://tsundoku.lt` only.)
 
 - **Chrome, Edge**: `chrome://extensions`, turn on Developer mode, **Load
-  unpacked**, pick `build-fetcher/`. After a rebuild, press its reload button.
+  unpacked**, pick `build-fetcher/development/`. After a rebuild, press its
+  reload button.
 - **Firefox**: `about:debugging#/runtime/this-firefox`, **Load Temporary
-  Add-on…**, pick `build-fetcher/manifest.json`. Manifest V3 host permissions
-  are opt-in in Firefox: in `about:addons`, the fetcher's **Permissions** tab,
-  allow it to access data for all websites, or every fetch fails. A temporary
-  add-on lasts until Firefox closes. `npx web-ext run --source-dir
-build-fetcher` does the same in a fresh profile.
+  Add-on…**, pick `build-fetcher/development/manifest.json`. If the page says
+  `no-access`, the fetcher's **Permissions** tab in `about:addons` allows it
+  to access data for all websites. A temporary add-on lasts until Firefox
+  closes. `npx web-ext run --source-dir build-fetcher/development` does the
+  same in a fresh profile.
 
 Then open tsundoku on `http://localhost:<port>` or `http://127.0.0.1:<port>`;
 `connectFetcher()` answers `ready`.
@@ -475,10 +525,11 @@ Then open tsundoku on `http://localhost:<port>` or `http://127.0.0.1:<port>`;
   failures) and `fetcher-client` (the real client, relay and background on a
   fake window, crossing as each browser does). They cover `src/lib/fetcher/`
   and the client whole.
-- **The browser test**, `yarn run test:fetcher`: the built extension in
+- **The browser test**, `yarn run test:fetcher`: the development build in
   Playwright's Chromium and in the system Firefox, fetching from a local
-  server that records what it received, partitioned cookie included
-  (doc/TESTING.md, "The fetcher extension").
+  server that records what it received, partitioned cookie included, and the
+  store build refusing loopback pages (doc/TESTING.md, "The fetcher
+  extension").
 
 ### Open
 
@@ -491,13 +542,12 @@ Then open tsundoku on `http://localhost:<port>` or `http://127.0.0.1:<port>`;
   keeps the cookie, so the next request carries it.
 - **No abort or timeout message.** A request the page stops waiting for still
   runs to its end.
-- **Development origins ship.** The store build still answers loopback pages,
-  so any local web server could ask it for requests. Drop them from a store
-  build, or keep them behind a setting, before publishing.
-- **A Firefox install without the host permission** fails every fetch as a
-  network error; the page cannot tell that from a source being down. The
-  extension could report its permission in the hello
-  (`permissions.contains`).
+- **No word when access changes.** A grant or a withdrawal is seen at the
+  page's next `connectFetcher()`; the fetcher does not tell a page that is
+  already connected. The page reconnects when it regains focus.
+- **`none` was not shown in a real browser.** Withdrawing a permission needs
+  the browser's own settings, which the test does not drive; the specs cover
+  it on a fake browser.
 - **Store review**, as the design warns: `<all_urls>` and `cookies` are what
   a reviewer looks at hardest.
 

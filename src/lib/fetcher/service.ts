@@ -7,6 +7,8 @@ import { decodeBody, encodeBody, type Transport, type WireBody } from './bytes.t
 import { buildRule, FetcherError, normaliseTarget, planRequest, responseHeaders } from './plan.ts';
 import {
 	mayAnswer,
+	type FetcherEdition,
+	type SiteAccess,
 	type FetcherResponse,
 	type HeaderList,
 	type MessageSenderLike
@@ -28,7 +30,7 @@ export type RuntimeRequest =
 	{ kind: 'probe'; bytes: unknown } | { kind: 'fetch'; transport: Transport; request: WireRequest };
 
 export type RuntimeReply =
-	| { kind: 'probe'; bytes: unknown }
+	| { kind: 'probe'; bytes: unknown; access: SiteAccess }
 	| { kind: 'fetched'; ok: true; response: WireResponse }
 	| { kind: 'fetched'; ok: false; message: string };
 
@@ -39,6 +41,10 @@ export interface CookieQuery {
 
 export interface FetcherDeps {
 	extensionId: string;
+	/** The build's edition (fetcher/build.ts), which decides the origins answered. */
+	edition: FetcherEdition;
+	/** How much of the web the visitor let the extension reach, asked afresh. */
+	siteAccess(): Promise<SiteAccess>;
 	/** The Public Suffix List, parsed when first needed. */
 	suffixes(): SuffixRules;
 	getCookies(query: CookieQuery): Promise<CookieLike[]>;
@@ -146,9 +152,16 @@ export function createFetcherService(deps: FetcherDeps) {
 		 * script on an allowed origin, or not one of the protocol's.
 		 */
 		answer(message: unknown, sender: MessageSenderLike): Promise<RuntimeReply> | null {
-			if (!mayAnswer(sender, deps.extensionId)) return null;
+			if (!mayAnswer(sender, deps.extensionId, deps.edition)) return null;
 			const m = message as Partial<RuntimeRequest> | null;
-			if (m?.kind === 'probe') return Promise.resolve({ kind: 'probe', bytes: m.bytes });
+			if (m?.kind === 'probe') {
+				// A browser that cannot say is treated as giving no access: the
+				// page then tells the visitor to grant it, rather than failing later.
+				return deps.siteAccess().then(
+					(access) => ({ kind: 'probe' as const, bytes: m.bytes, access }),
+					() => ({ kind: 'probe' as const, bytes: m.bytes, access: 'none' as const })
+				);
+			}
 			if (m?.kind !== 'fetch' || !m.request) return null;
 			return fetchOne(m.request, m.transport === 'binary' ? 'binary' : 'base64').catch(
 				(error: unknown) => ({

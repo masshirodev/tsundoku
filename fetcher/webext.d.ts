@@ -31,7 +31,7 @@ interface WebExtRule {
 interface WebExtApi {
 	runtime: {
 		id: string;
-		getManifest(): { version: string };
+		getManifest(): { name: string; version: string };
 		sendMessage(message: unknown): Promise<unknown>;
 		onMessage: {
 			addListener(
@@ -49,6 +49,10 @@ interface WebExtApi {
 			partitionKey?: { topLevelSite: string; hasCrossSiteAncestor?: boolean };
 		}): Promise<WebExtCookie[]>;
 	};
+	permissions: {
+		contains(permissions: { origins: string[] }): Promise<boolean>;
+		getAll(): Promise<{ origins?: string[] }>;
+	};
 	declarativeNetRequest: {
 		getSessionRules(): Promise<WebExtRule[]>;
 		updateSessionRules(options: { addRules?: object[]; removeRuleIds?: number[] }): Promise<void>;
@@ -56,4 +60,7 @@ interface WebExtApi {
 }
 
 declare const chrome: WebExtApi;
+
+/** Set by fetcher/build.ts: which origins this build answers (src/lib/fetcher/protocol.ts). */
+declare const __FETCHER_EDITION__: 'store' | 'development';
 declare const browser: WebExtApi | undefined;

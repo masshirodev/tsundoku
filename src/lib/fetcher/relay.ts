@@ -9,6 +9,7 @@ import {
 	FETCHER_PROTOCOL,
 	isAllowedOrigin,
 	isPageMessage,
+	type FetcherEdition,
 	type FetcherMessage,
 	type FetcherRequest
 } from './protocol.ts';
@@ -28,6 +29,8 @@ export interface RelayDeps {
 	send(message: RuntimeRequest): Promise<RuntimeReply | undefined>;
 	/** The extension's own version, from its manifest, for the page to show. */
 	version: string;
+	/** The build's edition, which decides the origins served. */
+	edition: FetcherEdition;
 }
 
 export interface Relay {
@@ -37,28 +40,47 @@ export interface Relay {
 }
 
 /** Starts the relay, or does nothing and returns null on any other origin. */
-export function startRelay({ win, send, version }: RelayDeps): Relay | null {
+export function startRelay({ win, send, version, edition }: RelayDeps): Relay | null {
 	const origin = win.location.origin;
-	if (!isAllowedOrigin(origin)) return null;
+	if (!isAllowedOrigin(origin, edition)) return null;
 
 	const post = (message: FetcherMessage, transfer: Transferable[] = []) =>
 		win.postMessage(message, origin, transfer);
-	const transport: Promise<Transport> = send({ kind: 'probe', bytes: probeBytes() }).then(
-		(reply) => (reply?.kind === 'probe' && probeSurvived(reply.bytes) ? 'binary' : 'base64'),
-		() => 'base64'
-	);
-	// Said once the probe is back, so a hello also means the background answers.
-	const hello = () =>
-		void transport.then((form) =>
+
+	/** Asks the background how bytes cross and how much access it has; null if it cannot answer. */
+	const probe = () =>
+		send({ kind: 'probe', bytes: probeBytes() }).then(
+			(reply) =>
+				reply?.kind === 'probe'
+					? {
+							transport: (probeSurvived(reply.bytes) ? 'binary' : 'base64') as Transport,
+							access: reply.access
+						}
+					: null,
+			() => null
+		);
+	// The first probe settles how bodies cross; a browser does not change that.
+	const transport: Promise<Transport> = probe().then((answer) => answer?.transport ?? 'base64');
+
+	// Said only once the background has answered, so a hello means it is
+	// there. Every ping probes again: access granted since the page loaded is
+	// seen at the page's next connectFetcher(), with no reload. A hello
+	// answers its ping by nonce, so an answer probed before the grant never
+	// reaches a client that asked after it.
+	const hello = (to: string) =>
+		void probe().then((found) => {
+			if (!found) return;
 			post({
 				channel: FETCHER_CHANNEL,
 				from: 'fetcher',
 				kind: 'hello',
+				to,
 				protocol: FETCHER_PROTOCOL,
 				version,
-				transport: form
-			})
-		);
+				transport: found.transport,
+				access: found.access
+			});
+		});
 
 	async function relay(id: string, request: FetcherRequest) {
 		try {
@@ -96,13 +118,11 @@ export function startRelay({ win, send, version }: RelayDeps): Relay | null {
 		if (event.source !== win || event.origin !== origin) return;
 		const message = event.data;
 		if (!isPageMessage(message)) return;
-		if (message.kind === 'ping') hello();
+		if (message.kind === 'ping' && typeof message.nonce === 'string') hello(message.nonce);
 		else if (message.kind === 'request' && typeof message.id === 'string' && message.request) {
 			void relay(message.id, message.request);
 		}
 	};
 	win.addEventListener('message', listener);
-	// For a page already listening; one that starts later asks with a ping.
-	hello();
 	return { transport, stop: () => win.removeEventListener('message', listener) };
 }
