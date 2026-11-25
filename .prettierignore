@@ -2,6 +2,7 @@ yarn.lock
 /static/
 /build/
 /build-web/
+/build-fetcher/
 /.serving/
 /.svelte-kit/
 /coverage/
