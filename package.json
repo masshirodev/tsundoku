@@ -11,6 +11,7 @@
 		"build:web": "TSUNDOKU_WEB=1 vite build",
 		"serve:web": "node web/serve.js",
 		"test:web": "playwright test -c playwright.web.config.ts",
+		"fetcher:psl": "node --experimental-strip-types fetcher/update-psl.ts",
 		"preview": "vite preview --port 42143",
 		"prepare": "node scripts/i18n.mjs || echo ''; svelte-kit sync || echo ''; husky || true; node node_modules/kotoba/scripts/sync-dict.js static/dict || true",
 		"i18n": "node scripts/i18n.mjs",
