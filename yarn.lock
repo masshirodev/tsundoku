@@ -957,6 +957,11 @@
   resolved "https://registry.yarnpkg.com/@sinclair/typebox/-/typebox-0.31.30.tgz#045c3c5fb3138bdc788d5bad32f26a3ceb20ecc4"
   integrity sha512-MGsM7bVmHg3sUKCphlu3SGQ+T+5JTbygZWYArfKQCW5anJeACHeqLhcnf+R7XlCWZ+QR3C8JTBx3kCKJTN69ow==
 
+"@sqlite.org/sqlite-wasm@3.54.1-build1":
+  version "3.54.1-build1"
+  resolved "https://registry.yarnpkg.com/@sqlite.org/sqlite-wasm/-/sqlite-wasm-3.54.1-build1.tgz#b03a62e2836daf7c6cff569fac6285bc1eeed694"
+  integrity sha512-foW427VBLJ3G87bsnvQTZCc9zYe0Fq1wH0pz1I6BlKLKXcArIAyTkHtq0iT2llmhcMQt9T/p6l5PpQQh+6O8uQ==
+
 "@sqlite.org/sqlite-wasm@^3.48.0-build2":
   version "3.48.0-build4"
   resolved "https://registry.yarnpkg.com/@sqlite.org/sqlite-wasm/-/sqlite-wasm-3.48.0-build4.tgz#a03e5e541ca05997149e819aa1f9ab473e3ffb72"

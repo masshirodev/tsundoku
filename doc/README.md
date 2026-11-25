@@ -82,6 +82,7 @@ One document per feature, screen or piece of the system. Start with
 - [`BACKUPS.md`](BACKUPS.md): backing up the database and the highlights' copies, and restoring them.
 - [`LOGS.md`](LOGS.md): what an install writes down, and how a report reaches the developer.
 - [`WEBSITE.md`](WEBSITE.md): the static page that presents tsundoku and its downloads.
+- [`WEB-EDITION.md`](WEB-EDITION.md): tsundoku built to run in a browser tab, its server in a worker; not built yet.
 - [`SECRETS.md`](SECRETS.md): where the live `.env` comes from.
 - [`WINDOWS-VM.md`](WINDOWS-VM.md): the Windows machine releases are tested on.
 

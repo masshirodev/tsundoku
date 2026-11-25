@@ -11,6 +11,8 @@ import { paraglide } from './paraglide.config.js';
 // prerequisite of every unit test. `vite.config.ts` is also what the Playwright
 // webServer builds, so test-only settings there would reach production.
 export default defineConfig({
+	// The self-hosted build's value (vite.config.ts): specs run its rules.
+	define: { __WEB_EDITION__: 'false' },
 	// `svelte()` for the `.svelte.ts` transform only. configFile: false because
 	// there is no svelte.config.js; the compiler options live in vite.config.ts.
 	// Paraglide so the specs find src/lib/paraglide compiled (doc/I18N.md).

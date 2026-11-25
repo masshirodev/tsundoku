@@ -49,7 +49,10 @@ export type AuthMode = { configured: true } | { configured: false; devBypass: bo
  * scripts/serve.ts sets it, so `node build` started any other way, with no
  * token, would serve the whole library to anyone who reached it.
  */
-const devBypass = () => dev;
+// The web edition (doc/WEB-EDITION.md) runs in the reader's own browser tab,
+// which is its only client: there is no one to sign in. __WEB_EDITION__ is a
+// build-time constant, false in every self-hosted build.
+const devBypass = () => dev || __WEB_EDITION__;
 
 export function authMode(): AuthMode {
 	const token = expectedToken();

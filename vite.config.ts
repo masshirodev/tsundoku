@@ -1,10 +1,18 @@
 import adapter from '@sveltejs/adapter-node';
+import webAdapter from './web/adapter.js';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { paraglide } from './paraglide.config.js';
 
+// The web edition is a second build of the same app (doc/WEB-EDITION.md).
+const web = process.env.TSUNDOKU_WEB === '1';
+
 export default defineConfig({
+	// A constant, never an environment variable: in the self-hosted build it is
+	// the literal false, so no setting on a server can turn the web edition's
+	// rules (no sign-in) on there.
+	define: { __WEB_EDITION__: JSON.stringify(web) },
 	plugins: [
 		paraglideVitePlugin(paraglide),
 		sveltekit({
@@ -13,7 +21,17 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter(),
+			adapter: web ? webAdapter() : adapter(),
+			// The web edition's relay is its service worker (web/sw.js); the
+			// app's own, for offline chapters, would take its place on the same
+			// scope. Until the two are one, the web build does not register it.
+			serviceWorker: { register: !web },
+			// SvelteKit refuses a cross-site form post by its Origin header. The
+			// web edition's server has no network address: only this origin's
+			// own pages reach it, through its service worker, and a Request made
+			// in a browser cannot carry an Origin header at all. The self-hosted
+			// build keeps the check.
+			...(web ? { csrf: { trustedOrigins: ['*'] } } : {}),
 			// A deploy reaches the installed app (doc/SERVING.md, "A deploy reaches the
 			// tablet"): it asks for the build's version every five minutes.
 			// A release names the build after itself (doc/RELEASE.md); otherwise
