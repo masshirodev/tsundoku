@@ -48,3 +48,16 @@ img {
 		opacity: 0;
 	}
 }
+
+/*
+ * The Android app's own page (app.html marks it): no rubber band at a
+ * scroller's ends. A drag past the edge stretched the content and sprang
+ * back, as a web page does, not an app. `none` is `contain` (no scroll
+ * chaining to what is behind) and no stretch, so it overrides the sheets' and
+ * lists' own `contain`. A browser keeps its overscroll and pull-to-refresh.
+ * The WebView's own stretch is off natively (MainActivity, overScrollMode).
+ */
+html[data-app],
+html[data-app] * {
+	overscroll-behavior: none !important;
+}

@@ -22,6 +22,8 @@
 			// keeps its pinch: there it is the reader's way to enlarge the page.
 			// The token is the one catalog.ts's isTsundokuApp matches.
 			if (/Tsundoku(?:TV|App)\//i.test(navigator.userAgent)) {
+				// The app's own page: base.css drops the overscroll stretch on it.
+				document.documentElement.dataset.app = '';
 				document
 					.querySelector('meta[name="viewport"]')
 					?.setAttribute(

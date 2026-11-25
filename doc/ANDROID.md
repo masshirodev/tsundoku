@@ -39,6 +39,17 @@ its grid. Being native also buys what a page cannot do:
   the reader, doc/READER.md "Zoom"), not the WebView's. A browser keeps its
   pinch. `tests/phone-app-zoom.e2e.ts` pinches all three: the app, the
   pairing page, and a browser.
+- **No rubber band at the ends.** A drag past a scroller's end does nothing,
+  as in an app, instead of stretching the content and springing back as a
+  web page does. Two halves: the WebView's own stretch, off natively
+  (`overScrollMode = OVER_SCROLL_NEVER` in `MainActivity.configure`, both
+  flavors), and the page's scrollers, which in the app say
+  `overscroll-behavior: none` (`src/app.html` marks the root `data-app`, and
+  `src/lib/styles/base.css` sets it there and on every element, over the
+  sheets' own `contain`; the pairing page sets it in its file). A browser
+  keeps its stretch and pull-to-refresh. `tests/phone-app-zoom.e2e.ts` checks
+  the page half; the native half has no JVM test (the unit tests have no
+  Android runtime), so it is checked on a device.
 - **Screenshots are allowed.** The app does not set `FLAG_SECURE`, which
   [`PRIVACY.md`](PRIVACY.md) says a PWA can never promise anyway: Android's
   "this app doesn't allow screenshots" on every try costs more than the

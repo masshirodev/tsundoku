@@ -96,6 +96,11 @@
 				font-family: var(--font-sans);
 				overflow: hidden;
 			}
+			/* An app, not a web page: no rubber band at a scroller's ends (the
+			   WebView's own is off natively, MainActivity's overScrollMode). */
+			* {
+				overscroll-behavior: none;
+			}
 			main {
 				position: relative;
 				width: 960px;

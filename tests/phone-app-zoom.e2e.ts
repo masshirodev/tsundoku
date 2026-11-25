@@ -47,6 +47,26 @@ test.describe('in the app', () => {
 		expect(content).toContain('viewport-fit=cover');
 		expect(await pinchOut(page)).toBe(1);
 	});
+
+	// No rubber band at a scroller's ends (c1108): the page and every inner
+	// scroller say `none`, a sheet's own `contain` included. The WebView's
+	// own stretch is native (MainActivity, overScrollMode), which no browser
+	// here runs.
+	test('nothing stretches at a scroller’s end: the page and a sheet say none', async ({ page }) => {
+		await page.goto('/');
+		await expect(page.locator('html')).toHaveAttribute('data-app', '');
+		const behaviour = (sel: string) =>
+			page
+				.locator(sel)
+				.first()
+				.evaluate((el) => getComputedStyle(el).overscrollBehaviorY);
+		expect(await behaviour('html')).toBe('none');
+		expect(await behaviour('body')).toBe('none');
+		await page.getByRole('button', { name: 'MORE' }).click();
+		const sheet = page.getByRole('dialog').first();
+		await expect(sheet).toBeVisible();
+		expect(await sheet.evaluate((el) => getComputedStyle(el).overscrollBehaviorY)).toBe('none');
+	});
 });
 
 test.describe('the pairing page the APK ships', () => {
@@ -71,5 +91,15 @@ test.describe('in a browser', () => {
 		await page.goto('/');
 		expect(await viewport(page)).toBe('width=device-width, initial-scale=1, viewport-fit=cover');
 		expect(await pinchOut(page)).toBeGreaterThan(1);
+	});
+
+	test('overscroll is the browser’s own: pull-to-refresh and the stretch stay', async ({
+		page
+	}) => {
+		await page.goto('/');
+		await expect(page.locator('html')).not.toHaveAttribute('data-app');
+		expect(
+			await page.locator('html').evaluate((el) => getComputedStyle(el).overscrollBehaviorY)
+		).toBe('auto');
 	});
 });

@@ -414,6 +414,11 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		s.setSupportZoom(false)
 		s.builtInZoomControls = false
 		s.displayZoomControls = false
+		// No rubber band at the ends: a drag past the edge stretched the
+		// whole page and sprang back, as a web page does, not an app. This is
+		// the stretch the WebView draws itself; the page turns off its own
+		// scrollers' with overscroll-behavior (app.html, lib/styles/base.css).
+		w.overScrollMode = View.OVER_SCROLL_NEVER
 		// The player starts without an OK press: a TV has no "tap to play".
 		s.mediaPlaybackRequiresUserGesture = false
 		s.cacheMode = WebSettings.LOAD_DEFAULT
