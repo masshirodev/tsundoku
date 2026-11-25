@@ -38,6 +38,7 @@
 		onsheet,
 		addHref = null,
 		onscrub,
+		atEnd = false,
 		onchapter,
 		onshift,
 		noText = null,
@@ -73,6 +74,11 @@
 		 */
 		addHref?: string | null;
 		onscrub: (page: number) => void;
+		/**
+		 * The reader is on its end page, where it leaves ← → to the controls
+		 * (doc/FOCUS.md): the focused scrubber steps there on any device.
+		 */
+		atEnd?: boolean;
 		onchapter: (to: 'prev' | 'next') => void;
 		onshift: () => void;
 		/**
@@ -218,8 +224,9 @@
 			onkeydown={(e) => {
 				// Off a TV the arrows are the reader's whatever has focus
 				// (doc/READER.md): a click leaves the keyboard here, and scrubbing
-				// as well moved two pages a press, the scrub racing the turn.
-				if (!tvScreen.current) return;
+				// as well moved two pages a press, the scrub racing the turn. At the
+				// end page the reader takes none, so the scrubber steps there.
+				if (!tvScreen.current && !atEnd) return;
 				const forward = mode === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
 				const back = mode === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
 				if (e.key === forward) onscrub(Math.min(total - 1, page + 1));

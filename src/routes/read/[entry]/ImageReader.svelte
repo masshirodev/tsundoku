@@ -2853,6 +2853,7 @@
 
 	{#if chrome && data.manifest}
 		<Chrome
+			{atEnd}
 			{noText}
 			{title}
 			meta={metaShown}

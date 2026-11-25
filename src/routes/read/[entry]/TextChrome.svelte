@@ -38,6 +38,7 @@
 		bottom = true,
 		onfav,
 		onscrub,
+		atEnd = false,
 		onprev,
 		onnext,
 		oncontents,
@@ -63,6 +64,11 @@
 		bottom?: boolean;
 		onfav: () => void;
 		onscrub: (page: number) => void;
+		/**
+		 * The reader is on its end page, where it leaves ← → to the controls
+		 * (doc/FOCUS.md): the focused scrubber steps there on any device.
+		 */
+		atEnd?: boolean;
 		onprev: () => void;
 		onnext: () => void;
 		oncontents: () => void;
@@ -167,7 +173,7 @@
 				onpointerup={() => (dragging = false)}
 				onkeydown={(e) => {
 					// Off a TV the arrows are the reader's (doc/READER.md): see Chrome.svelte.
-					if (!tvScreen.current) return;
+					if (!tvScreen.current && !atEnd) return;
 					if (e.key === 'ArrowRight') onscrub(Math.min(pages - 1, page + (rtl ? -1 : 1)));
 					if (e.key === 'ArrowLeft') onscrub(Math.max(0, page + (rtl ? 1 : -1)));
 				}}

@@ -2955,6 +2955,7 @@
 
 	{#if chrome && chapter && entry}
 		<TextChrome
+			{atEnd}
 			title={series.title}
 			{meta}
 			incognito={data.incognito}

@@ -103,7 +103,8 @@ and puts the pad back on the cell that opened it, then hides the controls,
 then leaves. Off a TV nothing changes: the arrows are the reader's whatever
 the controls, as the desktop keys above say. That holds with the scrubber
 focused too, as a click on it leaves the keyboard there: its own ← → step only
-on a TV (both readers' chrome). Until 2026-11-24 it stepped off a TV as well,
+on a TV, and at the end page, where the reader takes no arrow (both readers'
+chrome). Until 2026-11-24 it stepped off a TV as well,
 so one press moved two pages, the scrub racing the turn's slide.
 
 **Over a vertical strip the controls stay where they are.** An arrow that
