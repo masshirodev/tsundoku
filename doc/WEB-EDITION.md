@@ -2,9 +2,10 @@
 
 The web edition is tsundoku running in a browser tab, with nothing installed:
 the same app, built a second way, whose server runs in the reader's own
-browser instead of on a computer. It is not built yet. This document records
-how its screens get their data, decided on 2026-11-25 with a working proof,
-and what the proof found. It grows as the edition does.
+browser instead of on a computer, at tsundoku.lt once it is deployed. This
+document records how its screens get their data (decided on 2026-11-25 with a
+working proof), how the build is made and tested, and what is still open. It
+grows as the edition does.
 
 The self-hosted app is unchanged by any of it: the web edition is a second
 build of this repository (`yarn run build:web`), and nothing it adds reaches
@@ -42,15 +43,16 @@ processes, native image code) is a stand-in to write when a feature needs it.
 ## How a request travels
 
 ```
-page (SvelteKit's client, unchanged)
+any tab (SvelteKit's client, unchanged)
   │  fetch /__data.json, ?/action, /api/..., <img src=/api/...>
   ▼
-service worker (web/sw.js)
-  │  static files (/_app/, static/) → the network, as usual
+the app's service worker (src/service-worker.ts, built with __WEB_EDITION__)
+  │  static files (/_app/, static/, boot.js, server/) → its cache, else the network
   │  a navigation → the app's shell (index.html)
-  │  everything else → handed to the page that made it
+  │  a kept chapter or episode → its cache, as in the self-hosted app
+  │  everything else → the leading tab ($lib/web/relay)
   ▼
-page (web/boot.js) → its server worker
+the leading tab (web/boot.js) → its server worker
   ▼
 server worker (web/worker.js): SvelteKit's Server, the app's hooks and routes
   └─ SQLite (WebAssembly) on OPFS, through web/sqlite.js
@@ -58,8 +60,65 @@ server worker (web/worker.js): SvelteKit's Server, the app's hooks and routes
 
 The server cannot live in the service worker itself: SQLite's OPFS mode needs
 a dedicated worker's synchronous file handles, which a service worker has not
-got. So the page owns the server worker, and the service worker reaches it
-through the page.
+got. So a tab owns the server worker, and the service worker reaches it
+through that tab.
+
+### One service worker
+
+The web edition's service worker is the app's own, `src/service-worker.ts`,
+built a second way. Where the self-hosted app's worker fetches from the
+server, the web edition's asks the leading tab instead (`server()` in that
+file), and every request the server answers is answered there, since nothing
+on the network could. Everything else is the same worker: the app shell kept
+for offline use, chapters and episodes kept on the device, the reader's
+network-first rules. Two differences, both because the server is in the tab:
+
+- **Install does not wait for the app's files.** The tab cannot start until
+  the worker controls it, so keeping 13 MB first would hold every first
+  visit. The tab asks for the copy once it runs (`tsundoku-precache`), and the
+  worker keeps the client, the shell, `boot.js` and the server's files (listed
+  by the build in `server/files.json`).
+- **No copy of each screen.** The self-hosted worker keeps the last answer of
+  each screen for when the server cannot be reached; the in-tab server always
+  can, so it keeps none.
+
+### One tab leads
+
+`opfs-sahpool` lets one connection hold the database, so one tab runs the
+server and the others use it. In `web/boot.js`:
+
+1. Every tab asks for the `tsundoku-server` Web Lock, first without queueing
+   (`ifAvailable`). The tab that gets it starts the server worker, tells the
+   service worker it leads (`tsundoku-leader`), and holds the lock for as long
+   as it is open. It starts the app once its server is ready, so a server
+   that cannot start is shown.
+2. A tab that does not get it starts the app at once (its requests wait in
+   the service worker until a leader is ready) and queues for the lock.
+3. When the leader closes, the browser gives the lock to the first tab in
+   line, which starts its own server on the same database and says so. The
+   SQLite stand-in tries opening the pool again for up to 10 s, because the
+   closed tab's worker can still hold its files for a moment.
+4. The service worker sends every request to the leader it was last told of.
+   It can be stopped and started again at any time, which forgets the leader:
+   it then asks every window (`tsundoku-who-leads`) and the leader answers.
+   A request with no leader waits up to a minute (a first visit climbs every
+   migration), then is answered 503.
+5. A request sent to a leader that closes before answering is answered 503
+   when the next leader says it is ready: it is lost with that server, and is
+   never sent twice, since it may have been a write.
+
+### Forms
+
+A form posted without `use:enhance` is a navigation, whose answer the browser
+shows as the page. The web edition shows only its shell, so the service
+worker can pass on only a redirect and sends anything else back to the
+page's address, its result lost. **Every form in the app posts with
+`use:enhance`** (since c1116), so this is the no-script case only. Two forms
+had script of their own on submit, and `enhance` ignores a form's own
+`preventDefault`: SEARCH's bar decides in its `SubmitFunction` what it answers
+itself and cancels the post, and the TV's pairing digits empty themselves
+after a post, as the page load used to do. A new plain POST form is a bug in
+the web edition.
 
 ## The build
 
@@ -68,12 +127,14 @@ web edition's adapter (`web/adapter.js`). An adapter is SvelteKit's public way
 to package an app for a runtime; this one uses only the builder's public calls
 (`writeClient`, `writeServer`, `generateManifest`, `generateFallback`):
 
-| Output (`build-web/`)             | What                                                           |
-| --------------------------------- | -------------------------------------------------------------- |
-| `index.html`                      | SvelteKit's SPA shell, its start held until `boot.js` calls it |
-| `_app/`                           | the client, exactly as the self-hosted build has it            |
-| `sw.js`, `boot.js`                | the relay                                                      |
-| `server/worker.js` and its chunks | SvelteKit's `Server` and all server code, bundled for a Worker |
+| Output (`build-web/`)             | What                                                              |
+| --------------------------------- | ----------------------------------------------------------------- |
+| `index.html`                      | SvelteKit's SPA shell, its start held until `boot.js` calls it    |
+| `_app/`                           | the client, exactly as the self-hosted build has it               |
+| `service-worker.js`               | the app's own service worker, built with `__WEB_EDITION__`        |
+| `boot.js`                         | starts a tab: the service worker, the lead, the server            |
+| `server/worker.js` and its chunks | SvelteKit's `Server` and all server code, bundled and minified    |
+| `server/files.json`               | the shell, `boot.js` and the server's files, for the offline copy |
 
 `yarn run serve:web` serves it locally at `http://localhost:42160/` (port 42160
 is the web edition's on the workstation).
@@ -91,7 +152,8 @@ by `if (web)` in a screen:
   origin's own pages reach it, and a `Request` made in a browser cannot carry
   an Origin header at all, so the web build trusts every origin
   (`csrf.trustedOrigins`). The self-hosted build keeps the check.
-- **The app's own service worker is not registered** (see "Open").
+- **The service worker is registered by `web/boot.js`**, not by SvelteKit:
+  the tab must wait for it to take charge before the app starts.
 
 ## The stand-ins
 
@@ -148,8 +210,9 @@ Run on the workstation on 2026-11-25, in Chromium (Playwright's) and Firefox:
 - The tab was ready (server worker started, database open) 1.2 s after opening
   on a later visit in Chromium, 2.1 s in Firefox; a first visit, with its one
   reload and every migration, about 4.4 s.
-- The server is 6.9 MB of JavaScript, 2.0 MB gzipped (unminified), beside the
-  11 MB client the self-hosted build already serves.
+- The server was 6.9 MB of JavaScript, 2.0 MB gzipped, unminified. Minified
+  since c1116: 5.3 MB, 1.47 MB gzipped, beside the 11 MB client the
+  self-hosted build already serves.
 
 ## What the proof found, and what is still open
 
@@ -166,19 +229,13 @@ Found and handled in the proof:
    navigations with the shell, so a POST navigation goes to the server through
    the page that sent it (still open while it is pending). Its answer must be
    a redirect; an action that answers with a page is sent back to the page's
-   address, its result lost. Ten POST forms in seven files post without
-   `use:enhance` today; giving them `use:enhance` removes the case.
+   address, its result lost. Ten POST forms in seven files posted without
+   `use:enhance`; since c1116 all of them use it ("Forms", above).
 4. **The relay's own files are static.** `/boot.js` handed to the page it is
    meant to start would wait for ever.
 
 Open, each for the card that needs it:
 
-- **One tab.** `opfs-sahpool` lets one connection hold the database. A second
-  tab must not open its own server: one tab leads (Web Locks) and the others'
-  service-worker requests go to it.
-- **The app's own service worker** (`src/service-worker.ts`, offline chapters)
-  would replace the relay on the same scope; the web build does not register
-  it yet. The two become one service worker.
 - **Files.** `node:fs` is a stub: covers, downloads and imports need an
   OPFS-backed stand-in (or the folder the reader picks in Chromium).
 - **Images.** `sharp`'s work (thumbnails, duplicate hashes) moves to
@@ -194,10 +251,22 @@ Open, each for the card that needs it:
 - **No server-rendered HTML.** Every page is the shell, then its data. Layout
   is CSS media queries, so the first paint is still right for the device.
 
+- **What a tab shows while it starts, or when it cannot** (a Firefox private
+  window has no service workers), is a blank page today: the design brief
+  `WEB-EDITION-START.md` (card c1127) covers it.
+
 ## Testing
 
 - `tests/web-edition.spec.ts`, in the unit suite: the SQLite stand-in against
-  better-sqlite3, the path module against Node's, the stand-in plugin, the
-  shell's held start.
-- The web build in a browser is not yet in a suite; the build card brings a
-  browser test of it (doc/TESTING.md).
+  better-sqlite3 (and opening the pool again after a takeover), the path
+  module against Node's, the stand-in plugin, the shell's held start.
+- `tests/web/relay.spec.ts`, in the unit suite: the relay's half in the
+  service worker, with fake windows: a request reaching the leader, waiting
+  for one, finding one after the worker forgot, and a takeover's lost requests.
+- **`yarn run test:web`**: the web build in Chromium and Firefox
+  (`playwright.web.config.ts`, specs in `web/tests/`). It builds `build-web/`
+  (under the same build lock as the main suite's build), serves it on 4185,
+  and opens it as a first visit in each test: the empty library from the
+  in-tab server, a write through a real form kept across a reload, a second
+  tab using the first one's server and taking over when it closes, and static
+  files passing the server by. doc/TESTING.md, "The web edition".

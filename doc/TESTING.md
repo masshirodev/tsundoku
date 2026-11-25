@@ -19,6 +19,7 @@ yarn run test:e2e tests/<what-you-changed>.e2e.ts  # when the UI changed
 yarn run test                                      # the whole unit suite, for a broad change
 yarn run test:e2e                                  # the whole e2e suite, by hand, when a change worries you
 yarn run test:e2e:dependants                       # after every whole e2e run
+yarn run test:web                                  # the web edition, when web/ or what it runs changed
 ```
 
 The tiers, cheapest first:
@@ -55,6 +56,34 @@ are written by `yarn run e2e:table`, never by hand ("E2E specs"). After adding,
 removing or moving an e2e file, run it, rewrite the new row's "Why" (it starts
 from the file's header comment), and commit the result.
 `tests/e2e-table.spec.ts` fails the unit suite while either is stale.
+
+## The web edition
+
+`yarn run test:web` is the web edition's browser test ([`WEB-EDITION.md`](WEB-EDITION.md),
+"Testing"): its own Playwright config, `playwright.web.config.ts`, and its own
+specs, `web/tests/*.e2e.ts`, outside `tests/` so the main suite never collects
+them.
+
+- **It builds and serves another build.** `yarn run build:web` into
+  `build-web/`, then `yarn run serve:web` on port 4185
+  (`PLAYWRIGHT_WEB_PORT` moves it), through `scripts/build-lock.mjs` like the
+  main suite: the web build writes `.svelte-kit/output` on its way, so it
+  never runs beside another build or under a running preview. A server
+  already on the port is reused outside CI; after changing `web/` or the
+  service worker, stop it, or the run tests the old build.
+- **Chromium and Firefox**, every spec in both: the web edition has to work in
+  each, and they differ exactly where it lives (service workers, OPFS, Web
+  Locks).
+- **Every test is a first visit**: a fresh context, so a fresh service worker
+  and an empty OPFS, one reload, every migration. About 5 s alone; the
+  timeout is 120 s because four side by side, each opening up to three tabs,
+  went past the default 30 s.
+- **No seeded database, token or engine**: the library starts empty in the
+  browser, and nothing reaches a source.
+
+Run it when `web/`, `src/service-worker.ts`, `src/lib/web/`, `vite.config.ts`
+or the forms change, and before a web edition card closes. About two minutes,
+the build included.
 
 ## Temporary folders
 
