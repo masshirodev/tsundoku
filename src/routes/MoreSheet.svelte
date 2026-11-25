@@ -358,20 +358,11 @@
 				><span>{m.name_highlights()} →</span><span class="n">{num(highlights)}</span></a
 			>
 		{/if}
-		<a class="row" data-focus-mark="in" href={resolve('/downloads')}
+		<!-- Three groups, as the sidebar's foot: where to go, the library's
+		     upkeep, the app. An ink rule closes the first two. -->
+		<a class="row group-end" data-focus-mark="in" href={resolve('/downloads')}
 			><span>{m.name_downloads()} →</span><span class="n"
 				>{queued ? m.more_queued({ n: num(queued) }) : ''}</span
-			></a
-		>
-		<a class="row" data-focus-mark="in" href={resolve('/settings')}
-			><span>{m.name_settings()} →</span><span class="n"
-				>{changed ? m.more_changed({ count: changed, n: num(changed) }) : ''}</span
-			></a
-		>
-		<!-- HELP after SETTINGS, counting its topics (doc/HELP.md). -->
-		<a class="row" data-focus-mark="in" href={resolve('/help')}
-			><span>{m.name_help()} →</span><span class="n"
-				>{m.more_topics({ count: topics().length, n: num(topics().length) })}</span
 			></a
 		>
 		<!-- RESCAN: the sidebar's own form, asked through the same question, beside
@@ -380,9 +371,20 @@
 			><span>{m.nav_rescan()}</span><span class="n"></span></button
 		>
 		<!-- IMPORT LOG: live, with when the last import came in. -->
-		<a class="row" data-focus-mark="in" href={resolve('/import/log')}
+		<a class="row group-end" data-focus-mark="in" href={resolve('/import/log')}
 			><span>{m.name_import_log()} →</span><span class="n"
 				>{lastImport ? m.more_import_last({ date: day(lastImport) }) : ''}</span
+			></a
+		>
+		<!-- HELP, then SETTINGS last, as in the sidebar; HELP counts its topics (doc/HELP.md). -->
+		<a class="row" data-focus-mark="in" href={resolve('/help')}
+			><span>{m.name_help()} →</span><span class="n"
+				>{m.more_topics({ count: topics().length, n: num(topics().length) })}</span
+			></a
+		>
+		<a class="row" data-focus-mark="in" href={resolve('/settings')}
+			><span>{m.name_settings()} →</span><span class="n"
+				>{changed ? m.more_changed({ count: changed, n: num(changed) }) : ''}</span
 			></a
 		>
 		{#if servers}
@@ -571,6 +573,9 @@
 		color: var(--text-1);
 		text-decoration: none;
 		font: 500 15px var(--font-mono);
+	}
+	.row.group-end {
+		border-bottom: var(--rule-strong);
 	}
 	.row.start .n {
 		color: var(--accent);

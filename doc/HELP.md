@@ -49,7 +49,7 @@ or the way to show them: help keeps that secret as the rest of the app does.
 - **A topic that can't apply here** still opens, with a dashed band under its
   title: UPDATES with no updater (the workstation), YOUR PHONE on a phone
   already in over Wi-Fi.
-- **The ways in**: HELP, the last line of the sidebar's foot under SETTINGS;
+- **The ways in**: HELP, the sidebar foot's line above SETTINGS, which is last;
   HELP → in MORE, counting its topics; `/help` in the search field, and
   `/help <word>` for a topic (`/help phone`).
 

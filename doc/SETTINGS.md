@@ -353,7 +353,11 @@ workstation is back.
   - a device row with two or three actions (START FROM, SHOW, SIGN OUT) puts
     the device's name on a line of its own and the actions on the line under
     it, sharing it equally: beside them the name had no room, and at 360px
-    the row ran off the screen.
+    the row ran off the screen;
+  - a label of nine letters or more takes its row's `short` (SUBS, SUBS KEPT,
+    LANGS, EXTS), drawn by CSS from `data-short` so the first paint has it: the
+    84px column holds eight letters, and LANGUAGES ran into its chips.
+    `settings-domain.spec.ts` refuses a long label without a short one.
 
 The measurements are hand-set, not a spacing scale; the colours are the
 theme's tokens. `tests/settings-frame.e2e.ts`, generated from the design's

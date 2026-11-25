@@ -273,3 +273,25 @@ describe('MODE’s and LAYOUT’s N SERIES DIFFER → list', () => {
 		);
 	});
 });
+
+describe("a row's label on a phone", () => {
+	// The phone's label column has room for eight letters of its mono face;
+	// a ninth runs into the control beside it (doc/SETTINGS.md, "Phone").
+	const fits = (label: string) => label.split(/\s+/).every((w) => [...w].length <= 8);
+
+	it('a label with a word of nine letters or more carries a short one that fits', () => {
+		for (const s of SECTIONS)
+			for (const row of s.rows)
+				if (!fits(row.label)) {
+					expect(row.short, `${row.label} has no short label`).toBeDefined();
+					expect(fits(row.short!), `${row.short} is still too long`).toBe(true);
+				}
+	});
+
+	it('EXTENSIONS, the page’s own row, has a short label that fits in every language', async () => {
+		for (const lang of ['en', 'pt-BR']) {
+			const messages = (await import(`../messages/${lang}.json`)).default as Record<string, string>;
+			expect(fits(messages.name_extensions_short), lang).toBe(true);
+		}
+	});
+});

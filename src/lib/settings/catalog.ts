@@ -205,6 +205,11 @@ export type Where = 'all' | 'device' | 'default' | 'episode';
 export type RowDef = {
 	id: string;
 	label: string;
+	/**
+	 * The phone's shorter label, for a word wider than its 84px column
+	 * (nine letters and up). The full one stays the row's text; CSS draws this.
+	 */
+	short?: string;
 	where: Where;
 	control: Control;
 	meta?: string;
@@ -622,6 +627,7 @@ export const SECTIONS: SectionDef[] = [
 			{
 				id: 'subtitles',
 				label: 'SUBTITLES',
+				short: 'SUBS',
 				where: 'default',
 				overrides: 'subs',
 				control: {
@@ -736,6 +742,7 @@ export const SECTIONS: SectionDef[] = [
 			{
 				id: 'subs-kept',
 				label: 'SUBTITLES KEPT',
+				short: 'SUBS KEPT',
 				where: 'all',
 				control: {
 					type: 'seg',
@@ -829,6 +836,7 @@ export const SECTIONS: SectionDef[] = [
 			{
 				id: 'languages',
 				label: 'LANGUAGES',
+				short: 'LANGS',
 				where: 'all',
 				control: { type: 'chips', value: 'browse.languages' },
 				meta: 'BROWSE LISTS SOURCES IN THESE, AND ANY THE LIBRARY READS FROM'

@@ -214,6 +214,16 @@ test.describe('the phone', () => {
 		const name = (await device.locator('.who').boundingBox())!;
 		expect((await start.boundingBox())!.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
+		// No label's word crosses into its control: SUBTITLES is SUBS here.
+		await expect(row(page, 'SUBTITLES').locator('.label')).toHaveCSS('width', '84px');
+		const over = await page
+			.locator('.row .label')
+			.evaluateAll((ls) =>
+				ls
+					.filter((l) => l.getBoundingClientRect().width > 0 && l.scrollWidth > l.clientWidth)
+					.map((l) => l.textContent?.trim())
+			);
+		expect(over).toEqual([]);
 	});
 });
 
@@ -312,13 +322,13 @@ test('MORE in the library’s bar: the sidebar’s foot as a sheet', async ({ pa
 		/TO LINK →\s*\d+/,
 		/HISTORY →/,
 		/DOWNLOADS →/,
-		/SETTINGS →/,
-		/HELP →\s*7 TOPICS/,
 		// The sidebar's RESCAN, asked through the same question: no
 		// arrow, since it asks rather than goes.
 		/^RESCAN$/,
 		// A link to the log, dated once a backup has come in.
-		/IMPORT LOG →/
+		/IMPORT LOG →/,
+		/HELP →\s*7 TOPICS/,
+		/SETTINGS →/
 	]);
 	await expect(sheet.getByRole('link', { name: /IMPORT LOG →/ })).toHaveAttribute(
 		'href',

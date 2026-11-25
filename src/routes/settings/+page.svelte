@@ -911,7 +911,7 @@
 	{@const meta = metaOf(row)}
 	{@const list = open === row.id ? itemsOf(row) : null}
 	<div class="row" class:changed={rowChanged(row, values)} class:dim data-row={row.id}>
-		<div class="label" class:tall>{row.label}</div>
+		<div class="label" class:tall data-short={row.short}><span class="full">{row.label}</span></div>
 		<div class="ctl">
 			{#if c.type === 'seg'}
 				{#each c.groups as g (g.value)}
@@ -1288,7 +1288,7 @@
 {#snippet browseRow(row: RowDef)}
 	{#if data.browse}
 		<div class="row" class:dim={off}>
-			<div class="label tall">{row.label}</div>
+			<div class="label tall" data-short={row.short}><span class="full">{row.label}</span></div>
 			<div class="ctl">
 				<form method="POST" action="?/browseLanguage" use:enhance class="chips">
 					{#each data.browse.cells as l (l)}
@@ -1315,7 +1315,9 @@
 	     is the link, so a TV's ↓ from LANGUAGES lands on it (the focus layer
 	     moves by geometry, and a cell at the row's right end is off that line). -->
 	<div class="row acct extensions" class:dim={off}>
-		<div class="label">{m.name_extensions()}</div>
+		<div class="label" data-short={m.name_extensions_short()}>
+			<span class="full">{m.name_extensions()}</span>
+		</div>
 		<div class="ctl">
 			<a class="acct-body ext-go" href={resolve('/browse/extensions')}>
 				<span class="who">
@@ -2322,6 +2324,18 @@
 		font: 500 12px/1.3 var(--font-mono);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
+	}
+	/* A phone's 84px column leaves 59px for a word (and 8px of padding it may
+	   run into): eight letters fit, nine (LANGUAGES, SUBTITLES, EXTENSIONS) ran
+	   into the control beside it. Those rows carry a shorter word, drawn here
+	   so the first paint has it; the full one stays the row's text. */
+	@media (max-width: 599px) {
+		.label[data-short] > .full {
+			display: none;
+		}
+		.label[data-short]::after {
+			content: attr(data-short);
+		}
 	}
 	/* A label with a "?" (doc/HELP.md): the whole cell is the button, its mark after the word. */
 	button.label.ask {

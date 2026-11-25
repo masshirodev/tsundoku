@@ -831,10 +831,15 @@ On the tablet, the phone and the TV, a MORE cell after SELECT opens the
 sidebar's foot as a sheet (`MoreSheet.svelte`): GET STARTED while it is
 unfinished, TO LINK while anything waits, HISTORY, HIGHLIGHTS with its count
 while there are any ([`HIGHLIGHTS.md`](HIGHLIGHTS.md)), DOWNLOADS with its
-queue, SETTINGS with this device's changed count, HELP, RESCAN (see "RESCAN
-asks first"), IMPORT LOG with when the last import came in, and in the TV app
+queue, RESCAN (see "RESCAN asks first"), IMPORT LOG with when the last import
+came in, HELP, SETTINGS with this device's changed count, and in the TV app
 only, SERVERS ([`ANDROID.md`](ANDROID.md), "Servers"). The desktop has the
-sidebar itself, so no MORE there. To make room, a phone under 420px shows the
+sidebar itself, so no MORE there.
+
+The sidebar's foot and MORE share one order, in three groups, each parted
+from the next by an ink rule: where to go (GET STARTED to DOWNLOADS, with
+BROWSE after HIGHLIGHTS in the sidebar), the library's upkeep (RESCAN, IMPORT
+LOG), and the app itself (HELP, then SETTINGS last). To make room, a phone under 420px shows the
 search hint as `/` alone.
 
 On the desktop, **IMPORT LOG** in the sidebar opens the log of every import

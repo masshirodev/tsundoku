@@ -488,10 +488,15 @@
 							></a
 						>
 					{/if}
-					<!-- START SCAN for a library that isn't empty. A press while a
+					<!-- The foot comes in three groups, each opened by an ink rule: where
+					     to go (GET STARTED to DOWNLOADS), the library's upkeep (RESCAN,
+					     IMPORT LOG), and the app itself (HELP, SETTINGS last). MORE's
+					     sheet keeps the same order.
+					     START SCAN for a library that isn't empty. A press while a
 					     scan runs joins it (doc/IMPORT-MIHON.md, "Running it"); while a
 					     backup's import runs it waits its turn and says so. -->
 					<form
+						class="group"
 						method="POST"
 						action="/?/scan"
 						data-rescan
@@ -524,16 +529,17 @@
 								: ''}</span
 						></a
 					>
+					<!-- HELP, then SETTINGS, last (doc/HELP.md). -->
+					<a
+						class="group"
+						href={resolve('/help')}
+						aria-current={page.url.pathname.startsWith('/help') ? 'page' : undefined}
+						>{m.name_help()}</a
+					>
 					<a
 						href={resolve('/settings')}
 						aria-current={page.url.pathname === '/settings' ? 'page' : undefined}
 						>{m.name_settings()}</a
-					>
-					<!-- HELP, last, under SETTINGS (doc/HELP.md). -->
-					<a
-						href={resolve('/help')}
-						aria-current={page.url.pathname.startsWith('/help') ? 'page' : undefined}
-						>{m.name_help()}</a
 					>
 				</div>
 			</aside>
@@ -770,6 +776,9 @@
 	}
 	.side-foot > * + * {
 		border-top: var(--hairline);
+	}
+	.side-foot > .group {
+		border-top: var(--rule-strong);
 	}
 	.side-foot a {
 		color: var(--text-1);

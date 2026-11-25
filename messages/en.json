@@ -4,6 +4,7 @@
 	"name_library": "LIBRARY",
 	"name_settings": "SETTINGS",
 	"name_extensions": "EXTENSIONS",
+	"name_extensions_short": "EXTS",
 	"name_browse": "BROWSE",
 	"name_help": "HELP",
 	"name_devices_section": "08 — DEVICES",

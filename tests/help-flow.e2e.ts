@@ -73,14 +73,16 @@ test('REPORT’s ? opens its In short in a sheet, and WHOLE TOPIC lands at the p
 	await expect(page).toHaveURL(/\/help\/report#save$/);
 });
 
-test('the ways in: the sidebar’s last line, and MORE’s row', async ({ page }) => {
+test('the ways in: the sidebar’s line above SETTINGS, and MORE’s row', async ({ page }) => {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'MORE' }).click();
 	await expect(page.getByRole('link', { name: /HELP →\s*7 TOPICS/ })).toBeVisible();
 	// The sidebar is a fine pointer's (this project is a touch tablet): read, not clicked.
-	const side = page.locator('.side-foot a').last();
+	const foot = page.locator('.side-foot a');
+	await expect(foot.last()).toHaveText('SETTINGS');
+	const side = foot.nth(-2);
 	await expect(side).toHaveText('HELP');
 	await expect(side).toHaveAttribute('href', '/help');
 	await page.goto('/help');
-	await expect(page.locator('.side-foot a').last()).toHaveAttribute('aria-current', 'page');
+	await expect(page.locator('.side-foot a').nth(-2)).toHaveAttribute('aria-current', 'page');
 });
