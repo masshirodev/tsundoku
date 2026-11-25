@@ -51,7 +51,8 @@
 		detail,
 		action,
 		ondismiss,
-		dashed = false
+		dashed = false,
+		wrap = false
 	}: {
 		title: string;
 		detail?: string;
@@ -64,6 +65,12 @@
 		ondismiss?: () => void;
 		/** Incognito's mark: "not stored yet" is dashed in Index. */
 		dashed?: boolean;
+		/**
+		 * A detail that must be read whole wraps instead of trailing off, and
+		 * the band grows to hold it: the web edition's "this browser can clear
+		 * the library" (handoff web-edition-start, Keep-Refused).
+		 */
+		wrap?: boolean;
 	} = $props();
 
 	let pressed = false;
@@ -80,7 +87,7 @@
 	});
 </script>
 
-<div class="band" class:two={!!detail} class:dashed role="status">
+<div class="band" class:two={!!detail} class:dashed class:wrap role="status">
 	<div class="text">
 		<div class="title">{title}</div>
 		{#if detail}<div class="detail">{detail}</div>{/if}
@@ -119,6 +126,18 @@
 	}
 	.band.dashed {
 		border-bottom: 2px dashed var(--text-2);
+	}
+	.band.wrap {
+		height: auto;
+		min-height: 60px;
+	}
+	.band.wrap .text {
+		gap: 4px;
+		padding: 10px 0;
+	}
+	.band.wrap .detail {
+		white-space: normal;
+		line-height: 1.4;
 	}
 	.text {
 		display: flex;

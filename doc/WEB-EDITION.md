@@ -120,6 +120,61 @@ itself and cancels the post, and the TV's pairing digits empty themselves
 after a post, as the page load used to do. A new plain POST form is a bug in
 the web edition.
 
+## The library database
+
+**Where it lives.** One SQLite file, `/tsundoku.sqlite`, in the browser's
+private file storage for this site (OPFS), inside SQLite's `opfs-sahpool`
+pool under the folder `/tsundoku`. The pool names its files itself, so the
+database is not a file a visitor can find in OPFS by that name, only through
+SQLite. It is the self-hosted schema exactly: `db.ts` opens it and climbs
+every migration on the first visit, with the same version checks, and the
+hidden-series filters (`visibility.ts`) run unchanged. The browser test opens
+every test as a first visit, so it climbs them all every run.
+
+**No copy before a migration.** The self-hosted app copies the database before
+its schema moves (doc/BACKUPS.md, "Before a migration"). The web edition does
+not, decided on 2026-11-25:
+
+- Each migration already runs in its own transaction, so one that fails
+  leaves the database at the last good version; a copy only helps against a
+  migration that succeeds and damages data.
+- Against that, a copy in the same storage is lost with it: clearing the
+  site's data, or the browser clearing it, takes both. The web edition's net
+  is the account's encrypted save (planned before launch), not a second file
+  in the same place.
+- OPFS could hold one (a `VACUUM INTO` a second pool file works), so this is a
+  choice, not a limit. Until there are accounts, a bad migration in a
+  tester's browser has no undo; the web edition is not public before then.
+
+The copy is attempted and fails in the stand-in for `node:fs`, which
+`db.ts` already catches: it logs "no snapshot before migrating" in the
+server worker's console and carries on, which is what the decision says.
+
+**Resetting it.** Clearing this site's data in the browser (the site
+settings, or Firefox's "Clear cookies and site data") removes the database,
+the service worker and the offline copy; the next visit is a first visit.
+There is no reset inside the app yet: SETTINGS has none in the self-hosted
+app either.
+
+**Keeping it.** A browser may clear a site's storage under disk pressure
+unless the site asked it not to (`navigator.storage.persist()`): Chrome and
+Edge decide silently, Firefox asks the visitor. `$lib/web/keep.ts` reads the
+answer, asks, and remembers that it asked, since a browser that said no and
+one never asked both answer "not persisted". SETTINGS' 05 — LIBRARY has two
+rows in the web edition only, KEPT (where the library is, and the browser's
+answer, with ASK or ASK AGAIN) and CLEARED BY; when the browser was asked and
+said no, a standing band over SETTINGS says the library can be cleared and
+that the browser holds the only copy (handoff `web-edition-start`,
+`Keep-Refused`; the `Band` component's `wrap`, so the detail is read whole).
+The first ask comes after the first series is added (the owner's choice,
+2026-11-25), from the ADD card (c1123).
+
+Departure from the handoff: it offers Chrome on a desktop a second place,
+**a folder** the visitor picks, "which moves the library there". The
+database cannot move there: `opfs-sahpool` needs OPFS's synchronous file
+handles, which a picked folder does not have. The folder is for downloaded
+content, and arrives with downloading in the browser (after the thin path).
+
 ## The build
 
 `yarn run build:web` sets `TSUNDOKU_WEB=1`, and `vite.config.ts` then picks the

@@ -33,6 +33,9 @@ test('every section in the design’s order, each row saying where it’s kept',
 	// What only the reader sets is shown with its value, and no control.
 	await expect(row(page, 'DIM').first().locator('.info')).toHaveText('0%');
 	await expect(row(page, 'DIM').first().locator('button')).toHaveCount(0);
+	// The web edition's KEPT and CLEARED BY (doc/WEB-EDITION.md, "Keeping the
+	// library") are not the self-hosted app's: its library is a file on the computer.
+	await expect(page.locator('[data-row="kept"], [data-row="cleared"]')).toHaveCount(0);
 });
 
 test('a device value: the rule and RESET, kept in this browser, and RESET SECTION with UNDO', async ({

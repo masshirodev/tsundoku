@@ -62,6 +62,7 @@
 	import { WebViewWatch } from '$lib/webview-watch.svelte';
 	import { CHROMIUM_MB, sizeWords } from '$lib/webview';
 	import type { WebViewView } from '$lib/server/engine/webview';
+	import { askToKeep, keepLines, readKeep, type KeepLines, type KeepState } from '$lib/web/keep';
 
 	/**
 	 * SETTINGS, one page (doc/SETTINGS.md): every setting once, in eight
@@ -403,6 +404,20 @@
 	const values = $derived<Values>({ ...data.values, ...deviceValues(deviceIds, store) });
 	const shownKind = $derived(other ? other.kind : myKind);
 	const devName = $derived(deviceName(shownKind, !other));
+
+	/**
+	 * The web edition keeps the library in this browser's own storage, which
+	 * the browser may clear (doc/WEB-EDITION.md, "Keeping the library"): 05 —
+	 * LIBRARY says where it is kept and who can clear it, and a standing band
+	 * says so when the browser refused to keep it. The self-hosted app's
+	 * library is a file on the computer, so none of this is drawn there.
+	 */
+	let keep = $state<KeepState | null>(null);
+	const storeLines = $derived(keep ? keepLines(keep, devName) : null);
+	if (__WEB_EDITION__) onMount(() => void readKeep().then((k) => (keep = k)));
+	async function askAgain() {
+		keep = await askToKeep();
+	}
 	const kindWord = (k: DeviceKind) => k.toUpperCase();
 
 	// ---- setting ----------------------------------------------------------------------------
@@ -783,6 +798,11 @@
 		{/if}
 
 		<div class="content">
+			{#if storeLines?.band}
+				<Band title={storeLines.band.title} detail={storeLines.band.detail} wrap>
+					{#snippet action()}<button type="button" onclick={askAgain}>ASK AGAIN</button>{/snippet}
+				</Band>
+			{/if}
 			{#if !wide.current}
 				<div class="legend">
 					<div class="lg">
@@ -842,6 +862,7 @@
 							{/if}
 						{/each}
 						{#if s.id === 'library'}
+							{#if storeLines}{@render keptRows(storeLines)}{/if}
 							{@render report()}
 						{/if}
 						{#if s.id === 'browse' && data.browse}
@@ -1595,6 +1616,40 @@
 			{/if}
 		</form>
 	{/if}
+{/snippet}
+
+{#snippet keptRows(k: KeepLines)}
+	<!-- The web edition only: where the library lives (handoff web-edition-start, Keep-Refused). -->
+	<div class="row device" data-row="kept">
+		<div class="label"><span class="full">KEPT</span></div>
+		<div class="ctl">
+			<div class="acct-body">
+				<div class="who">
+					<div class="name">{k.kept.name}</div>
+					<div class="meta">
+						{k.kept.meta}{#if k.kept.ask}&#32;·&#32;<button
+								type="button"
+								class="link"
+								onclick={askAgain}>{k.kept.ask}</button
+							>{/if}
+					</div>
+				</div>
+			</div>
+		</div>
+		{#if !phone.current}<div class="scope"><span class="sa">{devName}</span></div>{/if}
+	</div>
+	<div class="row device" data-row="cleared">
+		<div class="label"><span class="full">CLEARED BY</span></div>
+		<div class="ctl">
+			<div class="acct-body">
+				<div class="who">
+					<div class="name">{k.cleared.name}</div>
+					<div class="meta">{k.cleared.meta}</div>
+				</div>
+			</div>
+		</div>
+		{#if !phone.current}<div class="scope"><span class="sa">{devName}</span></div>{/if}
+	</div>
 {/snippet}
 
 {#snippet report()}

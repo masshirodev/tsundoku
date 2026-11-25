@@ -36,7 +36,19 @@ export default defineConfig({
 		},
 		{
 			name: 'firefox',
-			use: { ...devices['Desktop Firefox'], viewport: { width: 1440, height: 900 } }
+			use: {
+				...devices['Desktop Firefox'],
+				viewport: { width: 1440, height: 900 },
+				launchOptions: {
+					// Firefox asks the visitor before it keeps a site's storage
+					// (navigator.storage.persist()), and a headless run has nobody to
+					// answer it. Firefox's own testing switches answer yes.
+					firefoxUserPrefs: {
+						'dom.storageManager.prompt.testing': true,
+						'dom.storageManager.prompt.testing.allow': true
+					}
+				}
+			}
 		}
 	],
 	webServer: process.env.PLAYWRIGHT_NO_SERVER
