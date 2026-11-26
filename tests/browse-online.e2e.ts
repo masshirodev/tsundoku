@@ -287,3 +287,66 @@ test('turning back and forth on a chapter read online asks for each page once an
 	expect(mine.length).toBeGreaterThanOrEqual(2);
 	expect(mine.filter(([, n]) => n !== 1)).toEqual([]);
 });
+
+/**
+ * Crossing chapters in the strip while a real site's pages arrive late and at
+ * their own sizes (c1153). The owner, reading online in Firefox, finished a
+ * chapter, went past its band, and the reader walked backwards through the
+ * series by itself: CH. 28 opened, then 27, 26, 25, one a second, each near
+ * its top (the reading log). Here each page image is held a while before it
+ * comes, and the reader must never open a chapter it has already read past.
+ * What did it: a chapter's data and its neighbour's pages landing together,
+ * each keeping the place and both telling a Page Down glide the content had
+ * moved, so the glide went twice as far back, to the top of the strip.
+ */
+test('the strip reads on across chapters whose pages arrive late, and never walks back by itself', async ({
+	page
+}) => {
+	test.setTimeout(180_000);
+	// A real site: each page comes when it comes.
+	await page.route(/\/api\/entries\/\d+\/pages\/\d+/, async (route) => {
+		await new Promise((r) => setTimeout(r, 300 + Math.random() * 1700));
+		await route.continue();
+	});
+	const opens: number[] = [];
+	page.on('request', (r) => {
+		if (!r.url().endsWith('/api/reading') || r.method() !== 'POST') return;
+		const b = JSON.parse(r.postData() ?? '{}') as { kind?: string; entryId?: number };
+		if (b.kind === 'open' && b.entryId) opens.push(b.entryId);
+	});
+	await page.goto(`/browse/${SOURCES.open.id}`);
+	await page.locator('.grid .tile', { hasText: 'Open Source 1-5' }).click();
+	// From the first chapter, whatever an earlier spec read: READ resumes, and a
+	// run that resumed at the last chapter had nothing to cross and passed.
+	await page
+		.locator('li.ch button.open', { has: page.locator('.num', { hasText: /^1$/ }) })
+		.click();
+	await expect(page).toHaveURL(/\/read\/\d+/);
+	await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+		timeout: 20_000
+	});
+	await page.keyboard.press('Escape');
+	await page.getByRole('button', { name: /R→L ·/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await sheet.getByRole('radio', { name: 'VERTICAL' }).click();
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(page.locator('.strip')).toBeVisible();
+	const entryNow = () => Number(new URL(page.url()).pathname.split('/').pop());
+	const first = entryNow();
+	// Page Down, as the owner read, until the reader has crossed into a later chapter twice.
+	const visited = [first];
+	for (let i = 0; i < 120 && visited.length < 3; i++) {
+		await page.keyboard.press('PageDown');
+		await page.waitForTimeout(250);
+		const now = entryNow();
+		if (now !== visited.at(-1)) visited.push(now);
+	}
+	// Then still: the pages still arriving must not carry the reader anywhere.
+	await page.waitForTimeout(6000);
+	const settled = entryNow();
+	// Read forward only: each chapter opened once, in order, and it stayed put.
+	expect(opens, `opened ${opens.join(' → ')}`).toEqual([...new Set(opens)]);
+	expect(visited.length, 'read across two bands').toBe(3);
+	expect(visited, `walked back: ${visited.join(' → ')}`).toEqual([...new Set(visited)]);
+	expect(settled).toBe(visited.at(-1));
+});

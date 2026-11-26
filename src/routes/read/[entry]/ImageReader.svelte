@@ -1123,6 +1123,8 @@
 		version
 	});
 
+	/** The keepPlace measuring now, and whether a change joined it while it waited. */
+	let placeKept: { again: boolean } | null = null;
 	/**
 	 * Change the strip without moving what's on screen. A chapter arriving or
 	 * leaving above the page being read would shove it down or up; the page
@@ -1141,13 +1143,33 @@
 	 * chapter landed 124 px off).
 	 */
 	async function keepPlace(change: () => void) {
+		// Another change already being kept: it measures this one too. Two
+		// measuring at once (a chapter's data and its neighbour's pages landing
+		// in the same moment) both took the place from before either change,
+		// and both told the ease the content moved: the window was put back
+		// once, a glide under way was carried twice as far, and Page Down
+		// went to the top of the strip, a chapter back (c1153, 2026-11-26).
+		if (placeKept) {
+			placeKept.again = true;
+			change();
+			return;
+		}
 		// Through whatever covers the middle: READING's sheet, the
 		// controls or the lookup over it are not the place; the strip under them is.
 		const anchor = stripSlotAtMiddle();
 		const y0 = scrollY;
 		const before = anchor ? anchor.getBoundingClientRect().top + y0 : null;
-		change();
-		await tick();
+		const run = (placeKept = { again: false });
+		try {
+			change();
+			do {
+				run.again = false;
+				await tick();
+			} while (run.again);
+		} finally {
+			// Left set, every later change would be made and never kept.
+			placeKept = null;
+		}
 		if (anchor?.isConnected && before !== null) {
 			const moved = anchor.getBoundingClientRect().top + scrollY - before;
 			keepPlaceBy(y0 + moved - scrollY, moved);
