@@ -18,6 +18,11 @@ export { SESSION_COOKIE };
  * unloadable. Cookies are sent by the image element automatically.
  */
 function expectedToken(): string | null {
+	// The web edition has no one to sign in (devBypass, below), and its build
+	// renders the fallback page with the build machine's environment: a
+	// developer's .env carrying a token turned that render into a 303 to /login
+	// and failed the build (2026-11-26).
+	if (__WEB_EDITION__) return null;
 	// $env/dynamic/private rather than process.env: SvelteKit loads .env through
 	// this module, and reading process.env directly means the token is simply
 	// absent in dev -- which silently drops the app into its unauthenticated
@@ -88,7 +93,8 @@ export function suggestToken(): string {
  * never with the token: the launcher sets TSUNDOKU_LOGIN=password. The
  * workstation doesn't, and signs in with its token as above.
  */
-export const friendLogin = () => env.TSUNDOKU_LOGIN === 'password';
+// Never in the web edition, for the same reason as expectedToken's.
+export const friendLogin = () => !__WEB_EDITION__ && env.TSUNDOKU_LOGIN === 'password';
 
 /** Only this computer reaches it: the one mode where no password is allowed. */
 export const localOnly = () => env.TSUNDOKU_SERVE === 'local';
