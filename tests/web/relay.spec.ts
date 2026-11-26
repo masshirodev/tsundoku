@@ -7,7 +7,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	LEADER_WAIT_MS,
+	LOST_STREAM,
 	MESSAGES,
+	RELAY_CHUNK,
+	RELAY_END,
 	postedForm,
 	relay,
 	type Client,
@@ -209,6 +212,63 @@ describe('the relay', () => {
 
 	it('waits a minute by default: a first visit climbs every migration first', () => {
 		expect(LEADER_WAIT_MS).toBe(60_000);
+	});
+});
+
+describe('a streamed answer', () => {
+	// SvelteKit streams a load's promises: the page draws the head of its data
+	// while a source is still answering (web/worker.js sends it in pieces).
+	const enc = (t: string) => new TextEncoder().encode(t).buffer;
+	async function streaming() {
+		const a = windowClient('a');
+		const b = windowClient('b');
+		const w = world(a, b);
+		w.leads(a);
+		const answer = w.r.send(new Request('https://t.test/series/__data.json'));
+		await tick();
+		const port = requests(a)[0].port!;
+		const post = (m: unknown) => port.postMessage(m);
+		post({
+			status: 200,
+			statusText: 'OK',
+			headers: [['content-type', 'text/plain']],
+			body: null,
+			stream: true
+		});
+		const res = await answer;
+		return { ...w, a, b, res, post, reader: res.body!.getReader() };
+	}
+	const read = async (r: ReadableStreamDefaultReader<Uint8Array>) => {
+		const { done, value } = await r.read();
+		return done ? null : new TextDecoder().decode(value);
+	};
+
+	it('is answered at its head, and read piece by piece as they come', async () => {
+		const { res, post, reader } = await streaming();
+		expect(res.status).toBe(200);
+		post({ type: RELAY_CHUNK, chunk: enc('{"nodes":[]}\n') });
+		expect(await read(reader)).toBe('{"nodes":[]}\n');
+		post({ type: RELAY_CHUNK, chunk: enc('{"later":1}\n') });
+		expect(await read(reader)).toBe('{"later":1}\n');
+		post({ type: RELAY_END });
+		expect(await read(reader)).toBeNull();
+	});
+
+	it('ends in an error when the server failed part-way', async () => {
+		const { post, reader } = await streaming();
+		post({ type: RELAY_CHUNK, chunk: enc('half') });
+		expect(await read(reader)).toBe('half');
+		post({ type: RELAY_END, error: 'the source went away' });
+		await expect(reader.read()).rejects.toThrow('the source went away');
+	});
+
+	it('ends in an error, never hangs, when its tab is lost part-way', async () => {
+		const { post, reader, close, a, leads, b } = await streaming();
+		post({ type: RELAY_CHUNK, chunk: enc('half') });
+		expect(await read(reader)).toBe('half');
+		close(a);
+		leads(b);
+		await expect(reader.read()).rejects.toThrow(LOST_STREAM);
 	});
 });
 

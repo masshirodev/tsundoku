@@ -40,8 +40,24 @@ export type RelayAnswer = {
 	status: number;
 	statusText: string;
 	headers: [string, string][];
+	/** The whole body, unless `stream`: then it follows in chunks. */
 	body: ArrayBuffer | null;
+	/**
+	 * The body comes after, as `RELAY_CHUNK` messages and one `RELAY_END`
+	 * (web/worker.js). SvelteKit streams a load's promises (a source's
+	 * series, a search's results): buffered whole, a page waited for its
+	 * slowest part before drawing anything (c1121, 2026-11-26).
+	 */
+	stream?: boolean;
 };
+
+/** A piece of a streamed body, after its `RelayAnswer`. */
+export const RELAY_CHUNK = 'tsundoku-chunk';
+/** The end of a streamed body; `error` when the server failed part-way. */
+export const RELAY_END = 'tsundoku-end';
+
+/** What closes a stream whose tab went away mid-answer. */
+export const LOST_STREAM = 'the tab running the server closed while it answered';
 
 // The service worker's own types, as far as the relay uses them. Not
 // `/// <reference lib="webworker" />`: that reaches every file of the
@@ -63,9 +79,9 @@ export type Clients = {
 export function relay(clients: Clients, { waitMs = LEADER_WAIT_MS } = {}) {
 	let leaderId: string | null = null;
 	let waiting: ((client: Client) => void)[] = [];
-	/** Requests sent to a leader and not yet answered, by that leader's id:
-	 * each one's settling, and what it is answered with if it is lost. */
-	const inFlight = new Map<string, Map<(answer: Response) => void, () => Response>>();
+	/** Requests sent to a leader and not finished, by that leader's id: what
+	 * each does if that leader is lost (answered, or its stream ended). */
+	const inFlight = new Map<string, Set<() => void>>();
 	let next = 1;
 
 	/**
@@ -74,7 +90,7 @@ export function relay(clients: Clients, { waitMs = LEADER_WAIT_MS } = {}) {
 	 * reaches the next one.
 	 */
 	function lose(id: string) {
-		for (const [settle, lost] of inFlight.get(id) ?? []) settle(lost());
+		for (const lost of inFlight.get(id) ?? []) lost();
 		inFlight.delete(id);
 	}
 
@@ -122,16 +138,51 @@ export function relay(clients: Clients, { waitMs = LEADER_WAIT_MS } = {}) {
 		if (!client) return text(503, 'no open tab is running the web edition’s server');
 		const channel = new MessageChannel();
 		const id = client.id;
-		const settles = inFlight.get(id) ?? new Map();
-		inFlight.set(id, settles);
+		const pending = inFlight.get(id) ?? new Set();
+		inFlight.set(id, pending);
 		return new Promise<Response>((resolve) => {
-			const settle = (r: Response) => {
-				settles.delete(settle);
+			let answered = false;
+			/** The streamed body's controller, once the head said there is one. */
+			const streamed: { c?: ReadableStreamDefaultController<Uint8Array> } = {};
+			const done = () => {
+				pending.delete(onLost);
 				channel.port1.close();
-				resolve(r);
 			};
-			settles.set(settle, () => lostAnswer(request));
-			channel.port1.onmessage = ({ data }: MessageEvent<RelayAnswer>) => settle(answer(data));
+			// Lost before its answer: answered as lost. Lost part-way through a
+			// streamed body: that body ends in an error, never hangs.
+			const onLost = () => {
+				if (!answered) {
+					answered = true;
+					resolve(lostAnswer(request));
+				} else streamed.c?.error(new Error(LOST_STREAM));
+				done();
+			};
+			pending.add(onLost);
+			channel.port1.onmessage = ({ data }: MessageEvent<RelayMessage>) => {
+				if ('type' in data && data.type === RELAY_CHUNK) {
+					streamed.c?.enqueue(new Uint8Array(data.chunk));
+					return;
+				}
+				if ('type' in data && data.type === RELAY_END) {
+					if (data.error) streamed.c?.error(new Error(data.error));
+					else streamed.c?.close();
+					done();
+					return;
+				}
+				const head = data as RelayAnswer;
+				answered = true;
+				if (!head.stream) {
+					done();
+					resolve(answer(head));
+					return;
+				}
+				const stream = new ReadableStream<Uint8Array>({
+					start: (c) => void (streamed.c = c),
+					// The page stopped reading (it navigated away): nothing more to pass on.
+					cancel: done
+				});
+				resolve(answer(head, stream));
+			};
 			client.postMessage(
 				{
 					type: MESSAGES.request,
@@ -173,10 +224,16 @@ export function postedForm(answer: Response, url: string): Response {
 	return Response.redirect(url, 303);
 }
 
-function answer(r: RelayAnswer): Response {
+/** What the leading tab posts on a request's port: the head, then a streamed body's pieces. */
+type RelayMessage =
+	| RelayAnswer
+	| { type: typeof RELAY_CHUNK; chunk: ArrayBuffer }
+	| { type: typeof RELAY_END; error?: string };
+
+function answer(r: RelayAnswer, stream?: ReadableStream<Uint8Array>): Response {
 	// A body is not allowed with these, and the Response constructor refuses one.
 	const empty = r.status === 204 || r.status === 205 || r.status === 304;
-	return new Response(empty ? null : r.body, {
+	return new Response(empty ? null : (stream ?? r.body), {
 		status: r.status,
 		statusText: r.statusText,
 		headers: r.headers

@@ -121,7 +121,7 @@ function startServer() {
 	const worker = new Worker('/server/worker.js', { type: 'module' });
 	/** @type {Map<number, MessagePort>} */
 	const pending = new Map();
-	/** @type {Map<number, { path: string, sent: number }>} when each request left, for the timing log */
+	/** @type {Map<number, { path: string, sent: number, head?: number, status?: number }>} when each request left (and its head came back), for the timing log */
 	const sentAt = new Map();
 	let next = 1;
 	/** @type {(message: any, ports: readonly MessagePort[]) => void} */
@@ -132,6 +132,22 @@ function startServer() {
 		// The browser's cookies go with the request, read now, so a cookie set
 		// by the answer before this one is in it (web/cookies.js).
 		worker.postMessage({ ...data, id, cookie: document.cookie }, data.body ? [data.body] : []);
+	};
+	/** A request answered whole: its port let go, and its time logged (web/timing.js). @param {number} id @param {number} [status] */
+	const finish = (id, status) => {
+		pending.delete(id);
+		const sent = sentAt.get(id);
+		if (!sent) return;
+		sentAt.delete(id);
+		const now = performance.now();
+		timing.record({
+			kind: 'request',
+			path: sent.path,
+			ms: Math.round(now - sent.sent),
+			// A streamed answer's head, when the page could start drawing.
+			...(sent.head ? { head: Math.round(sent.head - sent.sent) } : {}),
+			status: status ?? sent.status
+		});
 	};
 	return new Promise((resolve, reject) => {
 		worker.onmessage = ({ data }) => {
@@ -149,19 +165,17 @@ function startServer() {
 				// What the server set goes into the browser's own jar before the
 				// answer is passed on, so the next request carries it.
 				for (const c of data.setCookies ?? []) document.cookie = forDocument(c);
-				const port = pending.get(data.id);
-				pending.delete(data.id);
-				const sent = sentAt.get(data.id);
-				if (sent) {
-					sentAt.delete(data.id);
-					timing.record({
-						kind: 'request',
-						path: sent.path,
-						ms: Math.round(performance.now() - sent.sent),
-						status: data.status
-					});
-				}
-				port?.postMessage(data, data.body ? [data.body] : []);
+				pending.get(data.id)?.postMessage(data, data.body ? [data.body] : []);
+				// A streamed body follows in pieces, passed on as they come.
+				if (data.stream) {
+					const sent = sentAt.get(data.id);
+					if (sent) Object.assign(sent, { head: performance.now(), status: data.status });
+				} else finish(data.id, data.status);
+			} else if (data.type === 'tsundoku-chunk') {
+				pending.get(data.id)?.postMessage(data, [data.chunk]);
+			} else if (data.type === 'tsundoku-end') {
+				pending.get(data.id)?.postMessage(data);
+				finish(data.id);
 			}
 		};
 		worker.onerror = (e) => reject(new Error(e.message || 'the server worker failed to load'));
