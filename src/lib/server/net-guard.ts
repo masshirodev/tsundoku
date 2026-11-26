@@ -139,6 +139,16 @@ export async function checkPublic(url: string): Promise<URL> {
 	}
 	if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new NotPublicError(u.protocol);
 	const host = u.hostname.replace(/^\[|\]$/g, '');
+	// The web edition has no DNS: the tab cannot resolve a name, and its fetch
+	// goes through the reader's own browser, not a server's network. An address
+	// written as one is still checked, and so is a name that only ever means
+	// this machine; any other name is the browser's to resolve. What the
+	// fetcher may reach on the reader's own network is c1140.
+	if (__WEB_EDITION__ && !isIP(host)) {
+		if (/(^|\.)localhost$/i.test(host))
+			throw new NotPublicError(`${u.hostname} is not on the internet`);
+		return u;
+	}
 	const addrs = isIP(host) ? [host] : (await lookup(host, { all: true })).map((a) => a.address);
 	if (addrs.length === 0 || !addrs.every(isPublicIp))
 		throw new NotPublicError(`${u.hostname} is not on the internet`);
