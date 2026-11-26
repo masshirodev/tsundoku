@@ -160,6 +160,45 @@ describe('the relay', () => {
 		expect((await kept).status).toBe(200);
 	});
 
+	it('answers what a closed leader was sent when another request finds it gone first', async () => {
+		const a = windowClient('a');
+		const b = windowClient('b');
+		const { r, leads, close } = world(a, b);
+		leads(a);
+		const lost = r.send(new Request('https://t.test/api/x'));
+		await vi.waitFor(() => expect(requests(a)).toHaveLength(1));
+		// The leader's window closes, and the next request reaches the relay
+		// before any tab says it leads now.
+		close(a);
+		const later = r.send(new Request('https://t.test/api/y'));
+		const res = await lost;
+		expect(res.status).toBe(503);
+		leads(b);
+		await vi.waitFor(() => expect(requests(b)).toHaveLength(1));
+		b.answer(0);
+		expect((await later).status).toBe(200);
+	});
+
+	it('answers a lost form action as a refusal the screen can show, never sending it twice', async () => {
+		const a = windowClient('a');
+		const b = windowClient('b');
+		const { r, leads } = world(a, b);
+		leads(a);
+		const lost = r.send(
+			new Request('https://t.test/?/newShelf', {
+				method: 'POST',
+				headers: { 'x-sveltekit-action': 'true' },
+				body: 'name=Invented'
+			})
+		);
+		await vi.waitFor(() => expect(requests(a)).toHaveLength(1));
+		leads(b);
+		const res = await lost;
+		expect(res.status).toBe(503);
+		expect(JSON.parse(await res.text())).toMatchObject({ type: 'failure', status: 503 });
+		expect(requests(b)).toHaveLength(0);
+	});
+
 	it('takes only its own messages, and a leader message only from a window', () => {
 		const a = windowClient('a');
 		const { r } = world(a);

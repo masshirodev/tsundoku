@@ -17,6 +17,8 @@
  * Only `src/service-worker.ts` uses this, and only when `__WEB_EDITION__`.
  */
 
+import { lostAnswer } from './takeover.ts';
+
 /** The page messages of the relay, both ways (web/boot.js speaks the other side). */
 export const MESSAGES = {
 	/** service worker → leader: a request for the server, with a port for its answer */
@@ -61,19 +63,24 @@ export type Clients = {
 export function relay(clients: Clients, { waitMs = LEADER_WAIT_MS } = {}) {
 	let leaderId: string | null = null;
 	let waiting: ((client: Client) => void)[] = [];
-	/** Requests sent to a leader and not yet answered, by that leader's id. */
-	const inFlight = new Map<string, Set<(answer: Response) => void>>();
+	/** Requests sent to a leader and not yet answered, by that leader's id:
+	 * each one's settling, and what it is answered with if it is lost. */
+	const inFlight = new Map<string, Map<(answer: Response) => void, () => Response>>();
 	let next = 1;
+
+	/**
+	 * A leader is gone (its lock passed on, or its window closed): what it was
+	 * sent is lost with its server. Answered, not left hanging; a retry
+	 * reaches the next one.
+	 */
+	function lose(id: string) {
+		for (const [settle, lost] of inFlight.get(id) ?? []) settle(lost());
+		inFlight.delete(id);
+	}
 
 	/** A leader said it is ready (or answered "which of you leads?"). */
 	function setLeader(client: Client) {
-		if (leaderId && leaderId !== client.id) {
-			// The old leader is gone (its lock passed on): what it was sent is lost
-			// with its server. Answered, not left hanging; a retry reaches the new one.
-			for (const settle of inFlight.get(leaderId) ?? [])
-				settle(text(503, 'the tab that ran the server closed; try again'));
-			inFlight.delete(leaderId);
-		}
+		if (leaderId && leaderId !== client.id) lose(leaderId);
 		leaderId = client.id;
 		const woken = waiting;
 		waiting = [];
@@ -82,9 +89,14 @@ export function relay(clients: Clients, { waitMs = LEADER_WAIT_MS } = {}) {
 
 	async function leader(): Promise<Client | null> {
 		if (leaderId) {
-			const known = await clients.get(leaderId);
+			const id = leaderId;
+			const known = await clients.get(id);
 			if (known) return known;
-			leaderId = null;
+			// Its window closed. Found here first when another request comes
+			// before the next leader says it is ready, which then has no old
+			// leader to compare with: its requests are lost now.
+			lose(id);
+			if (leaderId === id) leaderId = null;
 		}
 		const found = new Promise<Client | null>((resolve) => {
 			const timer = setTimeout(() => {
@@ -110,7 +122,7 @@ export function relay(clients: Clients, { waitMs = LEADER_WAIT_MS } = {}) {
 		if (!client) return text(503, 'no open tab is running the web edition’s server');
 		const channel = new MessageChannel();
 		const id = client.id;
-		const settles = inFlight.get(id) ?? new Set();
+		const settles = inFlight.get(id) ?? new Map();
 		inFlight.set(id, settles);
 		return new Promise<Response>((resolve) => {
 			const settle = (r: Response) => {
@@ -118,7 +130,7 @@ export function relay(clients: Clients, { waitMs = LEADER_WAIT_MS } = {}) {
 				channel.port1.close();
 				resolve(r);
 			};
-			settles.add(settle);
+			settles.set(settle, () => lostAnswer(request));
 			channel.port1.onmessage = ({ data }: MessageEvent<RelayAnswer>) => settle(answer(data));
 			client.postMessage(
 				{
