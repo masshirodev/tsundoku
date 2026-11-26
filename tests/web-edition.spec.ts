@@ -121,12 +121,24 @@ describe('the Node built-in stand-ins', () => {
 	});
 
 	it('loads without throwing, and throws only when called', async () => {
-		const code = (await plugin.load('\0node-stub:fs')) as string;
+		const code = (await plugin.load('\0node-stub:child_process')) as string;
 		const mod = await import(`data:text/javascript,${encodeURIComponent(code)}`);
-		expect(() => mod.readFileSync('/x')).toThrow('node:fs.readFileSync is not in the web edition');
-		expect(mod.existsSync('/x')).toBe(false);
-		expect(() => mod.default.someFutureCall()).toThrow('node:fs.someFutureCall');
+		expect(() => mod.spawn('ffmpeg')).toThrow('node:child_process.spawn is not in the web edition');
+		expect(() => mod.default.someFutureCall()).toThrow('node:child_process.someFutureCall');
 		expect(await plugin.load('cheerio')).toBeNull();
+	});
+
+	it('takes fs’s implemented calls from web/fs.js, and stubs the rest of it', async () => {
+		const fs = (await plugin.load('\0node-stub:fs')) as string;
+		expect(fs).toMatch(/import \* as impl from ".*web\/fs\.js";/);
+		for (const call of ['readFileSync', 'writeFileSync', 'renameSync', 'promises'])
+			expect(fs).toContain(`export const ${call} = impl.${call};`);
+		// Streams serve downloaded files, which the web edition does not keep yet.
+		expect(fs).toContain('export const createReadStream = missing("createReadStream");');
+		const promises = (await plugin.load('\0node-stub:fs/promises')) as string;
+		expect(promises).toMatch(/web\/fs-promises\.js/);
+		expect(promises).toContain('export const readFile = impl.readFile;');
+		expect(promises).toContain('export const open = missing("open");');
 	});
 });
 

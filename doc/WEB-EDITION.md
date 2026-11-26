@@ -585,6 +585,34 @@ Then open tsundoku on `http://localhost:<port>` or `http://127.0.0.1:<port>`;
 - **Store review**, as the design warns: `<all_urls>` and `cookies` are what
   a reviewer looks at hardest.
 
+## Files
+
+The server code writes files as it does on a computer (an installed
+extension's APK, a backup), mostly with the `*Sync` calls, so the web
+edition's `node:fs` has to be synchronous. It is (`web/fs-store.js`): files
+and directories are rows of a second SQLite database, `/tsundoku-files.sqlite`,
+on the same `opfs-sahpool` VFS as the library, which is synchronous in the
+server worker. The pool keeps ten files ready (each database is two: itself
+and its journal).
+
+- **The calls the server code makes**: `existsSync`, `mkdirSync`,
+  `writeFileSync`, `appendFileSync`, `readFileSync`, `renameSync`, `rmSync`,
+  `rmdirSync`, `unlinkSync`, `readdirSync` (with file types), `statSync`,
+  `lstatSync`, `copyFileSync`, `cpSync`, `statfsSync`, and the same as
+  promises from `node:fs/promises` (`stat`, `readFile`, `readdir`, `mkdir`,
+  `writeFile`, `rm`, `rename`, `unlink`, `cp`, `access`, …).
+- **Node's semantics, held call by call**: `tests/web/fs.spec.ts` runs each
+  story (the APK's write-then-rename, a folder renamed onto an empty one, `rm`
+  of a folder without `recursive`, …) on a real folder and on the stand-in,
+  and expects the same answers and the same error codes (`ENOENT`, `EEXIST`,
+  `ENOTDIR`, `EISDIR`, `ENOTEMPTY`, `ERR_FS_EISDIR`).
+- **Everything else still throws**, naming the call: the stand-in plugin
+  (`web/node-stubs.js`) takes every name `web/fs.js` and `web/fs-promises.js`
+  export as the real call and stubs the rest of the module.
+- **Room on the disk** is the browser's to refuse, at the write: a site's
+  quota is known only asynchronously, so `statfsSync` answers plenty.
+- Clearing the site's data clears the files with the library.
+
 ## Other sites
 
 Server code fetches other sites as it does on a computer: a repository's
@@ -726,8 +754,8 @@ Found and handled in the proof:
 
 Open, each for the card that needs it:
 
-- **Files.** `node:fs` is a stub: covers, downloads and imports need an
-  OPFS-backed stand-in (or the folder the reader picks in Chromium).
+- **File streams.** `createReadStream` and `open` still throw: they serve
+  downloaded files, which arrive with downloading in the browser.
 - **Images.** `sharp`'s work (thumbnails, duplicate hashes) moves to
   `createImageBitmap` and `OffscreenCanvas` in a worker.
 - **Processes.** `child_process` (ffmpeg, OCR, starting the engine) has no
