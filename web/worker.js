@@ -5,6 +5,7 @@
 import './process.js';
 import { keepCookies, setCookiesOf, withCookie } from './cookies.js';
 import { enginePort } from './engine-port.js';
+import { siteFetch } from './site-fetch.js';
 import { ready } from './sqlite.js';
 import { Server } from 'tsundoku-web:server';
 import { manifest } from 'tsundoku-web:manifest';
@@ -40,14 +41,21 @@ const started = (async () => {
 })();
 
 // Before any server code runs a request: its calls to ENGINE_URL go to the
-// engine's worker, every other fetch is the browser's.
-const engine = enginePort(globalThis.fetch.bind(globalThis));
+// engine's worker, another site's through the tab's fetcher, this origin's
+// to the browser.
+const sites = siteFetch({
+	native: globalThis.fetch.bind(globalThis),
+	origin: self.location.origin,
+	post: (message) => self.postMessage(message)
+});
+const engine = enginePort(sites.fetch);
 globalThis.fetch = engine.fetch;
 
 self.onmessage = async ({ data, ports }) => {
 	// The tab's word on the engine (web/boot.js): a port when it starts one,
 	// then each change of state.
 	if (data?.type === 'tsundoku-engine') return engine.set(data, ports[0]);
+	if (data?.type === 'tsundoku-site-fetched') return sites.answered(data);
 	if (data?.type !== 'tsundoku-request') return;
 	const { id, url, method, headers, body, cookie } = data;
 	try {

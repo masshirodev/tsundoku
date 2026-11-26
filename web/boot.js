@@ -20,7 +20,26 @@
 import { connectFetcher } from '$lib/web/fetcher-client';
 import { forDocument } from './cookies.js';
 import { ENGINE_ORIGIN } from './engine-port.js';
-import { ENGINE_JAR, engineStarter } from './engine-start.js';
+import { ENGINE_JAR, engineStarter, relay as relayToSite } from './engine-start.js';
+import { NO_FETCHER, fetcherConnection } from './site-fetch.js';
+
+/** This tab's fetcher, shared by the engine and the server's site requests. */
+const fetcherLink = fetcherConnection(() => connectFetcher());
+
+/**
+ * A site request of the server's (web/site-fetch.js), sent through the
+ * fetcher; without one, the server worker falls back to the browser's fetch.
+ * @param {Worker} worker
+ * @param {{ id: number, head: string, body: string }} data
+ */
+async function answerSite(worker, data) {
+	const connection = await fetcherLink.get();
+	const answer =
+		connection.state === 'ready' && connection.fetcher
+			? await relayToSite(connection.fetcher, data.head, data.body)
+			: NO_FETCHER;
+	worker.postMessage({ type: 'tsundoku-site-fetched', id: data.id, answer });
+}
 import {
 	OPENED_KEY,
 	REVEAL_MS,
@@ -117,6 +136,7 @@ function startServer() {
 						missing: data.missing
 					})
 				);
+			else if (data.type === 'tsundoku-site-fetch') void answerSite(worker, data);
 			else if (data.type === 'tsundoku-response') {
 				// What the server set goes into the browser's own jar before the
 				// answer is passed on, so the next request carries it.
@@ -179,7 +199,7 @@ function startEngine() {
 	if (!server) return;
 	const starter = engineStarter({
 		server,
-		connect: () => connectFetcher(),
+		connect: () => fetcherLink.get(),
 		makeWorker: () => new Worker('/engine-worker.js'),
 		// A static host may answer a missing file with the app's page: only a
 		// jar is a jar.
@@ -194,7 +214,9 @@ function startEngine() {
 		}
 	});
 	void starter.attempt();
-	window.addEventListener('focus', () => void starter.attempt());
+	// A fetcher installed or granted meanwhile is noticed when the tab is
+	// focused again, by the engine and the site requests alike.
+	window.addEventListener('focus', () => void fetcherLink.retry().then(() => starter.attempt()));
 }
 
 /** Whether `new Worker(url, { type: 'module' })` is understood: a browser

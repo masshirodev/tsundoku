@@ -585,6 +585,84 @@ Then open tsundoku on `http://localhost:<port>` or `http://127.0.0.1:<port>`;
 - **Store review**, as the design warns: `<all_urls>` and `cookies` are what
   a reviewer looks at hardest.
 
+## Other sites
+
+Server code fetches other sites as it does on a computer: a repository's
+index, an extension, a catalogue's API. In a browser that fetch is held to
+the cross-site rules, which most sites refuse, and carries none of the site's
+cookies. So the server worker's `fetch` (`web/site-fetch.js`) sends:
+
+- **this origin** (the app's own files) to the browser's fetch;
+- **the engine's origin** to the engine (below);
+- **any other site** to the leading tab, which sends it through the fetcher
+  extension with the browser's cookies, in the engine's text frame;
+- and, when the tab has **no fetcher**, to the browser's own fetch after all:
+  a site that allows cross-site reads (a repository's index on GitHub's raw
+  files does) still answers, and one that does not fails as a network error,
+  as a computer with no network would.
+
+The tab keeps one connection to the fetcher for the engine and these
+requests together (`fetcherConnection`); a missing fetcher is remembered
+until the tab is focused again, so a screen of site requests does not wait
+for the fetcher's hello once per request.
+
+## The engine
+
+The extension engine (tsundoku-engine, doc/EXTENSION-ENGINE.md) runs in the
+leading tab, in CheerpJ, a JVM compiled to WebAssembly, in a **dedicated
+worker** of its own, so its start-up and its calls never hold the page's main
+thread. Measured on 2026-11-25 with the spike's jars: CheerpJ 5.0 starts in a
+worker in Chromium and Firefox (the runtime in about 1 s, the library in about
+6 s), and a call from JavaScript into Java works there as in a page.
+
+```
+server worker: the engine client, unchanged
+  │  fetch(ENGINE_URL + "/dalvik") — ENGINE_URL is http://engine.tsundoku.invalid
+  ▼
+web/engine-port.js: that origin's fetch goes over a MessagePort
+  ▼
+engine worker (web/engine-worker.js): BrowserEngine.handle(head, body)
+  │  tsundoku-engine's own routing, no socket
+  ▼  a source's request: BrowserTransport.fetchNative(head, body)
+the leading tab (web/engine-start.js) → the fetcher extension → the site
+```
+
+- **No second client.** The server code's engine client
+  (`src/lib/server/engine/client.ts`) talks to `ENGINE_URL` as it always does.
+  In the web edition that names an origin that exists nowhere, and the server
+  worker's `fetch` sends that origin over a port to the engine's worker
+  (`web/engine-port.js`); every other fetch is the browser's own.
+- **One frame, both ways** (`web/engine-frame.js`): a request is
+  `METHOD\nURL\nName: value…` plus a base64 body; an answer is
+  `STATUS\nName: value…\n\nBASE64`, or `ERR <message>`. Text, because a
+  string is what crosses CheerpJ's boundary cheaply and exactly. The app's
+  calls into the engine and the engine's calls out to a site use the same
+  frame, so tsundoku-engine's browser side is one encoder and one decoder.
+- **The engine's state.** `off` (no engine jar in this build, or no fetcher),
+  `starting`, `ready`, or `failed`. Off and failed fail a call at once, as an
+  engine that is down does for the self-hosted app, so its screens say what
+  they already say; starting holds a call (up to two minutes) until the engine
+  is ready, so a source's page fills in rather than failing in the first
+  seconds. `<html data-web-engine>` carries the state.
+- **When it starts.** The leading tab starts it once its server is up and a
+  fetcher answers (the owner's choice, 2026-11-25: without a fetcher it could
+  reach no site). A tab without one tries again when it is focused, so a fetcher
+  installed meanwhile is noticed with no reload. A tab taking over the server
+  starts its own engine.
+- **Its jar.** `build:web` copies tsundoku-engine's slim browser jar from
+  `TSUNDOKU_ENGINE_JAR` to `build-web/engine/engine-browser.jar`; without it
+  the build has no engine, says so, and the library works without sources.
+  CheerpJ reads a jar by byte ranges, which the browser's HTTP cache does not
+  keep, so the service worker keeps the jar whole (with the shell's copy, so a
+  new build brings a new jar) and cuts each range from it. A missing jar is
+  never kept: a static host may answer it with the app's page.
+- **CheerpJ** is loaded from its CDN (`cjrtnc.leaningtech.com/5.0`), as its
+  free licence for a one-person company requires, together with a visible
+  "Built with CheerpJ" credit.
+- **Its storage.** CheerpJ's `/files/` is persistent (IndexedDB): the engine's
+  data folder is `/files/engine`, so an extension converted once stays
+  converted.
+
 ## The proof
 
 Run on the workstation on 2026-11-25, in Chromium (Playwright's) and Firefox:
@@ -631,9 +709,6 @@ Open, each for the card that needs it:
   OPFS-backed stand-in (or the folder the reader picks in Chromium).
 - **Images.** `sharp`'s work (thumbnails, duplicate hashes) moves to
   `createImageBitmap` and `OffscreenCanvas` in a worker.
-- **Network.** Server code that fetches a site (catalogues, sources) meets
-  the browser's same-origin rules; those requests go through the fetcher
-  extension, by the engine's transport or a `fetch` stand-in.
 - **Processes.** `child_process` (ffmpeg, OCR, starting the engine) has no
   browser equivalent; the engine runs in the tab, and the rest are later
   decisions.
