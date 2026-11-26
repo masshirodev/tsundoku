@@ -121,13 +121,12 @@ band on screen").
 
 ### Says what is true now: no ✕
 
-| Screen                        | Band                                                                      | Why                                    |
-| ----------------------------- | ------------------------------------------------------------------------- | -------------------------------------- |
-| Layout                        | Incognito, reveal                                                         | The state itself                       |
-| Layout, the web edition only  | `PRIVATE WINDOW`, a Chrome window whose library goes when it closes       | True for as long as the window is open |
-| Library                       | `SCANNING ON WORKSTATION`, offline, the update bands' running states      | While it lasts                         |
-| A source's page, its settings | `NOT ANSWERING`, `DID NOT ANSWER`, `ASKED TO SLOW DOWN`, `FAILED TO LOAD` | A source not answering is true now     |
-| A source's page               | `PASSING THE SITE'S BROWSER CHECK`, `STILL ASKING`                        | A wait in progress                     |
+| Screen                        | Band                                                                      | Why                                |
+| ----------------------------- | ------------------------------------------------------------------------- | ---------------------------------- |
+| Layout                        | Incognito, reveal                                                         | The state itself                   |
+| Library                       | `SCANNING ON WORKSTATION`, offline, the update bands' running states      | While it lasts                     |
+| A source's page, its settings | `NOT ANSWERING`, `DID NOT ANSWER`, `ASKED TO SLOW DOWN`, `FAILED TO LOAD` | A source not answering is true now |
+| A source's page               | `PASSING THE SITE'S BROWSER CHECK`, `STILL ASKING`                        | A wait in progress                 |
 
 ### Both: no ✕ of the band's own
 

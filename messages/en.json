@@ -983,8 +983,6 @@
 	"search_work_all_ticked": "ALL TICKED",
 	"library_show_asking": "{n} MORE FROM SELECT ALL · LOADING",
 	"library_show_gone": "{n} GONE OR HIDDEN SINCE SELECT ALL · TAKEN OUT",
-	"web_private_title": "PRIVATE WINDOW",
-	"web_private_detail": "THIS LIBRARY DISAPPEARS WHEN IT CLOSES",
 	"web_takeover_title": "NOTHING CHANGED",
 	"web_takeover_detail": "THE TAB RUNNING TSUNDOKU CLOSED AS IT WAS SENT · THIS TAB RUNS IT NOW",
 	"web_takeover_retry": "TRY AGAIN"

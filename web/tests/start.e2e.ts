@@ -3,8 +3,8 @@
  * cannot"; handoff `web-edition-start`): the starting screen the shell paints
  * from the first byte, its header rule filling as each step really finishes,
  * a first visit's FIRST VISIT carried over its reload, the could-not-start
- * screen for each failure a test can force, Chrome's private-window band,
- * and the refusal a takeover answers a lost write with.
+ * screen for each failure a test can force, and the refusal a takeover
+ * answers a lost write with.
  *
  * Every test is a first visit in a fresh context. Failures are forced with
  * init scripts, which run in the page before its own scripts: taking a part
@@ -28,7 +28,6 @@ type Moment = {
 	left: string;
 	right: string;
 	fill: string;
-	band: boolean;
 	mark: [number, number] | null;
 };
 
@@ -62,7 +61,6 @@ async function logTheStart(context: BrowserContext) {
 				left: text('.ws-label-left'),
 				right: text('.ws-label-right'),
 				fill: (s.querySelector('.ws-fill') as HTMLElement | null)?.style.width ?? '',
-				band: !(s.querySelector('.ws-band') as HTMLElement | null)?.hidden,
 				mark: r ? [Math.round(r.x), Math.round(r.y)] : null
 			});
 			sessionStorage.setItem('test.start', JSON.stringify(all));
@@ -138,8 +136,7 @@ test('a first visit says so at once, fills the rule step by step, and carries on
 		first: true,
 		revealed: false,
 		left: '00 — FIRST VISIT',
-		right: 'GETTING READY',
-		band: false
+		right: 'GETTING READY'
 	});
 	expect(log[0].fill).toBe('0%');
 
@@ -445,41 +442,6 @@ test.describe('could not start', () => {
 				await report.textContent()
 			);
 	});
-});
-
-test('a Chrome window that keeps nothing says so, the same band before and after the app opens', async ({
-	context,
-	page,
-	browserName
-}) => {
-	// Chrome's incognito used to report a quota of a few hundred MB; Chrome
-	// 153 reports 10 GiB in both (doc/WEB-EDITION.md), so the quota is set here.
-	await context.addInitScript(() => {
-		StorageManager.prototype.estimate = () => Promise.resolve({ quota: 120e6, usage: 0 });
-	});
-	await logTheStart(context);
-	await page.goto('/');
-	await opened(page);
-	const band = page.getByRole('status').filter({ hasText: 'PRIVATE WINDOW' });
-	if (browserName === 'firefox') {
-		// Firefox's private windows cannot start at all: a small quota there is a full disk.
-		await expect(band).toHaveCount(0);
-		return;
-	}
-	await expect(band).toBeVisible();
-	await expect(band).toContainText('THIS LIBRARY DISAPPEARS WHEN IT CLOSES');
-	// It stays true for as long as the window is open: no ✕.
-	await expect(band.getByRole('button')).toHaveCount(0);
-	// The starting screen drew it too, so the app opened without moving.
-	const log = await moments(page);
-	expect(log[log.length - 1].band).toBe(true);
-	expect(log[log.length - 1].mark).toEqual(await appMark(page));
-});
-
-test('a normal window has no private-window band', async ({ page }) => {
-	await page.goto('/');
-	await opened(page);
-	await expect(page.getByText('THIS LIBRARY DISAPPEARS WHEN IT CLOSES')).toHaveCount(0);
 });
 
 test('a write the closing tab took is refused in the system’s band, and TRY AGAIN reaches the new server', async ({

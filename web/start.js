@@ -9,9 +9,10 @@
 // - the markup and its CSS, put into index.html by the adapter at build time;
 // - `prepaint` and `drawStart`, self-contained so the adapter can inline them
 //   as the shell's own scripts, which run before the first paint;
-// - the pure rules (what a failure was, what a browser is missing, whether a
-//   window is private), imported by boot.js and by the unit spec.
-// Nothing here may import anything: boot.js loads this file as it is.
+// - the pure rules (where a start is, what a failure was, what a browser is
+//   missing), imported by boot.js (bundled into it) and by the unit spec.
+// Nothing here may import anything: the adapter inlines parts of it in the
+// shell by their own text.
 
 /** sessionStorage: how far this tab's start got, so the first visit's reload
  * carries the same picture on (`{ first, done, since }`). */
@@ -393,35 +394,6 @@ export function drawFailure(doc, kind, screen, acts) {
 	at.hidden = false;
 }
 
-/** Below this, a Chrome or Edge window's storage quota is an incognito
- * window's (doc/WEB-EDITION.md, "A private window in Chrome"). */
-export const PRIVATE_QUOTA = 1024 ** 3;
-
-/**
- * Whether this is a Chrome or Edge window whose library goes when it closes,
- * judged by the storage quota, the one signal there is: an incognito window's
- * storage is a fraction of the memory, a normal window's a fraction of the
- * disk. Chrome 153 reports the same 10 GiB in both (measured; the document
- * says how), so there it is never true; older Chromes reported 100–300 MB.
- * Never Firefox: its private windows cannot start at all (`classify`), and
- * its normal quota on a full disk can be small.
- *
- * @param {{ quota?: number } | null} estimate `navigator.storage.estimate()`
- * @param {string} userAgent
- */
-export function isPrivateByQuota(estimate, userAgent) {
-	const name = browserOf(userAgent);
-	if (name !== 'Chrome' && name !== 'Edge') return false;
-	const quota = estimate?.quota;
-	return typeof quota === 'number' && quota > 0 && quota < PRIVATE_QUOTA;
-}
-
-/** The private-window band's words, the same as the app's (`web_private_*`). */
-export const PRIVATE_BAND = {
-	title: 'PRIVATE WINDOW',
-	detail: 'THIS LIBRARY DISAPPEARS WHEN IT CLOSES'
-};
-
 const wordmark = (/** @type {string} */ cls) =>
 	`<span class="ws-wordmark ${cls}"><span class="ws-latin">TSUNDOKU</span><span class="ws-jp" lang="ja">積ん読</span></span>`;
 
@@ -430,7 +402,6 @@ const wordmark = (/** @type {string} */ cls) =>
 export const START_MARKUP = `<div id="web-start" class="ws" data-step="0">
 <aside class="ws-side">${wordmark('ws-side-mark')}</aside>
 <div class="ws-main">
-<div class="ws-band" role="status" hidden><div class="ws-band-title">${PRIVATE_BAND.title}</div><div class="ws-band-detail">${PRIVATE_BAND.detail}</div></div>
 <header class="ws-bar"><div class="ws-left">${wordmark('ws-bar-mark')}</div><div class="ws-middle"></div><div class="ws-rule" aria-hidden="true"><div class="ws-fill"></div></div></header>
 <div class="ws-label"><div class="ws-label-left">00 — STARTING</div><div class="ws-label-right">OPENING THE LIBRARY</div></div>
 <div class="ws-body">
@@ -450,7 +421,7 @@ export const START_MARKUP = `<div id="web-start" class="ws" data-step="0">
  * library has, so the app opens over it without anything moving: the top
  * bar's cells and height (`TopBar`), the wordmark (`Wordmark`, 17px in the
  * desktop's sidebar), the section label (`SectionLabel`), the header's rule
- * (`NavLine`), the band (`Band`). The interior is the handoff's, transcribed
+ * (`NavLine`). The interior is the handoff's, transcribed
  * (doc/WEB-EDITION.md, "Where it departs from the handoff").
  */
 export const START_STYLE = `
@@ -460,10 +431,6 @@ export const START_STYLE = `
 .ws-wordmark{display:inline-flex;align-items:center;gap:12px;white-space:nowrap}
 .ws-latin{font:var(--type-wordmark);letter-spacing:.02em;font-size:18px}
 .ws-jp{font:400 13px var(--font-mono);color:var(--text-2)}
-.ws-band{flex-shrink:0;display:flex;flex-direction:column;justify-content:center;gap:3px;height:60px;padding-left:var(--pad);border-bottom:var(--hairline);background:var(--surface-panel);font:var(--type-control)}
-.ws-band[hidden]{display:none}
-.ws-band-title,.ws-band-detail{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ws-band-detail{font:var(--type-meta);color:var(--text-2)}
 .ws-bar{position:relative;flex-shrink:0;display:flex;align-items:stretch;height:var(--header-h);border-bottom:var(--hairline)}
 .ws-left{display:flex;align-items:center;padding:0 var(--pad);border-right:var(--hairline)}
 .ws-middle{flex:1;min-width:0}

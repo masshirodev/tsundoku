@@ -190,7 +190,6 @@ to package an app for a runtime; this one uses only the builder's public calls
 | `_app/`                           | the client, exactly as the self-hosted build has it                                     |
 | `service-worker.js`               | the app's own service worker, built with `__WEB_EDITION__`                              |
 | `boot.js`                         | starts a tab: the service worker, the lead, the server                                  |
-| `start.js`                        | the starting screen's rules, which `boot.js` imports                                    |
 | `server/worker.js` and its chunks | SvelteKit's `Server` and all server code, bundled and minified                          |
 | `server/files.json`               | the shell, `boot.js` and the server's files, for the offline copy                       |
 
@@ -619,9 +618,9 @@ Takeover boards; built in card c1128). The pieces:
 
 - **`web/start.js`**: the screen's markup and CSS, the two scripts the shell
   runs before its first paint, and the rules (where a start is, what a
-  failure was, whether a window is private). The adapter puts the screen into
-  `index.html` (`paintTheStart`, after `holdTheStart`), and copies the file
-  beside `boot.js`, which imports it.
+  failure was). The adapter puts the screen into `index.html`
+  (`paintTheStart`, after `holdTheStart`); `boot.js` imports the rest, and
+  the build bundles it into `boot.js`.
 - **`web/boot.js`** moves the screen on as each step really finishes, draws a
   failure in its place, and takes it away once the app has drawn.
 - **`web/worker.js`** says when the server's code has loaded and when the
@@ -752,25 +751,16 @@ happening, COPY the text under WHAT IT SAID and send it with a report: it
 says where the start stopped, what the browser said, and which browser and
 build it was.
 
-### A private window in Chrome
+### A private window in Chrome: not built, waiting on the owner
 
 Chrome's incognito runs the web edition, and throws the library away when the
-window closes, so such a window says so in a standing band, `PRIVATE WINDOW`
-over `THIS LIBRARY DISAPPEARS WHEN IT CLOSES`, in the system's `Band`, with
-no ✕ (it stays true; doc/BANDS.md). Not the word INCOGNITO: that is the app's
-own reading mode, whose band is `INCOGNITO · NOTHING SAVED`, dashed.
-
-`boot.js` decides it before the app starts and marks `<html>`
-(`data-web-private`); the starting screen draws the same band at once, and the
-layout reads the mark, so the app opens with the band in the same place.
-
-**How it is told, and the trouble with it.** Chrome offers no incognito flag.
-The known signal was the storage quota: an incognito window's storage is
-kept in memory and its quota was a few hundred MB at most, a normal window's
-a share of the disk. `isPrivateByQuota` takes a quota
-under 1 GiB, in Chrome or Edge only, as incognito. Firefox is left out: its
-private windows cannot start at all (above), and its normal quota on a nearly
-full disk can be small.
+window closes. The card asked for a standing band saying so, told apart by the
+storage quota, the one known signal (Chrome offers no incognito flag): an
+incognito window's storage was kept in memory with a quota of a few hundred
+MB at most, a normal window's a share of the disk. **The signal is gone, so
+the band is not built:** a band current Chrome never shows would be dead code
+that looks like a feature. What to do instead (no band, or a line said to
+every Chrome visitor somewhere) is the owner's decision, on the card.
 
 Measured on the workstation on 2026-11-25 with Playwright, on a page served
 over `http://localhost`, `navigator.storage.estimate()`:
@@ -784,13 +774,11 @@ over `http://localhost`, `navigator.storage.estimate()`:
 | Firefox (Playwright's)                        | `newContext()` / a persistent profile                   | 3,365 MB / 10 GiB       |
 
 `webkitTemporaryStorage.queryUsageAndQuota` answers the same, and writing
-1 MB to OPFS raised the quota by the same 1 MB, in both windows: current
-Chrome reports the usage plus a fixed 10 GiB to every site, precisely so that
-incognito cannot be told apart this way. Edge is not installed on the
-workstation and was not measured. **So on Chrome 153 the band never shows.**
-It shows where the quota is still the real one (older Chromes), and the test
-sets the quota to show it. What to do instead (no band, or a line for every
-Chrome visitor) is the owner's decision, on the card.
+1 MB to OPFS raised the quota by the same 1 MB in both windows: Chrome 153
+reports the usage plus a fixed 10 GiB to every site, normal or incognito,
+precisely so that incognito cannot be told apart this way. Edge is not
+installed on the workstation and was not measured. Firefox needs no band: its
+private windows cannot start at all ("A private window", above).
 
 ### Taking over
 
@@ -816,25 +804,24 @@ Anything else that was lost (a screen's data, an endpoint) is still answered
 
 ### Where it departs from the handoff
 
-| Where                              | Departs because                                                                                                                                                                                                                                   |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Padding on a desktop               | The handoff's desktop board pads the label and the content 32px; the screen uses `--pad` (24px), which is what the library under it uses, so the app opens without the label moving.                                                              |
-| The top bar's left cell on a phone | The handoff pads it 24px and shows 積ん読; the library pads it `--pad` (16px) and hides 積ん読 on a phone, and the screen does what the library does, so the wordmark does not move when the app opens.                                           |
-| The private-window band            | Not in the handoff (the owner's addition). The card's one line, `PRIVATE WINDOW · THIS LIBRARY DISAPPEARS WHEN IT CLOSES`, is cut off on a phone in a one-line band, so it is the band's two lines, title over detail, the takeover band's shape. |
-| Where the bands sit                | The handoff draws the takeover band under the screen's bar. A takeover can come from any screen, so the layout draws it, and the layout's bands sit above the screen's bar (where incognito's is).                                                |
-| The action's name                  | "NEW SHELF" is the form action's own name in words (`newShelf`), not a label written for it, and stays English in the Portuguese app.                                                                                                             |
-| The site's name                    | The handoff writes tsundoku.lt; the screens say the address they are on (`location.host`).                                                                                                                                                        |
-| COPY and COPY THE ADDRESS          | Say COPIED for 2 s after copying; the handoff draws no answer.                                                                                                                                                                                    |
-| "Read more" buttons                | The handoff gives them no destination; they open the sections of this document above, in the public repository.                                                                                                                                   |
-| The unknown failure's error line   | The handoff's `Error: [TEXT]`; the error is printed as the browser prints it, its name first (`TypeError: …`), so a server worker's `Error: …` is not doubled.                                                                                    |
-| A failure's title on a desktop     | Not drawn; the tablet's 28px.                                                                                                                                                                                                                     |
-| Wide layouts                       | The handoff's landscape board (text beside the steps, 48px apart, steps 460px) applies from 1024px wide; its desktop board (56px, 440px) where the app has its desktop layout (a fine pointer as well).                                           |
+| Where                              | Departs because                                                                                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Padding on a desktop               | The handoff's desktop board pads the label and the content 32px; the screen uses `--pad` (24px), which is what the library under it uses, so the app opens without the label moving.                    |
+| The top bar's left cell on a phone | The handoff pads it 24px and shows 積ん読; the library pads it `--pad` (16px) and hides 積ん読 on a phone, and the screen does what the library does, so the wordmark does not move when the app opens. |
+| Where the band sits                | The handoff draws the takeover band under the screen's bar. A takeover can come from any screen, so the layout draws it, and the layout's bands sit above the screen's bar (where incognito's is).      |
+| The action's name                  | "NEW SHELF" is the form action's own name in words (`newShelf`), not a label written for it, and stays English in the Portuguese app.                                                                   |
+| The site's name                    | The handoff writes tsundoku.lt; the screens say the address they are on (`location.host`).                                                                                                              |
+| COPY and COPY THE ADDRESS          | Say COPIED for 2 s after copying; the handoff draws no answer.                                                                                                                                          |
+| "Read more" buttons                | The handoff gives them no destination; they open the sections of this document above, in the public repository.                                                                                         |
+| The unknown failure's error line   | The handoff's `Error: [TEXT]`; the error is printed as the browser prints it, its name first (`TypeError: …`), so a server worker's `Error: …` is not doubled.                                          |
+| A failure's title on a desktop     | Not drawn; the tablet's 28px.                                                                                                                                                                           |
+| Wide layouts                       | The handoff's landscape board (text beside the steps, 48px apart, steps 460px) applies from 1024px wide; its desktop board (56px, 440px) where the app has its desktop layout (a fine pointer as well). |
 
 ### What it does not do yet
 
 - **The screens are in English only.** They are drawn before any of the app
-  has loaded, including its language; the app's own bands (private window,
-  takeover) are translated.
+  has loaded, including its language; the app's own takeover band is
+  translated.
 - **The theme is dark in practice.** The in-tab server never sees the theme
   cookie (a service worker's requests do not carry cookies to it), so the
   app's own `data.theme` is always dark and the layout writes that back into
@@ -849,7 +836,7 @@ Anything else that was lost (a screen's data, an endpoint) is still answered
   `update()` never puts the lost answer in `page.form`, so it shows no band.
 - **TRY AGAIN needs the form still on screen.** A write sent from a sheet that
   has since closed gets the band with ✕ only.
-- **The private-window band is dormant in current Chrome** (above).
+- **No private-window band in Chrome** (above): waiting on the owner.
 - **The TV's bar** has a safe top margin the starting screen does not draw.
 - `web/boot.js` is not type-checked (no spec imports it, since importing it
   starts a tab); `web/start.js` is, through its spec.
@@ -870,8 +857,7 @@ Anything else that was lost (a screen's data, an endpoint) is still answered
   rules (`web/start.js`): where a start is and what it carries over a
   reload, what the screen says at each step (drawn on stand-in elements,
   from the function's own text as the shell inlines it), what each failure
-  was, the could-not-start screens' words, the private-window rule, the
-  shell's painting. `tests/web/takeover.spec.ts`: a lost write's answer, and
+  was, the could-not-start screens' words, the shell's painting. `tests/web/takeover.spec.ts`: a lost write's answer, and
   the band's words for it.
 - **`yarn run test:web`**: the web build in Chromium and Firefox
   (`playwright.web.config.ts`, specs in `web/tests/`). It builds `build-web/`
@@ -885,5 +871,5 @@ Anything else that was lost (a screen's data, an endpoint) is still answered
   wordmark moving (desktop and phone), the screen's measurements, each
   failure it can force (no service workers, no Web Locks, storage refused by
   the page or by the server worker's pool, a missing part found by the
-  server worker, anything else), the private-window band, and a write lost
+  server worker, anything else), and a write lost
   in a takeover. doc/TESTING.md, "The web edition".

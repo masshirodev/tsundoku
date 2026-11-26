@@ -28,7 +28,6 @@ import {
 	drawFailure,
 	drawStart,
 	failScreen,
-	isPrivateByQuota,
 	startView
 } from './start.js';
 
@@ -221,19 +220,6 @@ const probe = {
 };
 
 /**
- * A Chrome or Edge window whose library goes when it closes says so, on the
- * starting screen and then in the app's own band (src/routes/+layout.svelte
- * reads `data-web-private`), so nothing moves when the app opens.
- */
-async function privateWindow() {
-	const estimate = await navigator.storage.estimate().catch(() => null);
-	if (!isPrivateByQuota(estimate, navigator.userAgent)) return;
-	document.documentElement.dataset.webPrivate = '';
-	const band = /** @type {HTMLElement | null} */ (document.querySelector('#web-start .ws-band'));
-	if (band) band.hidden = false;
-}
-
-/**
  * The app has drawn its first screen: the starting screen goes in the same
  * frame, so the app opens in place, its bar and wordmark where these were.
  * An app that fails before it draws anything is a failure to start.
@@ -264,7 +250,6 @@ async function boot() {
 	// Storage refused shows here first, before anything is registered: OPFS
 	// refuses with a SecurityError when the site may not keep data.
 	await navigator.storage.getDirectory();
-	await privateWindow();
 	await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
 	await navigator.serviceWorker.ready;
 	if (!navigator.serviceWorker.controller) {

@@ -1,15 +1,12 @@
 /**
  * The web edition's starting screen, its rules (web/start.js;
  * doc/WEB-EDITION.md, "Starting, and when it cannot"): where a start is, what
- * the screen says at each step, what a failure was, and whether a window is
- * private. The screens themselves are drawn in a real browser by
+ * the screen says at each step, and what a failure was. The screens themselves are drawn in a real browser by
  * web/tests/start.e2e.ts.
  */
 import { describe, expect, it } from 'vitest';
 import {
 	OPENED_KEY,
-	PRIVATE_BAND,
-	PRIVATE_QUOTA,
 	REVEAL_MS,
 	START_KEY,
 	START_MARKUP,
@@ -18,7 +15,6 @@ import {
 	describeBrowser,
 	drawStart,
 	failScreen,
-	isPrivateByQuota,
 	missingFeatures,
 	paintTheStart,
 	startView,
@@ -26,7 +22,6 @@ import {
 	type Probe,
 	type StartView
 } from '../../web/start.js';
-import { m } from '$lib/paraglide/messages';
 
 const UA = {
 	chrome:
@@ -375,28 +370,6 @@ describe('the browser, as the report names it', () => {
 			'Chrome 150 · ChromeOS'
 		);
 		expect(describeBrowser('curl/8')).toBe('An unknown browser');
-	});
-});
-
-describe('a private window in Chrome', () => {
-	it('is told by a quota under 1 GiB, in Chrome and Edge only', () => {
-		expect(PRIVATE_QUOTA).toBe(1024 ** 3);
-		expect(isPrivateByQuota({ quota: 120e6 }, UA.chrome)).toBe(true);
-		expect(isPrivateByQuota({ quota: 120e6 }, UA.edge)).toBe(true);
-		// Chrome 153 answers 10 GiB in a normal window and an incognito one alike.
-		expect(isPrivateByQuota({ quota: 10 * 1024 ** 3 }, UA.chrome)).toBe(false);
-		// Firefox's private windows never start, and its normal quota can be small.
-		expect(isPrivateByQuota({ quota: 120e6 }, UA.firefox)).toBe(false);
-		expect(isPrivateByQuota({ quota: 0 }, UA.chrome)).toBe(false);
-		expect(isPrivateByQuota({}, UA.chrome)).toBe(false);
-		expect(isPrivateByQuota(null, UA.chrome)).toBe(false);
-	});
-
-	it('says what the app’s own band says', () => {
-		expect(PRIVATE_BAND).toEqual({
-			title: m.web_private_title(),
-			detail: m.web_private_detail()
-		});
 	});
 });
 

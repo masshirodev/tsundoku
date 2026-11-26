@@ -983,8 +983,6 @@
 	"search_work_all_ticked": "TODAS MARCADAS",
 	"library_show_asking": "MAIS {n} DO SELECT ALL · CARREGANDO",
 	"library_show_gone": "{n} APAGADAS OU OCULTADAS DESDE O SELECT ALL · RETIRADAS",
-	"web_private_title": "JANELA PRIVADA",
-	"web_private_detail": "ESTA BIBLIOTECA SOME QUANDO ELA FECHAR",
 	"web_takeover_title": "NADA MUDOU",
 	"web_takeover_detail": "A ABA QUE RODAVA O TSUNDOKU FECHOU NO ENVIO · ESTA ABA O RODA AGORA",
 	"web_takeover_retry": "TENTAR DE NOVO"
