@@ -109,6 +109,20 @@ describe('node:path in the browser', () => {
 	}
 });
 
+describe('the Buffer the server worker gets', () => {
+	// web/process.js sets the `buffer` package as the global Buffer. Version 5
+	// lacked the BigInt reads an APK's signing block needs (readBigUInt64LE),
+	// and installing failed in the browser only; package.json pins 6.
+	it('has the reads the server code uses', async () => {
+		// 'buffer/' is the package; a bare 'buffer' in Node is Node's own.
+		const { Buffer: WebBuffer } = await import('buffer/');
+		const b = WebBuffer.from([1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0]);
+		expect(b.readBigUInt64LE(0)).toBe(1n);
+		expect(b.readUInt32LE(8)).toBe(2);
+		expect(typeof WebBuffer.prototype.readBigInt64LE).toBe('function');
+	});
+});
+
 describe('the Node built-in stand-ins', () => {
 	const plugin = nodeStubs();
 
