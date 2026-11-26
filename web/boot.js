@@ -18,6 +18,7 @@
 // (web/start.js): the header's rule fills one step at a time as each step
 // really finishes, and a start that fails says why in its place.
 import { connectFetcher } from '$lib/web/fetcher-client';
+import { forDocument } from './cookies.js';
 import { ENGINE_ORIGIN } from './engine-port.js';
 import { ENGINE_JAR, engineStarter } from './engine-start.js';
 import {
@@ -101,7 +102,9 @@ function startServer() {
 	const relay = (data, ports) => {
 		const id = next++;
 		pending.set(id, ports[0]);
-		worker.postMessage({ ...data, id }, data.body ? [data.body] : []);
+		// The browser's cookies go with the request, read now, so a cookie set
+		// by the answer before this one is in it (web/cookies.js).
+		worker.postMessage({ ...data, id, cookie: document.cookie }, data.body ? [data.body] : []);
 	};
 	return new Promise((resolve, reject) => {
 		worker.onmessage = ({ data }) => {
@@ -115,6 +118,9 @@ function startServer() {
 					})
 				);
 			else if (data.type === 'tsundoku-response') {
+				// What the server set goes into the browser's own jar before the
+				// answer is passed on, so the next request carries it.
+				for (const c of data.setCookies ?? []) document.cookie = forDocument(c);
 				const port = pending.get(data.id);
 				pending.delete(data.id);
 				port?.postMessage(data, data.body ? [data.body] : []);

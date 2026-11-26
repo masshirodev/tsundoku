@@ -122,6 +122,38 @@ itself and cancels the post, and the TV's pairing digits empty themselves
 after a post, as the page load used to do. A new plain POST form is a bug in
 the web edition.
 
+### Cookies
+
+The server code keeps a few things in cookies (the theme, reveal, incognito,
+the sign-in ceremony, a TV's pairing) and reads them from a request's
+`Cookie` header. A browser forbids script both ways: a `Request` made in
+script drops a `Cookie` header, and a `Response` made in script drops
+`Set-Cookie`, silently. Every request and response of the in-tab server is
+made in script, so until 2026-11-26 the server never saw a cookie and none it
+set was kept (c1131: the theme could not be switched).
+
+**The browser's own jar stays the jar** (`web/cookies.js`):
+
+- The leading tab reads `document.cookie` as it hands each request to its
+  server worker, which gives SvelteKit a request whose headers carry it (a
+  standalone `Headers` has no such guard, so the request's are replaced).
+- In the server worker, `Headers` and `Response` are taught to remember every
+  `Set-Cookie` written to them, kept by the browser or not; the worker sends
+  them to the tab with the answer, and the tab writes each into
+  `document.cookie` before passing the answer on, so the next request carries
+  it.
+- `HttpOnly` is dropped on the way in: script cannot set it, and with no
+  network server there is nothing for it to keep the cookie from. Everything
+  else (path, max-age, SameSite, Secure) stays.
+
+Every server route is unchanged, the cookies are shared by every tab of the
+site, and clearing the site's data clears them with the library.
+
+**The theme on the page** follows `data.theme` in the layout, not only the
+page the server rendered: `/light` and `/dark` post with `use:enhance` (c1116),
+which keeps the page, and the web edition renders no page on a server. In
+the self-hosted app this also fixed `/light` showing only after a reload.
+
 ## The library database
 
 **Where it lives.** One SQLite file, `/tsundoku.sqlite`, in the browser's
@@ -822,11 +854,6 @@ Anything else that was lost (a screen's data, an endpoint) is still answered
 - **The screens are in English only.** They are drawn before any of the app
   has loaded, including its language; the app's own takeover band is
   translated.
-- **The theme is dark in practice.** The in-tab server never sees the theme
-  cookie (a service worker's requests do not carry cookies to it), so the
-  app's own `data.theme` is always dark and the layout writes that back into
-  `tsundoku.theme`. The starting screen follows the record faithfully; the
-  web edition's theme switching is a separate gap.
 - **A first visit's first paint can change font.** Plex Mono is not cached
   before the first visit, so the screen's text may be drawn in the fallback
   face for a moment (the positions hold; the widths change). Preloading the

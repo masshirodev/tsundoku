@@ -200,15 +200,26 @@
 	// screenMove; motion.css, "Screens"): the move is worked out as the
 	// navigation starts, and drawn once the new screen is in the page.
 
+	// The theme on the page follows the server's, as it changes. The server
+	// writes it into the first page it renders (hooks.server.ts), but `/light`
+	// and `/dark` are an enhanced post now, which keeps the page, and the web
+	// edition renders no page on a server at all (doc/WEB-EDITION.md). Kept on
+	// this device as well, which is what the web edition's starting screen
+	// paints with before any of this runs.
+	// Mirrored only when it differs (a write is stamped and synced), and not
+	// at all while it is the default on a fresh browser: nothing to keep.
+	$effect(() => {
+		const theme = data.theme;
+		document.documentElement.dataset.theme = theme;
+		const kept = readLocal<string | null>(THEME_KEY, null);
+		if (kept !== theme && (kept !== null || theme !== 'dark')) writeLocal(THEME_KEY, theme);
+	});
+
 	// ---- this device's settings, kept on the workstation too (doc/SETTINGS.md, "Devices") ----
 	// Checked in on load and when the network is back. The theme and the
 	// language are cookies the server reads; the device record mirrors it, and a newer one from the
 	// workstation (SETTINGS changing this device from another) sets the cookie.
 	onMount(() => {
-		// Mirrored once it's been set: the default on a fresh browser is nothing to keep.
-		const kept = readLocal<string | null>(THEME_KEY, null);
-		if (kept !== data.theme && (kept !== null || data.theme !== 'dark'))
-			writeLocal(THEME_KEY, data.theme);
 		const keptLang = readLocal<string | null>(LANG_KEY, null);
 		if (keptLang !== data.lang && (keptLang !== null || data.lang !== 'auto'))
 			writeLocal(LANG_KEY, data.lang);

@@ -3,10 +3,15 @@
 // The service worker hands it the page's requests through the page (boot.js);
 // it answers with exactly what the Node server would have.
 import './process.js';
+import { keepCookies, setCookiesOf, withCookie } from './cookies.js';
 import { enginePort } from './engine-port.js';
 import { ready } from './sqlite.js';
 import { Server } from 'tsundoku-web:server';
 import { manifest } from 'tsundoku-web:manifest';
+
+// Before any server code makes a response: the cookies it sets are kept
+// (web/cookies.js), though the browser drops them from a script-made one.
+keepCookies();
 
 // The tab shows each step as it really finishes (web/start.js, STEPS): the
 // server's code is loaded once this module runs at all; then the library
@@ -44,10 +49,13 @@ self.onmessage = async ({ data, ports }) => {
 	// then each change of state.
 	if (data?.type === 'tsundoku-engine') return engine.set(data, ports[0]);
 	if (data?.type !== 'tsundoku-request') return;
-	const { id, url, method, headers, body } = data;
+	const { id, url, method, headers, body, cookie } = data;
 	try {
 		const server = await started;
-		const request = new Request(url, { method, headers, body: body ?? undefined });
+		const request = withCookie(
+			new Request(url, { method, headers, body: body ?? undefined }),
+			cookie ?? ''
+		);
 		const response = await server.respond(request, { getClientAddress: () => '127.0.0.1' });
 		const buffer = await response.arrayBuffer();
 		self.postMessage(
@@ -57,6 +65,7 @@ self.onmessage = async ({ data, ports }) => {
 				status: response.status,
 				statusText: response.statusText,
 				headers: [...response.headers],
+				setCookies: setCookiesOf(response.headers),
 				body: buffer
 			},
 			[buffer]
