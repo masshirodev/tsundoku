@@ -387,10 +387,10 @@ export async function install(
 	}
 	if (!res.ok) throw new RepoError(`${listing.apkUrl} answered ${res.status}`);
 	const apk = await res.bytes();
-	if (!signedBy(Buffer.from(apk), listing.fingerprint)) {
+	if (!(await signedBy(Buffer.from(apk), listing.fingerprint))) {
 		let signers: string[] = [];
 		try {
-			signers = signerFingerprints(Buffer.from(apk));
+			signers = await signerFingerprints(Buffer.from(apk));
 		} catch {
 			// Unsigned or malformed: no key to show beside the repository's.
 		}
