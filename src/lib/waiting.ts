@@ -6,8 +6,8 @@
  *   flashes anything;
  * - from 150 ms the header's rule becomes the progress line;
  * - from 1 s the next screen is drawn in outline;
- * - from 10 s a band says the workstation isn't answering, while the request
- *   carries on.
+ * - from 10 s a band says the workstation isn't answering (in the web
+ *   edition, that it is still working), while the request carries on.
  */
 export type Phase = 'idle' | 'pressed' | 'line' | 'outline' | 'stalled';
 
@@ -64,5 +64,13 @@ export function destinationOf(
 }
 
 /** "ASKED 12 S AGO · STILL ASKING". */
+/**
+ * The band's first line. The self-hosted app's server is the workstation; the
+ * web edition's is the reader's own tab, where a long wait is the engine or a
+ * source, so it says the work is still going rather than naming a machine.
+ */
+export const stalledLine = (web: boolean) =>
+	web ? '○ STILL WORKING ON IT' : '○ WORKSTATION NOT ANSWERING';
+
 export const askedLine = (elapsed: number) =>
 	`ASKED ${Math.floor(elapsed / 1000)} S AGO · STILL ASKING`;
