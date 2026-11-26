@@ -10,6 +10,8 @@
 //
 // The frame on both crossings is web/engine-frame.js's.
 
+import { scriptSandbox } from './script-sandbox.js';
+
 /** CheerpJ's runtime, from its CDN: the free licence requires both that and a credit. */
 export const CHEERPJ_LOADER = 'https://cjrtnc.leaningtech.com/5.0/loader.js';
 
@@ -34,6 +36,18 @@ async function Java_tsundoku_browser_BrowserTransport_fetchNative(_lib, head, bo
 	});
 }
 
+const sandbox = scriptSandbox();
+
+/**
+ * Java's way to an extension's JavaScript (tsundoku-engine's BrowserScripts):
+ * run by the browser, in a sandbox with an opaque origin (web/script-sandbox.js).
+ * @param {unknown} _lib
+ * @param {string} script
+ */
+function Java_tsundoku_browser_BrowserScripts_evaluateNative(_lib, script) {
+	return sandbox.evaluate(String(script));
+}
+
 /** @param {'starting' | 'ready' | 'failed'} state @param {Record<string, unknown>} [more] */
 const say = (state, more = {}) => self.postMessage({ type: 'engine-state', state, ...more });
 
@@ -54,7 +68,10 @@ async function start(jar, origin, port) {
 		// @ts-expect-error -- set by CheerpJ's loader
 		await cheerpjInit({
 			version: 21,
-			natives: { Java_tsundoku_browser_BrowserTransport_fetchNative }
+			natives: {
+				Java_tsundoku_browser_BrowserTransport_fetchNative,
+				Java_tsundoku_browser_BrowserScripts_evaluateNative
+			}
 		});
 		steps.runtime = ms();
 		say('starting', { step: 'engine' });

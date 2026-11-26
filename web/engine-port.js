@@ -18,6 +18,39 @@ export const ENGINE_ORIGIN = 'http://engine.tsundoku.invalid';
 /** How long a call waits for an engine that is starting. */
 export const STARTING_WAIT_MS = 120_000;
 
+/**
+ * The most of a video one call asks for. The engine answers a call whole, in
+ * one frame, held in memory on both sides, so an open range ("bytes=0-", or
+ * none) would hold the whole video; a player asks again for the rest.
+ */
+export const VIDEO_SLICE = 8 * 1024 * 1024;
+
+/**
+ * The headers a call takes to the engine in a tab. `cf-proxy-url` names
+ * FlareSolverr, which a tab has not got (a site's check is passed by the
+ * visitor in a tab of their own, doc/WEB-EDITION.md); a video asks for a
+ * bounded range.
+ * @param {string} path
+ * @param {[string, string][]} headers
+ * @returns {[string, string][]}
+ */
+export function engineHeaders(path, headers) {
+	const out = headers.filter(([k]) => k.toLowerCase() !== 'cf-proxy-url');
+	if (!path.startsWith('/video/')) return out;
+	const i = out.findIndex(([k]) => k.toLowerCase() === 'range');
+	const m = /^bytes=(\d*)-(\d*)$/.exec(i < 0 ? '' : out[i][1]);
+	// A suffix range ("bytes=-500") is bounded already; anything else that is
+	// not "start-end" is asked from its start.
+	if (m && m[1] === '' && m[2] !== '') return out;
+	const start = m && m[1] !== '' ? Number(m[1]) : 0;
+	const end =
+		m && m[2] !== '' ? Math.min(Number(m[2]), start + VIDEO_SLICE - 1) : start + VIDEO_SLICE - 1;
+	const range = /** @type {[string, string]} */ (['range', `bytes=${start}-${end}`]);
+	if (i < 0) out.push(range);
+	else out[i] = range;
+	return out;
+}
+
 /** @typedef {'off' | 'starting' | 'ready' | 'failed'} EngineState */
 
 /**
@@ -91,7 +124,11 @@ export function enginePort(browserFetch, { waitMs = STARTING_WAIT_MS } = {}) {
 				? ''
 				: toBase64(new Uint8Array(await request.arrayBuffer()));
 		const url = new URL(request.url);
-		const head = encodeHead(request.method, url.pathname + url.search, [...request.headers]);
+		const head = encodeHead(
+			request.method,
+			url.pathname + url.search,
+			engineHeaders(url.pathname, [...request.headers])
+		);
 		const id = next++;
 		const live = port;
 		const answer = await new Promise((resolve) => {
