@@ -488,30 +488,34 @@ async function refreshComics(
 		console.error('tsundoku: comics’ relations could not be fetched:', e);
 	}
 	let refreshed = 0;
-	for (const r of due) {
-		const m = answers.get(r.anilist);
-		// The link may have moved while AniList answered.
-		const now = db
-			.prepare(`SELECT anilist_id AS anilist FROM series_links WHERE series_id = ?`)
-			.get(r.id) as { anilist: number | null } | undefined;
-		if (!m || now?.anilist !== r.anilist) {
-			stamp.run(opts.now, r.id);
-			continue;
-		}
-		const edges = (m.relations?.edges ?? []).filter((e) => e?.node?.id);
-		const graph: RelGraph = {
-			nodes: {
-				[String(m.id)]: asNode(
-					m,
-					edges.map((e) => ({ type: e.relationType, id: e.node.id }))
-				)
+	// Every answer of the batch in one transaction, not one commit per series:
+	// in the web edition each commit is a write to the tab's storage (c1148).
+	db.transaction(() => {
+		for (const r of due) {
+			const m = answers.get(r.anilist);
+			// The link may have moved while AniList answered.
+			const now = db
+				.prepare(`SELECT anilist_id AS anilist FROM series_links WHERE series_id = ?`)
+				.get(r.id) as { anilist: number | null } | undefined;
+			if (!m || now?.anilist !== r.anilist) {
+				stamp.run(opts.now, r.id);
+				continue;
 			}
-		};
-		for (const e of edges)
-			if (!graph.nodes[String(e.node.id)]) graph.nodes[String(e.node.id)] = asNode(e.node, null);
-		store.run(r.id, JSON.stringify(graph), opts.now, opts.now);
-		refreshed += 1;
-	}
+			const edges = (m.relations?.edges ?? []).filter((e) => e?.node?.id);
+			const graph: RelGraph = {
+				nodes: {
+					[String(m.id)]: asNode(
+						m,
+						edges.map((e) => ({ type: e.relationType, id: e.node.id }))
+					)
+				}
+			};
+			for (const e of edges)
+				if (!graph.nodes[String(e.node.id)]) graph.nodes[String(e.node.id)] = asNode(e.node, null);
+			store.run(r.id, JSON.stringify(graph), opts.now, opts.now);
+			refreshed += 1;
+		}
+	})();
 	return { asked: due.length, refreshed, failed: due.length - refreshed };
 }
 

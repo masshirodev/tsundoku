@@ -809,6 +809,12 @@ function reachedFor(t: Target, o: { chapters: number }): number {
  * its sibling's: they are separate rows.
  */
 export function queueProgress(seriesId: number, now = Date.now()): number {
+	// One transaction for every season's send: in the web edition each
+	// commit is a write to the tab's storage (c1148).
+	return getDb().transaction(() => queueProgressRows(seriesId, now))();
+}
+
+function queueProgressRows(seriesId: number, now: number): number {
 	const t = targets(seriesId);
 	if (!t.length) return 0;
 	const read = getDb()
