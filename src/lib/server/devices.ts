@@ -72,6 +72,15 @@ export function syncDevice(
 	now = Date.now()
 ): { newer: Stamped; created: boolean } {
 	if (!isDeviceId(o.id) || !KINDS.includes(o.kind)) throw new Error('not a device');
+	// One commit, not two: this runs on every page a browser opens, and in the
+	// web edition each commit is a write to the tab's storage (c1148).
+	return getDb().transaction(() => syncDeviceRows(o, now))();
+}
+
+function syncDeviceRows(
+	o: { id: string; kind: DeviceKind; label: string; settings: Stamped; register?: boolean },
+	now: number
+): { newer: Stamped; created: boolean } {
 	const db = getDb();
 	db.prepare(`DELETE FROM devices WHERE seen_at < ?`).run(now - FORGET_MS);
 	const kept = row(o.id);
