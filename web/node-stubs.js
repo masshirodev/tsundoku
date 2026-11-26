@@ -33,7 +33,8 @@ const REPLACED = {
 const IMPLEMENTED = {
 	fs: here('./fs.js'),
 	'fs/promises': here('./fs-promises.js'),
-	crypto: here('./crypto.js')
+	crypto: here('./crypto.js'),
+	net: here('./net.js')
 };
 
 /** The names a file of ours exports, read from its text (`export const name`, `export function name`). @param {string} file */
