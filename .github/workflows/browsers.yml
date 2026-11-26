@@ -47,6 +47,11 @@ jobs:
         working-directory: tsundoku
       - run: yarn run test:web
         working-directory: tsundoku
+        # A developer's .env is in the build's environment too: the web
+        # edition must ignore the self-hosted sign-in it would configure.
+        env:
+          TSUNDOKU_TOKEN: a-token-the-web-edition-must-ignore
+          TSUNDOKU_LOGIN: password
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

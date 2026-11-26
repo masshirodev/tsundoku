@@ -235,7 +235,11 @@ by `if (web)` in a screen:
   the self-hosted build and in the specs (`vitest.config.ts`), so no
   environment variable on a server can switch the web edition's rules on.
 - **No sign-in.** `src/lib/server/auth.ts` lets every request in when
-  `__WEB_EDITION__`: the tab is its own only client.
+  `__WEB_EDITION__`: the tab is its own only client. It ignores
+  `TSUNDOKU_TOKEN` and `TSUNDOKU_LOGIN` too, because the build renders its
+  fallback page with the build machine's environment, `.env` included: a
+  developer's token made that render a redirect to `/login` and failed the
+  build. The browsers workflow's `web` job builds with both set to hold it.
 - **No cross-site form check.** SvelteKit refuses a form post whose Origin is
   not its own. The web edition's server has no network address, only this
   origin's own pages reach it, and a `Request` made in a browser cannot carry
