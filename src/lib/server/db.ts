@@ -22,6 +22,10 @@ export function getDb(): Database.Database {
 	const path = databasePath();
 	if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
 	db = new Database(path);
+	// In the web edition the OPFS pool cannot do WAL, and SQLite quietly keeps
+	// its rollback journal (DELETE). TRUNCATE and PERSIST were measured there
+	// and made no difference beyond the noise (c1148, 2026-11-26): what costs
+	// is the number of commits, so a loop writes in one transaction.
 	db.pragma('journal_mode = WAL');
 	db.pragma('foreign_keys = ON');
 	db.pragma('busy_timeout = 5000');

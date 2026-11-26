@@ -871,6 +871,23 @@ Central; the whole write-up is on c1134):
   made it 0.17 s, and READ to the first page 7.8 s. Other loops that write
   outside a transaction cost the same way; see c1134.
 
+**Commits, then (c1148).** What a write costs in the tab is the number of
+commits, so a loop writes in one transaction. Found with a probe over the
+whole unit suite that recorded every write made outside a transaction by its
+call site; the loops it found (a source series' chapters, AniList's batch of
+comics' relations, a series' progress queued per season) are one transaction
+each now, and a browser's check-in, on every page, is one commit instead of
+two. `tests/commits-db.spec.ts` holds it with `tests/helpers/commits.ts`,
+which counts commits: opening or adding a series from a source commits as
+often for 400 chapters as for 10 (without the fix: 402 against 12).
+
+The journal mode was measured too, in a Chromium and a Firefox worker on the
+same OPFS pool: WAL is refused (SQLite keeps DELETE), a commit on a small
+database costs 5–10 ms in Chromium and 2–3 ms in Firefox, and TRUNCATE or
+PERSIST made no difference beyond the noise over three runs. MEMORY was
+faster, and is ruled out: a tab closed mid-commit could leave the library
+corrupt. So the setting stays, and the count is what is watched.
+
 ## Starting, and when it cannot
 
 What a tab shows from the first byte until the app opens, and in place of the
