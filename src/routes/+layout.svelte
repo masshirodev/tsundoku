@@ -36,8 +36,40 @@
 	import { offline } from '$lib/offline.svelte';
 	import { flushHighlights } from '$lib/cache/pending-highlights';
 	import { sweepSoon } from '$lib/cache/sweep';
+	import { browser } from '$app/environment';
+	import { SvelteMap } from 'svelte/reactivity';
+	import { actionName, actionWords, takenOver } from '$lib/web/takeover';
 
 	let { data, children } = $props();
+
+	// ---- the web edition's own bands (doc/WEB-EDITION.md) ----
+	// A Chrome or Edge window whose library goes when it closes: web/boot.js
+	// decided before the app started, and its starting screen already drew
+	// this band, so the app opens with it in the same place.
+	const privateWindow =
+		__WEB_EDITION__ && browser && document.documentElement.hasAttribute('data-web-private');
+	// A write lost in a takeover is answered as a refusal (src/lib/web/takeover.ts).
+	// It can come from any screen, so the layout draws it, with the form that
+	// sent it kept by its action's name for TRY AGAIN.
+	const sentBy = new SvelteMap<string, { form: HTMLFormElement; submitter: HTMLElement | null }>();
+	let droppedLost: unknown = $state(null);
+	const lost = $derived(__WEB_EDITION__ && page.form !== droppedLost ? takenOver(page.form) : null);
+	function sent(e: SubmitEvent) {
+		if (!__WEB_EDITION__ || !(e.target instanceof HTMLFormElement)) return;
+		const by = e.submitter as HTMLButtonElement | HTMLInputElement | null;
+		const url = by?.hasAttribute('formaction') ? by.formAction : e.target.action;
+		sentBy.set(actionName(url), { form: e.target, submitter: by });
+	}
+	/** The form the lost write came from, while it is still on screen. */
+	const resend = $derived(
+		lost && sentBy.get(lost.action)?.form.isConnected ? sentBy.get(lost.action)! : null
+	);
+	function tryAgain() {
+		const again = resend;
+		droppedLost = page.form;
+		if (!again) return;
+		again.form.requestSubmit(again.submitter?.isConnected ? again.submitter : undefined);
+	}
 
 	// Highlights kept offline go at the next connection, on any screen and with
 	// no further press (doc/OFFLINE.md): on opening the app, and each time
@@ -363,6 +395,12 @@
 	<meta name="theme-color" content={data.theme === 'light' ? '#f5f4ef' : '#0e0f10'} />
 </svelte:head>
 
+<svelte:window onsubmitcapture={sent} />
+
+{#snippet tryAgainCell()}
+	<button type="button" onclick={tryAgain}>{m.web_takeover_retry()}</button>
+{/snippet}
+
 {#if page.route.id?.startsWith('/read')}
 	<!--
 		The reader is the page and nothing else (doc/READER.md): no sidebar, no
@@ -566,6 +604,20 @@
 						</form>
 					{/snippet}
 				</Band>
+			{/if}
+			{#if privateWindow}
+				<!-- Says what is true for as long as the window is open: no ✕ (doc/BANDS.md).
+				     Not INCOGNITO, which is the app's own reading mode, above. -->
+				<Band title={m.web_private_title()} detail={m.web_private_detail()} />
+			{/if}
+			{#if lost}
+				<!-- A refusal: it reports what happened, so it has a ✕ (doc/BANDS.md). -->
+				<Band
+					title={[m.web_takeover_title(), actionWords(lost.action)].filter(Boolean).join(' · ')}
+					detail={m.web_takeover_detail()}
+					action={resend ? tryAgainCell : undefined}
+					ondismiss={() => (droppedLost = page.form)}
+				/>
 			{/if}
 			{#if rescanShown}
 				<!-- RESCAN's answer where there is no sidebar: MORE's RESCAN
