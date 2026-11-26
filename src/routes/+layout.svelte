@@ -17,6 +17,7 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import { shelfHref, withParam } from '$lib/library/links';
+	import { flushPending } from '$lib/cache/pending';
 	import { onMount, tick } from 'svelte';
 	import { afterNavigate, beforeNavigate, goto, invalidate, invalidateAll } from '$app/navigation';
 	import { installPress } from '$lib/press';
@@ -101,6 +102,14 @@
 	// follows a theme switched in place (src/lib/app/surface.ts).
 	onMount(() => followSurface());
 	onMount(() => appUpdater.connect());
+	// The web edition's server ran in the tab: reading it was sending when the
+	// tab last closed is kept, and sent now (src/lib/cache/pending.ts).
+	if (__WEB_EDITION__)
+		onMount(() => {
+			void flushPending().then((taken) => {
+				if (taken > 0) void invalidateAll();
+			});
+		});
 
 	// The scan action's refusal is drawn by the empty library only, so the
 	// sidebar's RESCAN says it in its own place rather than nowhere. A scan

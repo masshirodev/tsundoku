@@ -23,6 +23,7 @@ import { ENGINE_ORIGIN } from './engine-port.js';
 import { ENGINE_JAR, engineStarter, relay as relayToSite } from './engine-start.js';
 import { NO_FETCHER, fetcherConnection } from './site-fetch.js';
 import { pathOf, timingOn, timings } from './timing.js';
+import { withoutKeepalive } from './keepalive.js';
 
 /** This tab's fetcher, shared by the engine and the server's site requests. */
 const fetcherLink = fetcherConnection(() => connectFetcher());
@@ -51,6 +52,10 @@ import {
 	failScreen,
 	startView
 } from './start.js';
+
+// Before the app runs a single request: its own keepalive requests would
+// skip the service worker in Firefox, and with it the server (web/keepalive.js).
+window.fetch = withoutKeepalive(window.fetch.bind(window), location.origin);
 
 const LOCK = 'tsundoku-server';
 const MSG = {

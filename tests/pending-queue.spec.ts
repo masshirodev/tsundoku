@@ -25,6 +25,13 @@ afterEach(() => {
 
 const queued = () => JSON.parse(store.get(KEY) ?? '[]') as string[];
 
+/** The server's answer: JSON, as /api/reading gives. */
+const json = (status: number) =>
+	new Response(status === 204 ? null : '{"saved":true}', {
+		status,
+		headers: { 'content-type': 'application/json' }
+	});
+
 /** A fresh module with three events waiting, and fetch answering each call from `answers`. */
 async function withQueue(answers: (number | 'network')[]) {
 	const { flushPending, queuePending } = await import('$lib/cache/pending');
@@ -36,7 +43,7 @@ async function withQueue(answers: (number | 'network')[]) {
 			sent.push(String(init.body));
 			const a = answers.shift() ?? 200;
 			if (a === 'network') throw new TypeError('Failed to fetch');
-			return new Response(null, { status: a });
+			return json(a);
 		})
 	);
 	return { flushPending, sent };
@@ -80,5 +87,140 @@ describe('flushPending', () => {
 		const { flushPending } = await withQueue([200, 503]);
 		await flushPending();
 		expect(queued()).toEqual(['{"n":2}', '{"n":3}']);
+	});
+});
+
+describe('the web edition, whose server goes with the tab (postReading, closeReading)', () => {
+	/** fetch that waits for `release` before answering `status`, and records what it sent. */
+	async function held(status: number | 'network' = 200) {
+		const mod = await import('$lib/cache/pending');
+		const sent: string[] = [];
+		let release = () => {};
+		const gate = new Promise<void>((r) => (release = r));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (_url: string, init: RequestInit) => {
+				sent.push(String(init.body));
+				await gate;
+				if (status === 'network') throw new TypeError('Failed to fetch');
+				return json(status);
+			})
+		);
+		return { ...mod, sent, release };
+	}
+
+	it('keeps an event from before it is sent until the server has it', async () => {
+		const { postReading, sent, release } = await held(200);
+		const answer = postReading('{"finish":1}', true);
+		// The tab could close now: the event is already kept.
+		expect(queued()).toEqual(['{"finish":1}']);
+		release();
+		expect((await answer)?.ok).toBe(true);
+		expect(sent).toEqual(['{"finish":1}']);
+		expect(store.has(KEY)).toBe(false);
+	});
+
+	it('leaves it kept when no answer came, for the next start', async () => {
+		const { postReading, release } = await held('network');
+		const answer = postReading('{"finish":1}', true);
+		release();
+		expect(await answer).toBeNull();
+		expect(queued()).toEqual(['{"finish":1}']);
+	});
+
+	it('lets go of one the server refuses for good, and keeps one it could not take yet', async () => {
+		const refused = await held(404);
+		const a = refused.postReading('{"gone":1}', true);
+		refused.release();
+		await a;
+		expect(store.has(KEY)).toBe(false);
+		vi.resetModules();
+		const busy = await held(503);
+		const b = busy.postReading('{"later":1}', true);
+		busy.release();
+		await b;
+		expect(queued()).toEqual(['{"later":1}']);
+	});
+
+	it('never sends an event twice from one tab: a flush leaves the one on its way', async () => {
+		const { postReading, flushPending, queuePending, sent, release } = await held(200);
+		queuePending('{"older":1}');
+		const answer = postReading('{"finish":1}', true);
+		const flushed = flushPending();
+		release();
+		await answer;
+		expect(await flushed).toBe(1);
+		expect(sent.filter((b) => b === '{"finish":1}')).toHaveLength(1);
+		expect(sent).toContain('{"older":1}');
+		expect(store.has(KEY)).toBe(false);
+	});
+
+	it('keeps the close for the next start, with no beacon to a server that is going', async () => {
+		const { closeReading } = await import('$lib/cache/pending');
+		const beacon = vi.fn(() => true);
+		vi.stubGlobal('navigator', { sendBeacon: beacon });
+		closeReading('{"close":1}', true, true);
+		expect(beacon).not.toHaveBeenCalled();
+		expect(queued()).toEqual(['{"close":1}']);
+	});
+
+	it('beacons as before in the self-hosted app, keeping it only when that fails', async () => {
+		const { closeReading } = await import('$lib/cache/pending');
+		const beacon = vi.fn(() => true);
+		vi.stubGlobal('navigator', { sendBeacon: beacon });
+		closeReading('{"close":1}', true, false);
+		expect(beacon).toHaveBeenCalledOnce();
+		expect(store.has(KEY)).toBe(false);
+		beacon.mockReturnValue(false);
+		closeReading('{"close":2}', true, false);
+		expect(queued()).toEqual(['{"close":2}']);
+		closeReading('{"close":3}', false, false);
+		expect(queued()).toEqual(['{"close":2}', '{"close":3}']);
+	});
+
+	it('keeps nothing ahead of time in the self-hosted app, and an unanswered event after', async () => {
+		const { postReading, release } = await held('network');
+		const answer = postReading('{"page":1}', false);
+		expect(store.has(KEY)).toBe(false);
+		release();
+		await answer;
+		expect(queued()).toEqual(['{"page":1}']);
+	});
+
+	// Firefox sends a keepalive request past the service worker, and a static
+	// host answers it with the app's page, 200 (web/keepalive.js). That took
+	// nothing, and must not let go of the event.
+	it('keeps an event answered with a page instead of the server', async () => {
+		const { postReading, flushPending, queuePending } = await import('$lib/cache/pending');
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response('<!doctype html><html></html>', {
+						status: 200,
+						headers: { 'content-type': 'text/html' }
+					})
+			)
+		);
+		await postReading('{"finish":1}', true);
+		expect(queued()).toEqual(['{"finish":1}']);
+		queuePending('{"older":1}');
+		expect(await flushPending()).toBe(0);
+		expect(queued()).toEqual(['{"finish":1}', '{"older":1}']);
+	});
+
+	it('sends no keepalive request in the web edition', async () => {
+		const { postReading } = await import('$lib/cache/pending');
+		const seen: RequestInit[] = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (_u: string, init: RequestInit) => {
+				seen.push(init);
+				return json(200);
+			})
+		);
+		await postReading('{"page":1}', true);
+		await postReading('{"page":2}', false);
+		expect(seen.map((i) => i.keepalive)).toEqual([false, true]);
 	});
 });

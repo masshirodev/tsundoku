@@ -14,7 +14,7 @@
 	import { offline } from '$lib/offline.svelte';
 	import { cacheBook } from '$lib/cache/device';
 	import { MemberUnavailable } from '$lib/epub/remote';
-	import { flushPending, queuePending } from '$lib/cache/pending';
+	import { closeReading, flushPending, postReading } from '$lib/cache/pending';
 	import { entryDocs } from '$lib/epub/epub';
 	import {
 		HOLD_TURN_MS,
@@ -1090,29 +1090,13 @@
 			durationMs: kind === 'open' ? 0 : clock.lap(now),
 			at: now
 		});
-		if (kind === 'close') {
-			const sent =
-				offline.online &&
-				navigator.sendBeacon?.(
-					resolve('/api/reading'),
-					new Blob([body], { type: 'application/json' })
-				);
-			if (!sent) queuePending(body);
-			return;
-		}
-		try {
-			const res = await fetch(resolve('/api/reading'), {
-				method: 'POST',
-				body,
-				headers: { 'content-type': 'application/json' },
-				keepalive: true
-			});
-			if (res.ok) {
-				saved = ((await res.json()) as { saved: boolean }).saved;
-				void flushPending();
-			}
-		} catch {
-			queuePending(body);
+		// Kept until the server has it, and on leaving kept for the next
+		// start where the server goes with the page (src/lib/cache/pending.ts).
+		if (kind === 'close') return closeReading(body, offline.online);
+		const res = await postReading(body);
+		if (res?.ok) {
+			saved = ((await res.json()) as { saved: boolean }).saved;
+			void flushPending();
 		}
 	}
 
