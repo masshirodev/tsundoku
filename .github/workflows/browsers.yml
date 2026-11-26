@@ -102,11 +102,12 @@ jobs:
   # (web/tests/read.e2e.ts): the web
   # build with tsundoku-engine's browser jar (the `engine-browser` artifact of
   # its last green check on main), Chromium with the development fetcher, a
-  # local repository, a real signed extension. Chromium only: Playwright's
-  # Firefox cannot load an extension.
+  # local repository, a real signed extension. In Chromium and Firefox:
+  # Firefox takes the fetcher as a temporary add-on (web/tests/extension.ts).
   engine:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    # Six runs of a few minutes each: the three tests in two browsers.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -130,11 +131,11 @@ jobs:
         working-directory: kotoba
       - run: yarn install --frozen-lockfile
         working-directory: tsundoku
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox
         working-directory: tsundoku
       - run: yarn run build:fetcher --dev
         working-directory: tsundoku
-      - run: yarn run test:web --project=chromium web/tests/install.e2e.ts web/tests/browse.e2e.ts web/tests/read.e2e.ts
+      - run: yarn run test:web --project=chromium --project=firefox web/tests/install.e2e.ts web/tests/browse.e2e.ts web/tests/read.e2e.ts
         working-directory: tsundoku
         env:
           TSUNDOKU_ENGINE_JAR: ${{ runner.temp }}/engine/engine-browser.jar

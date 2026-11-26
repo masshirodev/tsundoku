@@ -105,3 +105,36 @@ export async function askToKeep(env: KeepEnv = browserEnv()): Promise<KeepState>
 	env.local.setItem(ASKED_KEY, new Date().toISOString());
 	return { ...(await readKeep(env)), persisted: granted };
 }
+
+/**
+ * What the first ADD does about keeping the library (handoff
+ * `web-edition-start`, `Keep-Ask`; c1123), once per browser:
+ *
+ * - `band`: Firefox asks the visitor itself, and only from a tap, so a band
+ *   under ADDED offers it: KEEP THIS LIBRARY IN FIREFOX / ASK FIREFOX →.
+ * - `silent`: Chrome and Edge decide without asking anyone: ask at once, and
+ *   say nothing unless they say no (SETTINGS' band says that).
+ * - `none`: asked already, or already kept.
+ *
+ * Any other browser is asked silently too: one that prompts will prompt, and
+ * one that doesn't decides, as Chrome does.
+ */
+export function onFirstAdd(s: KeepState): 'band' | 'silent' | 'none' {
+	if (s.persisted || s.asked) return 'none';
+	return s.browser === 'FIREFOX' ? 'band' : 'silent';
+}
+
+/** The band's words, for the browser that asks (Keep-Ask). */
+export function keepAskBand(browser: string | null): {
+	title: string;
+	detail: string;
+	action: string;
+} {
+	const who = browser ?? 'THE BROWSER';
+	const short = browser ? browser : 'IT';
+	return {
+		title: `KEEP THIS LIBRARY IN ${who}`,
+		detail: `${who} ASKS ONCE · UNTIL THEN, A FULL DISK COULD CLEAR IT`,
+		action: `ASK ${short} →`
+	};
+}

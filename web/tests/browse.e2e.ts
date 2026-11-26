@@ -8,8 +8,8 @@
  *
  * The extension is Keiyoushi's Webtoons.com, installed as install.e2e.ts does;
  * the site is this test's own: every request to webtoons.com is answered here
- * with made-up pages, so nothing reaches the real site. Chromium only, with
- * the engine's jar, as install.e2e.ts.
+ * with made-up pages, so nothing reaches the real site. Chromium and Firefox,
+ * with the engine's jar, as install.e2e.ts.
  */
 import { expect, test } from '@playwright/test';
 import { fakeWebtoons, fetcherBrowser, installWebtoons, ready, startRepo } from './extension';
@@ -17,10 +17,6 @@ import { fakeWebtoons, fetcherBrowser, installWebtoons, ready, startRepo } from 
 test.skip(
 	process.env.TSUNDOKU_ENGINE_JAR === undefined,
 	'needs the engine: build the web edition with TSUNDOKU_ENGINE_JAR (doc/TESTING.md, "The web edition")'
-);
-test.skip(
-	({ browserName }) => browserName !== 'chromium',
-	'Playwright’s Firefox cannot load the fetcher'
 );
 
 let repo: Awaited<ReturnType<typeof startRepo>>;
@@ -30,15 +26,17 @@ test.beforeAll(async () => {
 test.afterAll(() => repo?.close());
 
 test('a source browsed and searched, its covers drawn, and a series opened, its preview drawn before the source answers', async ({
-	baseURL
+	baseURL,
+	browserName
 }) => {
 	test.setTimeout(900_000);
-	const browser = await fetcherBrowser(baseURL, 'browse');
 	let letEpisodesGo = () => {};
 	const episodes = new Promise<void>((resolve) => (letEpisodesGo = resolve));
+	const site = await fakeWebtoons({ episodes });
+	const browser = await fetcherBrowser(baseURL, 'browse', browserName, site);
 	try {
-		const { page, context } = browser;
-		const asked = await fakeWebtoons(context, { episodes });
+		const { page } = browser;
+		const { asked } = site;
 		await ready(page);
 		await installWebtoons(page, repo.base);
 
@@ -95,7 +93,9 @@ test('a source browsed and searched, its covers drawn, and a series opened, its 
 		});
 		await expect(page.getByText('ASKING THE SOURCE…')).toHaveCount(0);
 	} finally {
+		if (test.info().status !== test.info().expectedStatus) console.log(browser.report());
 		letEpisodesGo();
 		await browser.close();
+		site.close();
 	}
 });

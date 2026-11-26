@@ -45,7 +45,7 @@
 	import { page as appPage } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
 	import { keepAhead } from '$lib/cache/device';
-	import { flushPending, queuePending } from '$lib/cache/pending';
+	import { closeReading, flushPending, postReading } from '$lib/cache/pending';
 	import {
 		dismissRefused,
 		isQuoteKey,
@@ -1042,31 +1042,13 @@
 			durationMs: kind === 'open' ? 0 : clock.lap(now),
 			at: now
 		});
-		if (kind === 'close') {
-			const sent =
-				offline.online &&
-				navigator.sendBeacon?.(
-					resolve('/api/reading'),
-					new Blob([body], { type: 'application/json' })
-				);
-			if (!sent) queuePending(body);
-			return;
-		}
-		try {
-			const res = await fetch(resolve('/api/reading'), {
-				method: 'POST',
-				body,
-				headers: { 'content-type': 'application/json' },
-				keepalive: true
-			});
-			if (res.ok) {
-				saved = ((await res.json()) as { saved: boolean }).saved;
-				void flushPending();
-			}
-		} catch {
-			// Offline: kept on the tablet with its own time, and sent when the
-			// workstation answers again (doc/OFFLINE.md).
-			queuePending(body);
+		// Kept until the server has it, and on leaving kept for the next
+		// start where the server goes with the page (src/lib/cache/pending.ts).
+		if (kind === 'close') return closeReading(body, offline.online);
+		const res = await postReading(body);
+		if (res?.ok) {
+			saved = ((await res.json()) as { saved: boolean }).saved;
+			void flushPending();
 		}
 	}
 
