@@ -71,10 +71,17 @@ itself (Playwright's `context.route` reaches the fetcher's own requests), with
 made-up pages, so neither touches the real site; what the three share is
 `web/tests/extension.ts`. Its own job in
 `browsers.yml` downloads tsundoku-engine's `engine-browser` artifact (its last
-green check on main), builds the development fetcher, and runs it in
-Chromium. By hand: build the jar (`./gradlew :browser:slimJar` in
+green check on main), builds the development fetcher, and runs them in
+Chromium and Firefox. Chromium loads the fetcher at launch; Playwright's
+Firefox cannot, so it takes it as a temporary add-on over Firefox's remote
+debugging protocol, as `web-ext run` does. Nor can Playwright route a Firefox
+extension's requests, so there the made-up site is a local HTTPS server
+behind a proxy that Firefox is pointed at, with a certificate made for the
+run (`openssl`); every other host is tunnelled to itself. In both, the
+site's hosts resolve to 127.0.0.1, so a request the test fails to answer
+fails rather than reaching the real site. By hand: build the jar (`./gradlew :browser:slimJar` in
 tsundoku-engine), `yarn run build:fetcher --dev`, then
-`TSUNDOKU_ENGINE_JAR=<the jar> yarn run test:web --project=chromium web/tests/install.e2e.ts web/tests/browse.e2e.ts web/tests/read.e2e.ts`.
+`TSUNDOKU_ENGINE_JAR=<the jar> yarn run test:web --project=chromium --project=firefox web/tests/install.e2e.ts web/tests/browse.e2e.ts web/tests/read.e2e.ts`.
 
 `yarn run test:web` is the web edition's browser test ([`WEB-EDITION.md`](WEB-EDITION.md),
 "Testing"): its own Playwright config, `playwright.web.config.ts`, and its own

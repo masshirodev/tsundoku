@@ -95,6 +95,23 @@ network-first rules. Two differences, both because the server is in the tab:
   each screen for when the server cannot be reached; the in-tab server always
   can, so it keeps none.
 
+**No keepalive to the app's own address.** Firefox does not send a
+`keepalive` request through a service worker: it goes to the network, where
+a static host answers it with the app's page, `200`. The app sends its
+reading events, a device's check-in and a few choices with `keepalive: true`,
+so in Firefox each was lost while looking saved (c1123, 2026-11-26). `boot.js`
+wraps the page's `fetch` before the app runs (`web/keepalive.js`) and drops
+the flag from any request to the app's own origin; it bought nothing here,
+since the server it would keep a request alive for is the same tab.
+
+**Reading is kept until the server has it.** The tab that leads is the
+server, so closing or reloading it right after a chapter's last page took the
+FINISH on its way with it. In the web edition every reading event is kept in
+the browser's storage before it is sent and let go only once the server's own
+JSON answers it; the reader's close is kept, not beaconed, and the next start
+sends what is left (`postReading`, `closeReading` and `flushPending` in
+`src/lib/cache/pending.ts`; `tests/pending-queue.spec.ts`).
+
 ### One tab leads
 
 `opfs-sahpool` lets one connection hold the database, so one tab runs the
@@ -845,8 +862,8 @@ Open, each for the card that needs it:
 
 - **File streams.** `createReadStream` and `open` still throw: they serve
   downloaded files, which arrive with downloading in the browser.
-- **Images.** `sharp`'s work (thumbnails, duplicate hashes) moves to
-  `createImageBitmap` and `OffscreenCanvas` in a worker.
+- **Images.** Thumbnails are drawn with `OffscreenCanvas` (`web/sharp.js`);
+  duplicate detection's raw pixels and an image's statistics still throw.
 - **Processes.** `child_process` (ffmpeg, OCR, starting the engine) has no
   browser equivalent; the engine runs in the tab, and the rest are later
   decisions.
@@ -854,6 +871,35 @@ Open, each for the card that needs it:
   TMDB fills) run in the tab and need the network above.
 - **No server-rendered HTML.** Every page is the shell, then its data. Layout
   is CSS media queries, so the first paint is still right for the device.
+
+## The thin path, and what is not there yet
+
+**The thin path works** (2026-11-26, c1116–c1123), in Chromium and Firefox,
+with no server anywhere: the app opens in a tab, keeps its library in the
+browser, installs an extension from a repository through the fetcher, browses
+and searches a source through the engine in CheerpJ, opens a series, reads a
+chapter online to its end, and adds the series to the library, where it is
+after a reload with CONTINUE. After that first ADD the browser is asked to
+keep the library (Firefox by the `Keep-Ask` band, Chrome and Edge silently;
+`src/lib/components/web/KeepAsk.svelte`). `web/tests/read.e2e.ts` walks the
+whole of it in both browsers against a made-up site ("Testing").
+
+What the web build does not do yet, each with its card:
+
+- **Downloads and import.** Nothing is downloaded to keep offline, and no
+  library folder or backup is imported (the plan's next steps; c1144 for a
+  folder of the reader's own).
+- **Novels, anime and the text reader** reach Node-only code (a child process,
+  ffmpeg) and should say so politely (c1151).
+- **The engine-starting states** and recent answers shown while it starts
+  (c1150); **wording** that names a workstation (c1152).
+- **Speed.** About 5 s of Java for each page of a site an extension parses
+  ("Measuring"); covers and pages one at a time through the engine (c1139).
+- **A new build under an open tab** breaks it until the tab is reopened
+  (c1138), which must be settled before the first deploy, as must the
+  "Built with CheerpJ" credit (c1135) and what the fetcher may reach on the
+  reader's own network (c1140).
+- **Accounts and sync:** the library lives in one browser only.
 
 ## Measuring
 
