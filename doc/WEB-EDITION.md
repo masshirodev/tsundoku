@@ -711,6 +711,9 @@ extension's POPULAR through the engine, its covers drawn in the tab, and a
 series opened, its preview on screen while the test still holds back the
 source's episode list (the streamed answer, "How a request travels"); every
 request to the extension's site is answered by the test with made-up pages.
+`web/tests/read.e2e.ts` reads one of its chapters online to the end, in the
+vertical strip a webtoon opens in, and finds it kept: the browsing record says
+1 of 3 read across a reload, and HISTORY lists it (c1122).
 
 ## The engine
 

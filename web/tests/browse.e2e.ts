@@ -11,9 +11,8 @@
  * with made-up pages, so nothing reaches the real site. Chromium only, with
  * the engine's jar, as install.e2e.ts.
  */
-import { expect, test, type BrowserContext, type Route } from '@playwright/test';
-import sharp from 'sharp';
-import { fetcherBrowser, installWebtoons, ready, startRepo } from './extension';
+import { expect, test } from '@playwright/test';
+import { fakeWebtoons, fetcherBrowser, installWebtoons, ready, startRepo } from './extension';
 
 test.skip(
 	process.env.TSUNDOKU_ENGINE_JAR === undefined,
@@ -30,87 +29,6 @@ test.beforeAll(async () => {
 });
 test.afterAll(() => repo?.close());
 
-const SITE = 'https://www.webtoons.com';
-const STRIPS = [
-	{ no: 101, slug: 'fake-strip-one', title: 'Fake Strip One' },
-	{ no: 102, slug: 'fake-strip-two', title: 'Fake Strip Two' }
-];
-const listUrl = (s: (typeof STRIPS)[number]) =>
-	`${SITE}/en/fantasy/${s.slug}/list?title_no=${s.no}`;
-
-// A real image for the covers, made by sharp here in Node.
-let PNG: Buffer;
-test.beforeAll(async () => {
-	PNG = await sharp({
-		create: { width: 40, height: 60, channels: 3, background: '#3a6b8c' }
-	})
-		.png()
-		.toBuffer();
-});
-
-/**
- * The made-up site, in the shapes Webtoons.com 1.6.2 reads: the ranking page's
- * `.webtoon_list li a`, a series page's `h1.subj`, and the mobile API's
- * episode list. `episodes` is held until the test lets it go.
- */
-async function fakeSite(context: BrowserContext, episodes: Promise<void>) {
-	const asked: string[] = [];
-	const html = (route: Route, body: string) =>
-		route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body });
-	await context.route(/^https:\/\/(www|m)\.webtoons\.com\//, async (route) => {
-		const url = new URL(route.request().url());
-		asked.push(url.host + url.pathname);
-		if (url.pathname.startsWith('/img/'))
-			return route.fulfill({ status: 200, contentType: 'image/png', body: PNG });
-		// Search: the strips whose title has the keyword, in the ranking's shape.
-		const keyword = url.pathname.startsWith('/en/search')
-			? (url.searchParams.get('keyword') ?? '').toLowerCase()
-			: null;
-		if (url.pathname.startsWith('/en/ranking/') || keyword !== null)
-			return html(
-				route,
-				`<html><body><ul class="webtoon_list">${STRIPS.filter(
-					(s) => keyword === null || s.title.toLowerCase().includes(keyword)
-				)
-					.map(
-						(s) =>
-							`<li><a href="${listUrl(s)}"><img src="${SITE}/img/${s.slug}.png"><p class="title">${s.title}</p></a></li>`
-					)
-					.join('')}</ul></body></html>`
-			);
-		const strip = STRIPS.find((s) => url.pathname.includes(`/${s.slug}/list`));
-		if (strip)
-			return html(
-				route,
-				`<html><head><meta property="og:image" content="${SITE}/img/${strip.slug}.png"></head><body>
-				<div class="detail_header"><div class="info"><span class="genre">Fantasy</span><a class="author">A. Writer</a></div></div>
-				<h1 class="subj">${strip.title}</h1>
-				<div id="_asideDetail"><p class="summary">Made up for a test.</p><p class="day_info">UP EVERY MONDAY</p></div>
-				</body></html>`
-			);
-		const api = /^\/api\/v1\/webtoon\/(\d+)\/episodes$/.exec(url.pathname);
-		if (url.host === 'm.webtoons.com' && api) {
-			await episodes;
-			const s = STRIPS.find((x) => String(x.no) === api[1])!;
-			return route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify({
-					result: {
-						episodeList: [1, 2, 3].map((n) => ({
-							episodeTitle: `Episode ${n}`,
-							viewerLink: `${SITE}/en/fantasy/${s.slug}/episode-${n}/viewer?title_no=${s.no}&episode_no=${n}`,
-							exposureDateMillis: 1_700_000_000_000 + n * 86_400_000
-						}))
-					}
-				})
-			});
-		}
-		return route.fulfill({ status: 404, body: '' });
-	});
-	return asked;
-}
-
 test('a source browsed and searched, its covers drawn, and a series opened, its preview drawn before the source answers', async ({
 	baseURL
 }) => {
@@ -120,7 +38,7 @@ test('a source browsed and searched, its covers drawn, and a series opened, its 
 	const episodes = new Promise<void>((resolve) => (letEpisodesGo = resolve));
 	try {
 		const { page, context } = browser;
-		const asked = await fakeSite(context, episodes);
+		const asked = await fakeWebtoons(context, { episodes });
 		await ready(page);
 		await installWebtoons(page, repo.base);
 

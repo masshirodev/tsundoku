@@ -98,7 +98,8 @@ jobs:
 
   # The whole install chain in a real tab (web/tests/install.e2e.ts), then a
   # source browsed and a series opened against a made-up site
-  # (web/tests/browse.e2e.ts): the web
+  # (web/tests/browse.e2e.ts), and a chapter read online to its end
+  # (web/tests/read.e2e.ts): the web
   # build with tsundoku-engine's browser jar (the `engine-browser` artifact of
   # its last green check on main), Chromium with the development fetcher, a
   # local repository, a real signed extension. Chromium only: Playwright's
@@ -133,7 +134,7 @@ jobs:
         working-directory: tsundoku
       - run: yarn run build:fetcher --dev
         working-directory: tsundoku
-      - run: yarn run test:web --project=chromium web/tests/install.e2e.ts web/tests/browse.e2e.ts
+      - run: yarn run test:web --project=chromium web/tests/install.e2e.ts web/tests/browse.e2e.ts web/tests/read.e2e.ts
         working-directory: tsundoku
         env:
           TSUNDOKU_ENGINE_JAR: ${{ runner.temp }}/engine/engine-browser.jar
