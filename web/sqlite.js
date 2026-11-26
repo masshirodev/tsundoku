@@ -23,6 +23,9 @@ export async function load() {
 	return sqlite3;
 }
 
+/** The files the OPFS pool keeps ready (web/fs.js's database included). */
+export const POOL_FILES = 10;
+
 /**
  * Loads SQLite and opens the OPFS pool. Must finish before any file Database.
  *
@@ -42,6 +45,10 @@ export async function ready({ directory = '/tsundoku', waitMs = 10_000, install 
 		try {
 			// SQLite remembers a failed install and answers it again, unless told not to.
 			pool = await open({ name: 'tsundoku', directory, forceReinitIfPreviouslyFailed: again });
+			// Each database takes two of the pool's files (itself and its journal):
+			// the library's, and the files' (web/fs.js), with room to spare. The
+			// pool starts with six.
+			await pool.reserveMinimumCapacity?.(POOL_FILES);
 			return pool;
 		} catch (e) {
 			if (Date.now() + delay > until) throw e;

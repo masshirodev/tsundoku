@@ -7,6 +7,7 @@
 //
 // A few modules are not stubbed but replaced: `path` is pure string work, and
 // a handful of calls that run while modules load must not throw.
+import { readFileSync } from 'node:fs';
 import { createRequire, isBuiltin as nodeIsBuiltin } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -25,6 +26,21 @@ const REPLACED = {
 
 // Calls made at module load somewhere in the server bundle; they answer
 // something harmless instead of throwing.
+/**
+ * Built-ins the web edition implements in part (doc/WEB-EDITION.md, "Files"):
+ * every name the file exports is the real call; every other name of the
+ * module stays a stub that throws, naming the call.
+ * @type {Record<string, string>}
+ */
+const IMPLEMENTED = {
+	fs: here('./fs.js'),
+	'fs/promises': here('./fs-promises.js')
+};
+
+/** The names a file of ours exports, read from its text (`export const name`). @param {string} file */
+const exportsOf = (file) =>
+	new Set([...readFileSync(file, 'utf8').matchAll(/^export const (\w+)/gm)].map((m) => m[1]));
+
 /** @type {Record<string, Record<string, string>>} */
 const AT_LOAD = {
 	util: {
@@ -47,7 +63,6 @@ const AT_LOAD = {
 		hostname: '() => "tsundoku-web"',
 		networkInterfaces: '() => ({})'
 	},
-	fs: { existsSync: '() => false', mkdirSync: '() => undefined' },
 	crypto: {
 		randomUUID: '() => globalThis.crypto.randomUUID()',
 		getRandomValues: '(a) => globalThis.crypto.getRandomValues(a)'
@@ -75,11 +90,16 @@ export function nodeStubs() {
 			const real = await import(/* @vite-ignore */ `node:${name}`);
 			const keys = Object.keys(real).filter((k) => k !== 'default' && /^[A-Za-z_$][\w$]*$/.test(k));
 			const given = AT_LOAD[name] ?? {};
+			const file = IMPLEMENTED[name];
+			const implemented = file ? exportsOf(file) : new Set();
 			const lines = [
 				`const missing = (what) => function () { throw new Error('node:${name}.' + what + ' is not in the web edition'); };`
 			];
+			if (file) lines.push(`import * as impl from ${JSON.stringify(file)};`);
 			for (const k of keys)
-				lines.push(`export const ${k} = ${given[k] ?? `missing(${JSON.stringify(k)})`};`);
+				lines.push(
+					`export const ${k} = ${implemented.has(k) ? `impl.${k}` : (given[k] ?? `missing(${JSON.stringify(k)})`)};`
+				);
 			// A name the module never had still says which call it was; then
 			// and symbols answer undefined, or the default would look like a
 			// promise to anything that awaits it.
