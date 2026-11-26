@@ -9,6 +9,10 @@ import BetterSqlite from 'better-sqlite3';
 // these imports.
 import nodePath from 'node:path';
 import { randomBytes } from 'node:crypto';
+import realSharp from 'sharp';
+import webSharp, { plan } from '../web/sharp.js';
+
+type Resize = import('sharp').ResizeOptions & { fit?: 'cover'; position?: 'top' };
 import WebSqlite, { load, ready } from '../web/sqlite.js';
 import * as webPath from '../web/node-path.js';
 import { nodeStubs } from '../web/node-stubs.js';
@@ -143,6 +147,41 @@ describe('the Buffer the server worker gets', () => {
 		// Every other encoding is the package's own.
 		expect(WebBuffer.from('héllo').toString()).toBe('héllo');
 		expect(WebBuffer.from('aGk=', 'base64').toString('hex')).toBe('6869');
+	});
+});
+
+describe('the sharp stand-in', () => {
+	// web/sharp.js draws thumbnails with OffscreenCanvas, which Node lacks; its
+	// geometry is a pure function, held to the size real sharp gives.
+	const cases: [number, number, Resize][] = [
+		[1200, 1800, { width: 400, withoutEnlargement: true }],
+		[300, 450, { width: 400, withoutEnlargement: true }],
+		[800, 12000, { width: 400, height: 580, fit: 'cover', position: 'top' }],
+		[1920, 1080, { width: 400, height: 225, fit: 'cover' }],
+		[1000, 1000, { width: 320, height: 180, fit: 'cover' }],
+		[333, 777, { width: 320, withoutEnlargement: true }],
+		[640, 480, { height: 120 }]
+	];
+	it.each(cases)('cuts %ix%i as sharp does for %o', async (w, h, r) => {
+		const real = await realSharp({
+			create: { width: w, height: h, channels: 3, background: '#808080' }
+		})
+			.resize(r)
+			.webp()
+			.toBuffer({ resolveWithObject: true });
+		const p = plan(w, h, r);
+		expect([p.dw, p.dh]).toEqual([real.info.width, real.info.height]);
+		expect(p.sx + p.sw).toBeLessThanOrEqual(w);
+		expect(p.sy + p.sh).toBeLessThanOrEqual(h);
+		// The source piece has the output's aspect, to a pixel's rounding.
+		expect(Math.abs(p.sw / p.sh - p.dw / p.dh)).toBeLessThan(0.01 + 1 / Math.min(p.sw, p.sh));
+		if (r.position === 'top') expect(p.sy).toBe(0);
+	});
+
+	it('says which call is not in the web edition', () => {
+		expect(() => webSharp(new Uint8Array()).stats()).toThrow(
+			/sharp\.stats .*not in the web edition/
+		);
 	});
 });
 
