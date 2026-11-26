@@ -22,6 +22,8 @@ import type { AddressInfo } from 'node:net';
 import {
 	call,
 	engineDownSince,
+	engineImageToken,
+	engineMediaPath,
 	EngineError,
 	fetchProxied,
 	handleOf,
@@ -352,6 +354,40 @@ describe('pages a source names on a site', () => {
 				)
 		);
 		await expect(fetchProxied('https://cdn.example.org/p/huge.jpg')).rejects.toThrow(/too large/);
+	});
+});
+
+describe('which addresses are the engine’s media', () => {
+	let saved: string | undefined;
+	beforeEach(() => {
+		saved = process.env.ENGINE_URL;
+	});
+	afterEach(() => {
+		if (saved === undefined) delete process.env.ENGINE_URL;
+		else process.env.ENGINE_URL = saved;
+	});
+
+	it('reads loopback, whatever ENGINE_URL says', () => {
+		process.env.ENGINE_URL = 'http://engine.example';
+		expect(engineMediaPath('http://127.0.0.1:4590/image/abc')).toBe('/image/abc');
+		expect(engineImageToken('http://localhost/image/abc?x=1')).toBe('abc');
+	});
+
+	// The web edition's engine has no listener: its covers name ENGINE_URL's
+	// made-up origin, and read as loopback only, none of them had a route.
+	it('reads the engine’s own address too', () => {
+		process.env.ENGINE_URL = 'http://engine.tsundoku.invalid';
+		expect(engineImageToken('http://engine.tsundoku.invalid/image/tok_123')).toBe('tok_123');
+		expect(engineMediaPath('http://engine.tsundoku.invalid/video/v1')).toBe('/video/v1');
+		expect(engineMediaPath('http://engine.tsundoku.invalid/dalvik')).toBeNull();
+	});
+
+	it('never reads a site’s own /image/ path, or a look-alike host', () => {
+		process.env.ENGINE_URL = 'http://engine.tsundoku.invalid';
+		expect(engineImageToken('https://kaa.example/image/poster/1.jpg')).toBeNull();
+		expect(engineImageToken('http://engine.tsundoku.invalid.evil.example/image/x')).toBeNull();
+		delete process.env.ENGINE_URL;
+		expect(engineImageToken('https://kaa.example/image/poster/1.jpg')).toBeNull();
 	});
 });
 
