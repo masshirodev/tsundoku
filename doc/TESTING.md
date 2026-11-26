@@ -64,6 +64,14 @@ from the file's header comment), and commit the result.
 public, so its runners are free), in Chromium and a real Firefox: a red there is
 the same red as here. The main Playwright suite stays local.
 
+**With the engine.** `web/tests/install.e2e.ts` needs the real engine and the
+fetcher, so it is skipped unless the web build is given a jar. Its own job in
+`browsers.yml` downloads tsundoku-engine's `engine-browser` artifact (its last
+green check on main), builds the development fetcher, and runs it in
+Chromium. By hand: build the jar (`./gradlew :browser:slimJar` in
+tsundoku-engine), `yarn run build:fetcher --dev`, then
+`TSUNDOKU_ENGINE_JAR=<the jar> yarn run test:web --project=chromium web/tests/install.e2e.ts`.
+
 `yarn run test:web` is the web edition's browser test ([`WEB-EDITION.md`](WEB-EDITION.md),
 "Testing"): its own Playwright config, `playwright.web.config.ts`, and its own
 specs, `web/tests/*.e2e.ts`, outside `tests/` so the main suite never collects

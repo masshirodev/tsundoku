@@ -102,6 +102,10 @@ test('static files stay static: the server answers only the app’s own requests
 test('with no engine in the build, the tab says so and the library works without it', async ({
 	page
 }) => {
+	test.skip(
+		!!process.env.TSUNDOKU_ENGINE_JAR,
+		'this build has an engine (web/tests/install.e2e.ts)'
+	);
 	await open(page);
 	// test:web builds without TSUNDOKU_ENGINE_JAR (doc/WEB-EDITION.md, "The engine").
 	await expect(page.locator('html')).toHaveAttribute('data-web-engine', 'off');
