@@ -13,9 +13,24 @@
 //    and its requests wait in the service worker until a leader is ready.
 //
 // The message names are `MESSAGES` in src/lib/web/relay.ts.
+//
+// While it does, the tab shows the starting screen the shell painted
+// (web/start.js): the header's rule fills one step at a time as each step
+// really finishes, and a start that fails says why in its place.
 import { connectFetcher } from '$lib/web/fetcher-client';
 import { ENGINE_ORIGIN } from './engine-port.js';
 import { ENGINE_JAR, engineStarter } from './engine-start.js';
+import {
+	OPENED_KEY,
+	REVEAL_MS,
+	START_KEY,
+	classify,
+	drawFailure,
+	drawStart,
+	failScreen,
+	isPrivateByQuota,
+	startView
+} from './start.js';
 
 const LOCK = 'tsundoku-server';
 const MSG = {
@@ -25,10 +40,48 @@ const MSG = {
 	precache: 'tsundoku-precache'
 };
 
+/** Where the start is, for the tests (`data-web-boot`) and for the unknown failure's report. */
+let stage = 'registering';
 /** @param {string} text */
 const status = (text) => {
+	stage = text;
 	document.documentElement.dataset.webBoot = text;
 };
+
+/** Where this start is, carried over the first visit's reload (web/start.js). */
+const view = startView(window, Date.now());
+
+/** @param {() => void} attempt */
+const quietly = (attempt) => {
+	try {
+		attempt();
+	} catch {
+		// Storage refused: the start still runs, it only forgets its place.
+	}
+};
+
+/** A step finished: the rule moves on, and the place is kept for a reload. */
+function reached(/** @type {number} */ done) {
+	view.done = Math.max(view.done, done);
+	quietly(() =>
+		sessionStorage.setItem(
+			START_KEY,
+			JSON.stringify({ first: view.first, done: view.done, since: view.since })
+		)
+	);
+	drawStart(document, view);
+}
+
+// A first visit says what this is once it has taken a moment (handoff
+// `web-edition-start`, s1); a reload in between keeps the same moment.
+if (view.first && !view.revealed)
+	setTimeout(
+		() => {
+			view.revealed = true;
+			drawStart(document, view);
+		},
+		Math.max(0, REVEAL_MS - (Date.now() - view.since))
+	);
 
 /** @type {Worker | null} the server worker, once this tab leads and it is ready */
 let server = null;
@@ -54,7 +107,14 @@ function startServer() {
 	return new Promise((resolve, reject) => {
 		worker.onmessage = ({ data }) => {
 			if (data.type === 'tsundoku-ready') resolve(relay);
-			else if (data.type === 'tsundoku-failed') reject(new Error(data.error));
+			else if (data.type === 'tsundoku-step') reached(data.step === 'server' ? 2 : 3);
+			else if (data.type === 'tsundoku-failed')
+				reject(
+					Object.assign(new Error(data.error), {
+						name: data.name || 'Error',
+						missing: data.missing
+					})
+				);
 			else if (data.type === 'tsundoku-response') {
 				const port = pending.get(data.id);
 				pending.delete(data.id);
@@ -91,6 +151,7 @@ function lead(options) {
 			if (!lock) return decide(false);
 			decide(true);
 			relayTo = await startServer();
+			reached(4);
 			status('ready');
 			announce();
 			ready();
@@ -131,16 +192,91 @@ function startEngine() {
 	window.addEventListener('focus', () => void starter.attempt());
 }
 
+/** Whether `new Worker(url, { type: 'module' })` is understood: a browser
+ * that does not know module workers never reads the option. */
+function moduleWorkers() {
+	let read = false;
+	const url = URL.createObjectURL(new Blob([''], { type: 'text/javascript' }));
+	try {
+		new Worker(url, {
+			get type() {
+				read = true;
+				return /** @type {const} */ ('module');
+			}
+		}).terminate();
+	} catch {
+		// Refused after reading the option still counts as understood.
+	} finally {
+		URL.revokeObjectURL(url);
+	}
+	return read;
+}
+
+/** What the browser offers, looked at before anything starts (web/start.js, Probe). */
+const probe = {
+	serviceWorker: !!navigator.serviceWorker,
+	moduleWorkers: typeof Worker === 'function' && moduleWorkers(),
+	locks: !!navigator.locks,
+	storageDirectory: typeof navigator.storage?.getDirectory === 'function'
+};
+
+/**
+ * A Chrome or Edge window whose library goes when it closes says so, on the
+ * starting screen and then in the app's own band (src/routes/+layout.svelte
+ * reads `data-web-private`), so nothing moves when the app opens.
+ */
+async function privateWindow() {
+	const estimate = await navigator.storage.estimate().catch(() => null);
+	if (!isPrivateByQuota(estimate, navigator.userAgent)) return;
+	document.documentElement.dataset.webPrivate = '';
+	const band = /** @type {HTMLElement | null} */ (document.querySelector('#web-start .ws-band'));
+	if (band) band.hidden = false;
+}
+
+/**
+ * The app has drawn its first screen: the starting screen goes in the same
+ * frame, so the app opens in place, its bar and wordmark where these were.
+ * An app that fails before it draws anything is a failure to start.
+ */
+function handOver() {
+	const screen = document.getElementById('web-start');
+	const target = document.querySelector('body > div[style="display: contents"]');
+	if (!screen || !target) return;
+	const drawn = () => [...target.children].some((c) => c.tagName !== 'SCRIPT');
+	/** @param {ErrorEvent | PromiseRejectionEvent} e */
+	const broke = (e) => fail('reason' in e ? e.reason : (e.error ?? e.message));
+	const done = () => {
+		observer.disconnect();
+		removeEventListener('error', broke);
+		removeEventListener('unhandledrejection', broke);
+		requestAnimationFrame(() => screen.remove());
+	};
+	const observer = new MutationObserver(() => drawn() && done());
+	observer.observe(target, { childList: true });
+	addEventListener('error', broke);
+	addEventListener('unhandledrejection', broke);
+}
+
 async function boot() {
 	status('registering');
+	if (!probe.serviceWorker || !probe.moduleWorkers || !probe.locks || !probe.storageDirectory)
+		throw new Error('the browser lacks a part the web edition needs');
+	// Storage refused shows here first, before anything is registered: OPFS
+	// refuses with a SecurityError when the site may not keep data.
+	await navigator.storage.getDirectory();
+	await privateWindow();
 	await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
 	await navigator.serviceWorker.ready;
 	if (!navigator.serviceWorker.controller) {
 		// A first visit is not controlled until it loads again.
+		// The reload is not a step: the page after it carries the same picture
+		// on (the step reached is kept for it).
+		reached(1);
 		status('reloading');
 		location.reload();
 		return;
 	}
+	reached(1);
 
 	navigator.serviceWorker.onmessage = ({ data, ports }) => {
 		if (data?.type === MSG.request && relayTo) relayTo(data, ports);
@@ -151,6 +287,8 @@ async function boot() {
 	const first = lead({ ifAvailable: true });
 	if (await first.got) await first.serving;
 	else {
+		// Another tab's server answers this one: nothing more of its own to start.
+		reached(4);
 		status('ready');
 		// First in line for when the leader closes. A failure then is logged:
 		// the app is already running, and the next tab in line takes over.
@@ -160,12 +298,35 @@ async function boot() {
 	}
 	// Keep the app for offline use, now that this tab has what it needs.
 	navigator.serviceWorker.controller?.postMessage({ type: MSG.precache });
+	// The library has opened here: the next visit is a later one, and a
+	// reload of this one starts again rather than carrying a finished start.
+	quietly(() => localStorage.setItem(OPENED_KEY, '1'));
+	quietly(() => sessionStorage.removeItem(START_KEY));
+	handOver();
 	window.__tsundokuStart();
 }
 
-boot().catch((e) => {
+let failed = false;
+/** Shows why the tab could not start, in place of the starting line. */
+function fail(/** @type {unknown} */ e) {
+	if (failed) return;
+	failed = true;
+	const at = stage;
 	status('failed');
 	server?.terminate();
-	document.body.textContent = `The web edition could not start: ${e?.message ?? e}`;
+	quietly(() => sessionStorage.removeItem(START_KEY));
+	const f = classify({ error: e, at, probe, userAgent: navigator.userAgent });
+	const build = document.getElementById('web-start')?.dataset.build ?? '';
+	drawFailure(
+		document,
+		f.kind,
+		failScreen(f, { host: location.host, userAgent: navigator.userAgent, build }),
+		{
+			primary: () => location.reload(),
+			copy: (text) => navigator.clipboard.writeText(text)
+		}
+	);
 	console.error(e);
-});
+}
+
+boot().catch(fail);

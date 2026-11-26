@@ -19,6 +19,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { nodeStubs } from './node-stubs.js';
+import { paintTheStart } from './start.js';
 
 const here = (/** @type {string} */ f) => fileURLToPath(new URL(f, import.meta.url));
 
@@ -71,7 +72,10 @@ export default function webAdapter({ out = 'build-web' } = {}) {
 			await builder.generateFallback(join(out, 'index.html'));
 			writeFileSync(
 				join(out, 'index.html'),
-				holdTheStart(readFileSync(join(out, 'index.html'), 'utf8'))
+				// The starting screen is the shell's own first paint (web/start.js).
+				paintTheStart(holdTheStart(readFileSync(join(out, 'index.html'), 'utf8')), {
+					build: builder.config.kit.version.name
+				})
 			);
 
 			// boot.js and the engine's worker are the tab's own code, built from

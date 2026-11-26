@@ -8,8 +8,24 @@ import { ready } from './sqlite.js';
 import { Server } from 'tsundoku-web:server';
 import { manifest } from 'tsundoku-web:manifest';
 
+// The tab shows each step as it really finishes (web/start.js, STEPS): the
+// server's code is loaded once this module runs at all; then the library
+// opens (SQLite and its pool); then the server starts, which on a first visit
+// climbs every migration.
+self.postMessage({ type: 'tsundoku-step', step: 'server' });
+
+/** What this browser lacks for the library, as the could-not-start screen names it. */
+function missing() {
+	const handle = /** @type {any} */ (globalThis).FileSystemFileHandle;
+	return handle && 'createSyncAccessHandle' in handle.prototype ? [] : ['SYNCHRONOUS FILE ACCESS'];
+}
+
 const started = (async () => {
+	const lacking = missing();
+	if (lacking.length > 0)
+		throw Object.assign(new Error(`missing: ${lacking.join(', ')}`), { missing: lacking });
 	await ready();
+	self.postMessage({ type: 'tsundoku-step', step: 'library' });
 	const server = new Server(manifest);
 	await server.init({
 		env: globalThis.process.env,
@@ -63,5 +79,17 @@ self.onmessage = async ({ data, ports }) => {
 
 started.then(
 	() => self.postMessage({ type: 'tsundoku-ready' }),
-	(e) => self.postMessage({ type: 'tsundoku-failed', error: String(e?.stack ?? e) })
+	// The name and what is missing travel beside the text: the tab tells a
+	// refused storage and a browser too old apart by them (web/start.js, classify).
+	(e) =>
+		self.postMessage({
+			type: 'tsundoku-failed',
+			// Firefox's stack leaves the message out; Chrome's starts with it.
+			error:
+				e?.stack && String(e.stack).includes(String(e?.message))
+					? String(e.stack)
+					: [String(e), e?.stack].filter(Boolean).join('\n'),
+			name: typeof e?.name === 'string' ? e.name : '',
+			missing: Array.isArray(e?.missing) ? e.missing : []
+		})
 );
