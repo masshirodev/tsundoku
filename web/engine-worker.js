@@ -56,8 +56,9 @@ const say = (state, more = {}) => self.postMessage({ type: 'engine-state', state
  * @param {string} jar the slim engine jar's path on this origin
  * @param {string} origin the origin the server worker reaches the engine by
  * @param {MessagePort} port the server worker's line to the engine
+ * @param {boolean} timing whether the tab keeps the timing log (web/timing.js)
  */
-async function start(jar, origin, port) {
+async function start(jar, origin, port, timing) {
 	const t0 = performance.now();
 	const ms = () => Math.round(performance.now() - t0);
 	/** @type {Record<string, number>} */
@@ -87,7 +88,10 @@ async function start(jar, origin, port) {
 		if (started.error) throw new Error(started.error);
 		steps.started = ms();
 		// One call into Java at a time, pages before covers (web/engine-queue.js).
-		const call = engineQueue((head, body) => engine.handle(head, body));
+		const call = engineQueue((head, body) => engine.handle(head, body), {
+			// Only when the tab asked for the log (web/timing.js).
+			onTiming: timing ? (t) => self.postMessage({ type: 'engine-timing', timing: t }) : undefined
+		});
 		port.onmessage = async ({ data }) => {
 			const answer = await call(String(data.head), String(data.body ?? ''));
 			port.postMessage({ id: data.id, answer });
@@ -106,7 +110,8 @@ async function start(jar, origin, port) {
 }
 
 self.onmessage = ({ data, ports }) => {
-	if (data?.type === 'engine-start') void start(data.jar, data.origin, ports[0]);
+	if (data?.type === 'engine-start')
+		void start(data.jar, data.origin, ports[0], data.timing === true);
 	else if (data?.type === 'engine-fetched') {
 		const settle = fetching.get(data.id);
 		fetching.delete(data.id);
