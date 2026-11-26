@@ -270,7 +270,15 @@ export function engineMediaPath(url: string): string | null {
 		/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(\/(?:video|image)\/[^\s]*)$/i.exec(
 			url
 		);
-	return m ? m[1] : null;
+	if (m) return m[1];
+	// Or the engine's own address, when it names that instead of loopback: the
+	// web edition's engine has no listener, and hands out ENGINE_URL's origin
+	// (http://engine.tsundoku.invalid, doc/WEB-EDITION.md, "The engine"). Read
+	// as loopback only, every browse cover there had no route (2026-11-26).
+	const own = engineUrl().toLowerCase();
+	if (!own || !url.toLowerCase().startsWith(`${own}/`)) return null;
+	const path = url.slice(own.length);
+	return /^\/(?:video|image)\/\S*$/i.test(path) ? path : null;
 }
 
 /**
