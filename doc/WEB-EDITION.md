@@ -634,6 +634,35 @@ requests together (`fetcherConnection`); a missing fetcher is remembered
 until the tab is focused again, so a screen of site requests does not wait
 for the fetcher's hello once per request.
 
+## Installing an extension
+
+The same screens and the same server code as the self-hosted app (BROWSE →
+EXTENSIONS, `src/lib/server/engine/extensions.ts`, doc/BROWSE.md), with
+nothing of the machine's left in the path:
+
+1. The repository's `repo.json` and index, and then the APK, are fetched by
+   the server through the fetcher ("Other sites"). **No repository ships with
+   the web edition** and none is suggested: the visitor adds their own.
+2. The APK's signature is checked exactly as the self-hosted app checks it,
+   both halves (APK Signature Scheme v2 over the APK's bytes, and the signer's
+   certificate against the repository's key), with WebCrypto, which Node and
+   browsers share (`apk-signature.ts`). A DSA signature, which WebCrypto lacks
+   and no repository checked uses, is refused in the browser.
+3. The APK is kept in the files database ("Files"), written beside and renamed
+   as on a computer.
+4. The engine in the tab loads it: dex2jar converts it inside CheerpJ, once,
+   and keeps the converted jar under `/files/engine` (tsundoku-engine, "The
+   browser target").
+
+The extension's prebuilt `.jar` that some indexes list beside the APK would
+skip the conversion (15-27 s per extension in Chromium, once), but the APK is
+what is signed, and the jar is not: it is not used.
+
+`web/tests/install.e2e.ts` runs the whole of it in Chromium with the real
+engine and the development fetcher, against a local repository listing a
+real extension signed by Keiyoushi's key: add the repository, install,
+reload, still installed.
+
 ## The engine
 
 The extension engine (tsundoku-engine, doc/EXTENSION-ENGINE.md) runs in the

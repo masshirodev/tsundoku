@@ -90,3 +90,49 @@ jobs:
           name: test-fetcher-results
           path: tsundoku/test-results/
           retention-days: 7
+
+  # The whole install chain in a real tab (web/tests/install.e2e.ts): the web
+  # build with tsundoku-engine's browser jar (the `engine-browser` artifact of
+  # its last green check on main), Chromium with the development fetcher, a
+  # local repository, a real signed extension. Chromium only: Playwright's
+  # Firefox cannot load an extension.
+  engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: tsundoku
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: masshirodev/kotoba
+          path: kotoba
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.16.0
+      - name: The engine's browser jar, from tsundoku-engine's last green check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=$(gh run list -R masshirodev/tsundoku-engine --workflow check --branch main --status success -L 1 --json databaseId -q '.[0].databaseId')
+          test -n "$run"
+          gh run download "$run" -R masshirodev/tsundoku-engine --name engine-browser --dir "$RUNNER_TEMP/engine"
+          test -s "$RUNNER_TEMP/engine/engine-browser.jar"
+      - run: yarn install --frozen-lockfile
+        working-directory: kotoba
+      - run: yarn install --frozen-lockfile
+        working-directory: tsundoku
+      - run: npx playwright install --with-deps chromium
+        working-directory: tsundoku
+      - run: yarn run build:fetcher --dev
+        working-directory: tsundoku
+      - run: yarn run test:web --project=chromium web/tests/install.e2e.ts
+        working-directory: tsundoku
+        env:
+          TSUNDOKU_ENGINE_JAR: ${{ runner.temp }}/engine/engine-browser.jar
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-engine-results
+          path: tsundoku/test-results/
+          retention-days: 7
