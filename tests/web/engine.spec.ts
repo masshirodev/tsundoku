@@ -16,6 +16,7 @@ import {
 } from '../../web/engine-frame.js';
 import { ENGINE_ORIGIN, enginePort } from '../../web/engine-port.js';
 import { ENGINE_JAR, engineStarter, relay } from '../../web/engine-start.js';
+import { timings } from '../../web/timing.js';
 
 const bytes = (s: string) => new TextEncoder().encode(s);
 const text = (b: Uint8Array) => new TextDecoder().decode(b);
@@ -152,7 +153,10 @@ describe('ENGINE_URL in the server worker', () => {
 });
 
 /** A server worker and an engine worker, stood in for. */
-function tab(connection: () => Promise<unknown>, { jar = true } = {}) {
+function tab(
+	connection: () => Promise<unknown>,
+	{ jar = true, timing }: { jar?: boolean; timing?: ReturnType<typeof timings> } = {}
+) {
 	const toServer: { message: Record<string, unknown>; ports: number }[] = [];
 	const toWorker: Record<string, unknown>[] = [];
 	const worker = {
@@ -172,7 +176,9 @@ function tab(connection: () => Promise<unknown>, { jar = true } = {}) {
 		connect: connection as never,
 		makeWorker,
 		hasJar: async () => jar,
-		origin: ENGINE_ORIGIN
+		origin: ENGINE_ORIGIN,
+		timing,
+		now: () => 1000
 	});
 	const fromWorker = (data: unknown) => worker.onmessage?.({ data });
 	return { starter, toServer, toWorker, worker, makeWorker, fromWorker };
@@ -278,6 +284,43 @@ describe('starting the engine from the tab', () => {
 		const back = decodeAnswer(reply.answer);
 		expect(back).toMatchObject({ status: 200, headers: [['content-type', 'text/html']] });
 		expect(text((back as { body: Uint8Array }).body)).toBe('<p>hi</p>');
+	});
+});
+
+describe('the timing log (web/timing.js)', () => {
+	const fetchOnce = async (timing?: ReturnType<typeof timings>) => {
+		const fetcher = fetcherAnswering({ status: 200, headers: [], body: bytes('abcdef') });
+		const t = tab(async () => ({ state: 'ready', fetcher }), { timing });
+		await t.starter.attempt();
+		t.fromWorker({
+			type: 'engine-fetch',
+			id: 1,
+			head: encodeHead('GET', 'https://example.org/list?token=secret', []),
+			body: ''
+		});
+		await vi.waitFor(() => expect(t.toWorker).toHaveLength(2));
+		t.fromWorker({
+			type: 'engine-timing',
+			timing: { kind: 'call', path: '/dalvik', waited: 3, ran: 40 }
+		});
+		return t;
+	};
+
+	it('records each site fetch and each engine call when on, never a query', async () => {
+		const timing = timings({ on: true, now: () => 5 });
+		const t = await fetchOnce(timing);
+		expect(t.toWorker[0]).toMatchObject({ type: 'engine-start', timing: true });
+		expect(timing.log).toEqual([
+			{ kind: 'site', host: 'example.org', path: '/list', ms: 0, status: 200, bytes: 6, at: 5 },
+			{ kind: 'call', path: '/dalvik', waited: 3, ran: 40, at: 5 }
+		]);
+	});
+
+	it('records nothing, and tells the engine nothing, when off', async () => {
+		const timing = timings({ on: false });
+		const t = await fetchOnce(timing);
+		expect(t.toWorker[0]).toMatchObject({ type: 'engine-start', timing: false });
+		expect(timing.log).toEqual([]);
 	});
 });
 

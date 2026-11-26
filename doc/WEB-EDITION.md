@@ -285,6 +285,14 @@ TypeScript. Each part is checked against the real thing in
   undici's `Agent`, which `net-guard.ts` gives fetch so a server cannot be
   steered at private addresses; in a tab the "server" is the reader's own
   browser, whose own rules govern that, and its fetch ignores the agent.
+- **`node:net` → `web/net.js`**, the pure calls only (`isIP`, `isIPv4`,
+  `isIPv6`), held to Node's own answers in `tests/web-edition.spec.ts`; every
+  other name stays a stub. `net-guard.ts`'s `checkPublic` asks `isIP`, then
+  resolves a name with `node:dns`, which a tab does not have: in the web
+  edition it still refuses an address written as a private one and a
+  `localhost` name, and leaves every other name to the browser. Installing
+  from a real repository failed on this until 2026-11-26. What the fetcher may
+  reach on the reader's own network is c1140.
 - **`sharp` → `web/sharp.js`.** Native code cannot load in a tab. The one
   chain the thumbnails use (`rotate().resize().webp().toBuffer()`: a browse
   cover, a page thumbnail, an episode still) is drawn with `createImageBitmap`
@@ -826,6 +834,42 @@ Open, each for the card that needs it:
   TMDB fills) run in the tab and need the network above.
 - **No server-rendered HTML.** Every page is the shell, then its data. Layout
   is CSS media queries, so the first paint is still right for the device.
+
+## Measuring
+
+Where the web edition's time goes is measured, not guessed (c1134). An opt-in
+log, `web/timing.js`, is off unless the browser's `localStorage` has
+`tsundoku-timing` set to `"1"`; it then keeps, in the leading tab, as
+`window.__tsundokuTimings`:
+
+| kind      | what                                              | from                  |
+| --------- | ------------------------------------------------- | --------------------- |
+| `request` | an app request, service worker to server and back | `web/boot.js`         |
+| `call`    | a call into the engine: time queued, time in Java | `web/engine-queue.js` |
+| `site`    | one of the engine's fetches through the fetcher   | `web/engine-start.js` |
+
+Paths only, never a query (a search or a token can be private), and nothing
+leaves the browser. To take one by hand, in the console:
+
+```js
+localStorage.setItem('tsundoku-timing', '1');
+location.reload();
+// … browse, open, read …
+copy(JSON.stringify(__tsundokuTimings));
+```
+
+**What it found on 2026-11-26** (Chromium and Firefox, a warm visit, Weeb
+Central; the whole write-up is on c1134):
+
+- Java in CheerpJ is the floor: about 5 s for every page of a site an
+  extension parses (a POPULAR page, a series and its chapter list), the same
+  in both browsers. Covers are cheap (about 100–200 ms each through the
+  engine). The engine starts again on every visit, about 8 s after the app.
+- READ from a source took minutes on a long series (3.5 min for 1,199
+  chapters): `rememberAtSource` wrote each chapter in its own commit, and in
+  the tab every commit is a write to OPFS (about 30 ms each). One transaction
+  made it 0.17 s, and READ to the first page 7.8 s. Other loops that write
+  outside a transaction cost the same way; see c1134.
 
 ## Starting, and when it cannot
 

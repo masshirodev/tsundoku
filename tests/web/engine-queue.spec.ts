@@ -81,6 +81,27 @@ describe('the engine queue', () => {
 		expect(await after).toBe('200 /dalvik');
 	});
 
+	it('reports each call’s wait and run when asked (web/timing.js)', async () => {
+		let clock = 0;
+		const seen: unknown[] = [];
+		const call = engineQueue(
+			async () => {
+				await Promise.resolve();
+				clock += 30;
+				return 'ok';
+			},
+			{ onTiming: (t) => seen.push(t), now: () => clock }
+		);
+		await Promise.all([call(frame('/dalvik?q=secret'), ''), call(frame('/image/1'), '')]);
+		await call('POST\n/dalvik\nAccept: */*', '');
+		expect(seen.at(-1)).toMatchObject({ path: '/dalvik' });
+		seen.pop();
+		expect(seen).toEqual([
+			{ kind: 'call', path: '/dalvik', waited: 0, ran: 30 },
+			{ kind: 'call', path: '/image/1', waited: 30, ran: 30 }
+		]);
+	});
+
 	it('survives a thrown value whose String() itself throws, as a Java exception can', async () => {
 		const call = engineQueue(async () => {
 			throw {

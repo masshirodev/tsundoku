@@ -7,6 +7,7 @@
 // Everything the browser provides comes in as an argument, so the spec can
 // stand in for the server worker, the fetcher and the engine's worker.
 import { decodeHead, encodeAnswer, fromBase64 } from './engine-frame.js';
+import { answerSize, siteOf } from './timing.js';
 
 /** The answer header that tells the engine a fetch's URL after its redirects. */
 export const FINAL_URL = 'X-Tsundoku-Final-Url';
@@ -32,6 +33,8 @@ export const ENGINE_JAR = '/engine/engine-browser.jar';
  *   hasJar: () => Promise<boolean>,
  *   origin: string,
  *   onNews?: (news: EngineNews) => void,
+ *   timing?: { on: boolean, record(t: { kind: string, [k: string]: unknown }): void },
+ *   now?: () => number,
  *   channel?: () => { port1: MessagePort, port2: MessagePort }
  * }} deps
  */
@@ -42,6 +45,8 @@ export function engineStarter({
 	hasJar,
 	origin,
 	onNews = () => {},
+	timing = { on: false, record() {} },
+	now = () => performance.now(),
 	channel = () => new MessageChannel()
 }) {
 	/** @type {WorkerLike | null} */
@@ -76,12 +81,21 @@ export function engineStarter({
 						w.terminate();
 						worker = null;
 					}
-				} else if (data?.type === 'engine-fetch')
-					void relay(fetcher, data.head, data.body).then((answer) =>
-						w.postMessage({ type: 'engine-fetched', id: data.id, answer })
-					);
+				} else if (data?.type === 'engine-fetch') {
+					const sent = now();
+					void relay(fetcher, data.head, data.body).then((answer) => {
+						if (timing.on)
+							timing.record({
+								kind: 'site',
+								...siteOf(data.head),
+								ms: Math.round(now() - sent),
+								...answerSize(answer)
+							});
+						w.postMessage({ type: 'engine-fetched', id: data.id, answer });
+					});
+				} else if (data?.type === 'engine-timing') timing.record(data.timing);
 			};
-			w.postMessage({ type: 'engine-start', jar: ENGINE_JAR, origin }, [port2]);
+			w.postMessage({ type: 'engine-start', jar: ENGINE_JAR, origin, timing: timing.on }, [port2]);
 		} finally {
 			trying = false;
 		}

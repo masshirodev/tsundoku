@@ -11,6 +11,15 @@
 // video slice, so opening a series never waits behind a grid of covers. Within
 // each kind, first come, first served.
 
+/** A request frame's path, without its query. @param {string} head */
+function siteOfFrame(head) {
+	try {
+		return new URL(head.split('\n', 2)[1] ?? '', 'http://engine').pathname;
+	} catch {
+		return '';
+	}
+}
+
 /** Whether a request frame (web/engine-frame.js: METHOD, then the URL) is media. @param {string} head */
 export function isMedia(head) {
 	const url = head.split('\n', 2)[1] ?? '';
@@ -38,11 +47,13 @@ function why(e) {
 
 /**
  * @param {(head: string, body: string) => Promise<string>} handle the call into Java
+ * @param {{ onTiming?: (t: { kind: 'call', path: string, waited: number, ran: number }) => void,
+ *   now?: () => number }} [options] `onTiming` hears each call's wait and run (web/timing.js)
  * @returns {(head: string, body: string) => Promise<string>} the same call, queued;
  *   a call that throws answers `ERR <why>` (web/engine-frame.js) instead
  */
-export function engineQueue(handle) {
-	/** @typedef {{ head: string, body: string, done: (answer: string) => void }} Call */
+export function engineQueue(handle, { onTiming, now = () => performance.now() } = {}) {
+	/** @typedef {{ head: string, body: string, done: (answer: string) => void, queued: number }} Call */
 	/** @type {Call[]} */
 	const pages = [];
 	/** @type {Call[]} */
@@ -54,12 +65,19 @@ export function engineQueue(handle) {
 		running = true;
 		try {
 			for (let call = pages.shift() ?? media.shift(); call; call = pages.shift() ?? media.shift()) {
+				const started = now();
 				let answer;
 				try {
 					answer = await handle(call.head, call.body);
 				} catch (e) {
 					answer = `ERR ${why(e)}`;
 				}
+				onTiming?.({
+					kind: 'call',
+					path: siteOfFrame(call.head),
+					waited: Math.round(started - call.queued),
+					ran: Math.round(now() - started)
+				});
 				call.done(answer);
 			}
 		} finally {
@@ -69,7 +87,7 @@ export function engineQueue(handle) {
 
 	return (head, body) =>
 		new Promise((done) => {
-			(isMedia(head) ? media : pages).push({ head, body, done });
+			(isMedia(head) ? media : pages).push({ head, body, done, queued: now() });
 			void drain();
 		});
 }

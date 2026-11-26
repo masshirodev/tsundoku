@@ -10,6 +10,8 @@ import BetterSqlite from 'better-sqlite3';
 import nodePath from 'node:path';
 import { randomBytes } from 'node:crypto';
 import realSharp from 'sharp';
+import * as nodeNet from 'node:net';
+import * as webNet from '../web/net.js';
 import webSharp, { plan } from '../web/sharp.js';
 
 type Resize = import('sharp').ResizeOptions & { fit?: 'cover'; position?: 'top' };
@@ -147,6 +149,56 @@ describe('the Buffer the server worker gets', () => {
 		// Every other encoding is the package's own.
 		expect(WebBuffer.from('héllo').toString()).toBe('héllo');
 		expect(WebBuffer.from('aGk=', 'base64').toString('hex')).toBe('6869');
+	});
+});
+
+describe('the node:net stand-in', () => {
+	// web/net.js: the pure calls only, net-guard.ts's isIP among them.
+	const cases = [
+		'1.2.3.4',
+		'255.255.255.255',
+		'256.1.1.1',
+		'01.2.3.4',
+		'1.2.3',
+		'1.2.3.4.5',
+		'0.0.0.0',
+		'::',
+		'::1',
+		'1::',
+		'1::2',
+		'fe80::1%eth0',
+		'fe80::1%',
+		'::ffff:1.2.3.4',
+		'::ffff:1.2.3.256',
+		'1:2:3:4:5:6:7:8',
+		'1:2:3:4:5:6:7:8:9',
+		'1:2:3:4:5:6:7::',
+		'::2:3:4:5:6:7:8',
+		'1:2:3:4:5:6::7:8',
+		':1:2:3:4:5:6:7',
+		' 1.2.3.4',
+		'localhost',
+		'example.org',
+		'[::1]',
+		'12345::',
+		'g::1',
+		'1:::2',
+		'1::2::3',
+		'1:2:3:4:5:6:1.2.3.4',
+		'1:2:3:4:5:6:7:1.2.3.4',
+		'::1.2.3.4',
+		'1.2.3.4::',
+		':',
+		'',
+		'2001:DB8::A',
+		'1:2:3:4:5:6:7:',
+		'::%eth0',
+		'abcd::12345'
+	];
+	it.each(cases)('answers %j as Node does', (c) => {
+		expect(webNet.isIP(c)).toBe(nodeNet.isIP(c));
+		expect(webNet.isIPv4(c)).toBe(nodeNet.isIPv4(c));
+		expect(webNet.isIPv6(c)).toBe(nodeNet.isIPv6(c));
 	});
 });
 

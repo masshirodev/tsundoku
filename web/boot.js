@@ -22,6 +22,7 @@ import { forDocument } from './cookies.js';
 import { ENGINE_ORIGIN } from './engine-port.js';
 import { ENGINE_JAR, engineStarter, relay as relayToSite } from './engine-start.js';
 import { NO_FETCHER, fetcherConnection } from './site-fetch.js';
+import { pathOf, timingOn, timings } from './timing.js';
 
 /** This tab's fetcher, shared by the engine and the server's site requests. */
 const fetcherLink = fetcherConnection(() => connectFetcher());
@@ -105,6 +106,10 @@ if (view.first && !view.revealed)
 /** @type {Worker | null} the server worker, once this tab leads and it is ready */
 let server = null;
 
+// Where the time goes, when this browser asked (web/timing.js): a test or a
+// console reads window.__tsundokuTimings.
+const timing = timings({ on: timingOn(), into: (globalThis.__tsundokuTimings = []) });
+
 /** Tells the service worker this tab's server takes the requests. */
 function announce() {
 	navigator.serviceWorker.controller?.postMessage({ type: MSG.leader });
@@ -116,11 +121,14 @@ function startServer() {
 	const worker = new Worker('/server/worker.js', { type: 'module' });
 	/** @type {Map<number, MessagePort>} */
 	const pending = new Map();
+	/** @type {Map<number, { path: string, sent: number }>} when each request left, for the timing log */
+	const sentAt = new Map();
 	let next = 1;
 	/** @type {(message: any, ports: readonly MessagePort[]) => void} */
 	const relay = (data, ports) => {
 		const id = next++;
 		pending.set(id, ports[0]);
+		if (timing.on) sentAt.set(id, { path: pathOf(String(data.url)), sent: performance.now() });
 		// The browser's cookies go with the request, read now, so a cookie set
 		// by the answer before this one is in it (web/cookies.js).
 		worker.postMessage({ ...data, id, cookie: document.cookie }, data.body ? [data.body] : []);
@@ -143,6 +151,16 @@ function startServer() {
 				for (const c of data.setCookies ?? []) document.cookie = forDocument(c);
 				const port = pending.get(data.id);
 				pending.delete(data.id);
+				const sent = sentAt.get(data.id);
+				if (sent) {
+					sentAt.delete(data.id);
+					timing.record({
+						kind: 'request',
+						path: sent.path,
+						ms: Math.round(performance.now() - sent.sent),
+						status: data.status
+					});
+				}
 				port?.postMessage(data, data.body ? [data.body] : []);
 			}
 		};
@@ -209,6 +227,7 @@ function startEngine() {
 				() => false
 			),
 		origin: ENGINE_ORIGIN,
+		timing,
 		onNews: (news) => {
 			document.documentElement.dataset.webEngine = news.state;
 		}
