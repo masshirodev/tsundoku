@@ -16,6 +16,7 @@ and ended by the root layout from SvelteKit's `beforeNavigate` and
 | 150 ms – 1 s  | The header's bottom rule becomes a 2px progress line over the old screen. |
 | 1 s and up    | The next screen in outline.                                               |
 | 10 s and up   | A band: `○ WORKSTATION NOT ANSWERING / ASKED 12 S AGO · STILL ASKING`.    |
+| (web edition) | The same band says `○ STILL WORKING ON IT`: its server is the tab itself. |
 
 A fast answer draws nothing but the pressed state, so nothing flashes.
 

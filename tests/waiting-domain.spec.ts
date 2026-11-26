@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { askedLine, destinationOf, fillOf, nextChangeIn, phaseAt } from '$lib/waiting';
+import { askedLine, destinationOf, fillOf, nextChangeIn, phaseAt, stalledLine } from '$lib/waiting';
 
 describe('phaseAt', () => {
 	it('follows the design’s scale: pressed, line at 150 ms, outline at 1 s, stalled at 10 s', () => {
@@ -49,5 +49,8 @@ describe('destinationOf', () => {
 
 	it('says how long it has been asking', () => {
 		expect(askedLine(12_400)).toBe('ASKED 12 S AGO · STILL ASKING');
+		// The web edition has no workstation: its server is the reader's own tab.
+		expect(stalledLine(false)).toBe('○ WORKSTATION NOT ANSWERING');
+		expect(stalledLine(true)).toBe('○ STILL WORKING ON IT');
 	});
 });

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { askedLine } from '$lib/waiting';
+	import { askedLine, stalledLine } from '$lib/waiting';
 	import { waiting } from '$lib/waiting.svelte';
 
 	/**
@@ -13,7 +13,7 @@
 {#if waiting.phase === 'stalled'}
 	<div class="band" role="status">
 		<div class="text">
-			<div class="what">○ WORKSTATION NOT ANSWERING</div>
+			<div class="what">{stalledLine(__WEB_EDITION__)}</div>
 			<div class="when">{askedLine(waiting.elapsed ?? 0)}</div>
 		</div>
 		<button type="button" onclick={onback}>← BACK</button>
