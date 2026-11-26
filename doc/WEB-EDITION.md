@@ -708,6 +708,14 @@ engine worker (web/engine-worker.js): BrowserEngine.handle(head, body)
 the leading tab (web/engine-start.js) → the fetcher extension → the site
 ```
 
+- **One call into Java at a time.** CheerpJ refuses a call from JavaScript
+  into Java while another is running ("Java code still running, check for a
+  missing 'await'"), and a browse grid asks for its 32 covers at once. So
+  `web/engine-queue.js` runs the calls one by one, a page's call (a list, a
+  series, a chapter) before any waiting cover or video slice, and answers a
+  call that throws with `ERR`, never stalling the rest. The cost is that the
+  engine works one request at a time; doing several at once needs the engine
+  to run them on Java threads of its own (c1139).
 - **No second client.** The server code's engine client
   (`src/lib/server/engine/client.ts`) talks to `ENGINE_URL` as it always does.
   In the web edition that names an origin that exists nowhere, and the server
