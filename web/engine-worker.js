@@ -10,6 +10,7 @@
 //
 // The frame on both crossings is web/engine-frame.js's.
 
+import { engineQueue } from './engine-queue.js';
 import { scriptSandbox } from './script-sandbox.js';
 
 /** CheerpJ's runtime, from its CDN: the free licence requires both that and a credit. */
@@ -85,8 +86,10 @@ async function start(jar, origin, port) {
 		const started = JSON.parse(await engine.start('/files/engine', origin));
 		if (started.error) throw new Error(started.error);
 		steps.started = ms();
+		// One call into Java at a time, pages before covers (web/engine-queue.js).
+		const call = engineQueue((head, body) => engine.handle(head, body));
 		port.onmessage = async ({ data }) => {
-			const answer = await engine.handle(String(data.head), String(data.body ?? ''));
+			const answer = await call(String(data.head), String(data.body ?? ''));
 			port.postMessage({ id: data.id, answer });
 		};
 		say('ready', { steps });
