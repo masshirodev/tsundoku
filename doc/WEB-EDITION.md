@@ -285,8 +285,13 @@ TypeScript. Each part is checked against the real thing in
   undici's `Agent`, which `net-guard.ts` gives fetch so a server cannot be
   steered at private addresses; in a tab the "server" is the reader's own
   browser, whose own rules govern that, and its fetch ignores the agent.
-- **`sharp` → `web/sharp.js`.** Native code cannot load in a tab. Its settings
-  calls are accepted; an image call says it is not in the web edition yet.
+- **`sharp` → `web/sharp.js`.** Native code cannot load in a tab. The one
+  chain the thumbnails use (`rotate().resize().webp().toBuffer()`: a browse
+  cover, a page thumbnail, an episode still) is drawn with `createImageBitmap`
+  and `OffscreenCanvas` in the server worker; its cut and size are a pure
+  `plan()`, held to real sharp's output in `tests/web-edition.spec.ts`. Any
+  other call (stats, raw pixels for duplicates, metadata) says it is not in
+  the web edition yet; the settings calls are accepted.
 - **`process`, `Buffer` and timers → `web/process.js`**, set before any server
   code loads. The environment names the database (`/tsundoku.sqlite`, in
   OPFS). Timers get Node's `unref()`, which the background jobs call.
