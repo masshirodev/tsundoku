@@ -75,9 +75,23 @@ them.
   each, and they differ exactly where it lives (service workers, OPFS, Web
   Locks).
 - **Every test is a first visit**: a fresh context, so a fresh service worker
-  and an empty OPFS, one reload, every migration. About 5 s alone; the
+  and an empty OPFS, at most one reload (none when the service worker claims
+  the tab before `boot.js` looks), every migration. About 5 s alone; the
   timeout is 120 s because four side by side, each opening up to three tabs,
   went past the default 30 s.
+- **The starting screens are watched, not timed** (`web/tests/start.e2e.ts`):
+  an init script logs `#web-start` at the first parse of every load and at
+  each change of its step into sessionStorage, which the tab keeps over the
+  first visit's reload, and the test reads the log once the app has opened.
+  A failure is forced the same way, before the page's own scripts run: a part
+  taken off `navigator`, a refusal put in `getDirectory()`, or a stand-in in
+  place of the server worker that posts what a real one would have posted.
+  A takeover is forced by a leading tab that stops answering, closed once
+  the write has reached it.
+- **Another checkout's server on the port is reused** outside CI. When more
+  than one checkout runs it, give each its own port
+  (`PLAYWRIGHT_WEB_PORT=4195`) and build and serve it there first, or one
+  checkout tests another's build.
 - **No seeded database, token or engine**: the library starts empty in the
   browser, and nothing reaches a source.
 

@@ -70,41 +70,42 @@ to an existing one (`?/ungroup` against `?/undoAdd`), no other ✕ may remove
 
 ### Dismissable
 
-| Screen                              | Band                                                                       | Lives in                                                       |
-| ----------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Library (`src/routes/+page.svelte`) | `… IS NO LONGER A WORK`, `… HIDDEN`, `HIDDEN · TAKEN OUT`, `UNGROUPED · …` | URL (`band`, `facts`, `name`, `n`)                             |
-| Library                             | Work made, `ADDED TO …`                                                    | Form answer                                                    |
-| Library                             | HIDDEN (loose or whole) with UNDO                                          | Form answer                                                    |
-| Library                             | A refused UNDO, `NOTHING CHANGED`                                          | Form answer                                                    |
-| Library                             | `SHOWN · …`                                                                | Form answer                                                    |
-| Library                             | REFRESH's batch band                                                       | Form answer                                                    |
-| Library                             | `IMPORT FINISHED` (a `Banner`)                                             | The workstation                                                |
-| Series (`series/[id]/+page.svelte`) | `ADDED TO THE LIBRARY` after an ADD, and its shelf chips with it (one URL) | URL (`added`, `queued`)                                        |
-| Series                              | `MOVED TO …`                                                               | URL (`moved`, `added`, `kept`, `lost`)                         |
-| Series                              | The kind switch done, with UNDO                                            | The page                                                       |
-| Series                              | `SERIES CREATED`, `N … ADDED`                                              | URL (`created`, `added`, `order`, `unit`)                      |
-| Series                              | A refusal, `NOTHING CHANGED`                                               | Form answer                                                    |
-| Series                              | `N NOT AT THE SOURCE`                                                      | Form answer                                                    |
-| Series                              | REFRESH's answer                                                           | Form answer                                                    |
-| Series                              | `MARKED READ THROUGH`, `PUT BACK N CHAPTERS` (EPISODES, WATCHED on video)  | Form answer                                                    |
-| Series                              | `ADDED TO … · PART`, Work made, `UNLINKED`, `RENAMED`, `TAKEN OUT`         | Form answer                                                    |
-| Series panel (`SeriesPanel.svelte`) | `TAKEN OUT OF …`, `… IS NO LONGER A WORK`, `HIDDEN · TAKEN OUT`            | Form answer                                                    |
-| Series panel                        | `NOT A SERIES · WON'T ASK AGAIN`, `NOT THIS · WON'T ASK AGAIN`             | Form answer                                                    |
-| Pages (`PageGrid.svelte`)           | A cover set, with UNDO                                                     | The page                                                       |
-| Work (`work/[id]`)                  | `TAKEN OUT`, `ADDED`, `RENAMED`, a refusal                                 | Form answer                                                    |
-| History                             | `REMOVED · PROGRESS KEPT`                                                  | Form answer                                                    |
-| History                             | `ADDED · PROGRESS KEPT`                                                    | The page                                                       |
-| Downloads, a source's preview       | A refusal, `NOTHING CHANGED`                                               | Form answer                                                    |
-| Extensions                          | A refusal, a refused command                                               | Form answer, the page                                          |
-| A source's page                     | A refused command                                                          | The page                                                       |
-| A source's settings                 | A refusal                                                                  | Form answer                                                    |
-| BROWSE, a source's page             | `ADDED TO THE LIBRARY, AND HIDDEN` (`AddedBand`)                           | URL (`added`, `series`, `preview`, `queued`, `new`, `refused`) |
-| BROWSE, a source's settings         | `N SERIES HIDDEN NOW` (`ConcealBand`)                                      | URL (`of`, `concealed`)                                        |
-| Highlights                          | `HIGHLIGHT DELETED`, a refusal                                             | Form answer                                                    |
-| Highlights                          | `COPIED · N`                                                               | The page                                                       |
-| Search                              | `HIDDEN`/`SHOWN` a Work whole, with UNDO                                   | The page                                                       |
-| SETTINGS                            | The AniList/Ranobe sign-in band                                            | URL (`signin`, `service`)                                      |
-| SETTINGS                            | `TMDB KEY SAVED`                                                           | Form answer                                                    |
+| Screen                              | Band                                                                                                       | Lives in                                                       |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Library (`src/routes/+page.svelte`) | `… IS NO LONGER A WORK`, `… HIDDEN`, `HIDDEN · TAKEN OUT`, `UNGROUPED · …`                                 | URL (`band`, `facts`, `name`, `n`)                             |
+| Library                             | Work made, `ADDED TO …`                                                                                    | Form answer                                                    |
+| Library                             | HIDDEN (loose or whole) with UNDO                                                                          | Form answer                                                    |
+| Library                             | A refused UNDO, `NOTHING CHANGED`                                                                          | Form answer                                                    |
+| Library                             | `SHOWN · …`                                                                                                | Form answer                                                    |
+| Library                             | REFRESH's batch band                                                                                       | Form answer                                                    |
+| Library                             | `IMPORT FINISHED` (a `Banner`)                                                                             | The workstation                                                |
+| Series (`series/[id]/+page.svelte`) | `ADDED TO THE LIBRARY` after an ADD, and its shelf chips with it (one URL)                                 | URL (`added`, `queued`)                                        |
+| Series                              | `MOVED TO …`                                                                                               | URL (`moved`, `added`, `kept`, `lost`)                         |
+| Series                              | The kind switch done, with UNDO                                                                            | The page                                                       |
+| Series                              | `SERIES CREATED`, `N … ADDED`                                                                              | URL (`created`, `added`, `order`, `unit`)                      |
+| Series                              | A refusal, `NOTHING CHANGED`                                                                               | Form answer                                                    |
+| Series                              | `N NOT AT THE SOURCE`                                                                                      | Form answer                                                    |
+| Series                              | REFRESH's answer                                                                                           | Form answer                                                    |
+| Series                              | `MARKED READ THROUGH`, `PUT BACK N CHAPTERS` (EPISODES, WATCHED on video)                                  | Form answer                                                    |
+| Series                              | `ADDED TO … · PART`, Work made, `UNLINKED`, `RENAMED`, `TAKEN OUT`                                         | Form answer                                                    |
+| Series panel (`SeriesPanel.svelte`) | `TAKEN OUT OF …`, `… IS NO LONGER A WORK`, `HIDDEN · TAKEN OUT`                                            | Form answer                                                    |
+| Series panel                        | `NOT A SERIES · WON'T ASK AGAIN`, `NOT THIS · WON'T ASK AGAIN`                                             | Form answer                                                    |
+| Pages (`PageGrid.svelte`)           | A cover set, with UNDO                                                                                     | The page                                                       |
+| Work (`work/[id]`)                  | `TAKEN OUT`, `ADDED`, `RENAMED`, a refusal                                                                 | Form answer                                                    |
+| History                             | `REMOVED · PROGRESS KEPT`                                                                                  | Form answer                                                    |
+| History                             | `ADDED · PROGRESS KEPT`                                                                                    | The page                                                       |
+| Downloads, a source's preview       | A refusal, `NOTHING CHANGED`                                                                               | Form answer                                                    |
+| Extensions                          | A refusal, a refused command                                                                               | Form answer, the page                                          |
+| A source's page                     | A refused command                                                                                          | The page                                                       |
+| A source's settings                 | A refusal                                                                                                  | Form answer                                                    |
+| BROWSE, a source's page             | `ADDED TO THE LIBRARY, AND HIDDEN` (`AddedBand`)                                                           | URL (`added`, `series`, `preview`, `queued`, `new`, `refused`) |
+| BROWSE, a source's settings         | `N SERIES HIDDEN NOW` (`ConcealBand`)                                                                      | URL (`of`, `concealed`)                                        |
+| Highlights                          | `HIGHLIGHT DELETED`, a refusal                                                                             | Form answer                                                    |
+| Highlights                          | `COPIED · N`                                                                                               | The page                                                       |
+| Search                              | `HIDDEN`/`SHOWN` a Work whole, with UNDO                                                                   | The page                                                       |
+| SETTINGS                            | The AniList/Ranobe sign-in band                                                                            | URL (`signin`, `service`)                                      |
+| SETTINGS                            | `TMDB KEY SAVED`                                                                                           | Form answer                                                    |
+| Layout, the web edition only        | `NOTHING CHANGED · …` after a takeover, with TRY AGAIN ([`WEB-EDITION.md`](WEB-EDITION.md), "Taking over") | Form answer                                                    |
 
 **`IMPORT FINISHED` and the default shelf.** With no `?shelf=` in the URL the
 library's default is the NEW shelf only while the import is current
@@ -120,12 +121,13 @@ band on screen").
 
 ### Says what is true now: no ✕
 
-| Screen                        | Band                                                                      | Why                                |
-| ----------------------------- | ------------------------------------------------------------------------- | ---------------------------------- |
-| Layout                        | Incognito, reveal                                                         | The state itself                   |
-| Library                       | `SCANNING ON WORKSTATION`, offline, the update bands' running states      | While it lasts                     |
-| A source's page, its settings | `NOT ANSWERING`, `DID NOT ANSWER`, `ASKED TO SLOW DOWN`, `FAILED TO LOAD` | A source not answering is true now |
-| A source's page               | `PASSING THE SITE'S BROWSER CHECK`, `STILL ASKING`                        | A wait in progress                 |
+| Screen                        | Band                                                                      | Why                                    |
+| ----------------------------- | ------------------------------------------------------------------------- | -------------------------------------- |
+| Layout                        | Incognito, reveal                                                         | The state itself                       |
+| Layout, the web edition only  | `PRIVATE WINDOW`, a Chrome window whose library goes when it closes       | True for as long as the window is open |
+| Library                       | `SCANNING ON WORKSTATION`, offline, the update bands' running states      | While it lasts                         |
+| A source's page, its settings | `NOT ANSWERING`, `DID NOT ANSWER`, `ASKED TO SLOW DOWN`, `FAILED TO LOAD` | A source not answering is true now     |
+| A source's page               | `PASSING THE SITE'S BROWSER CHECK`, `STILL ASKING`                        | A wait in progress                     |
 
 ### Both: no ✕ of the band's own
 

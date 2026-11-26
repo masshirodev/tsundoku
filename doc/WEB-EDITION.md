@@ -103,9 +103,11 @@ server and the others use it. In `web/boot.js`:
    it then asks every window (`tsundoku-who-leads`) and the leader answers.
    A request with no leader waits up to a minute (a first visit climbs every
    migration), then is answered 503.
-5. A request sent to a leader that closes before answering is answered 503
-   when the next leader says it is ready: it is lost with that server, and is
-   never sent twice, since it may have been a write.
+5. A request sent to a leader that closes before answering is answered when
+   the next leader says it is ready, or sooner when another request finds the
+   leader's window gone first: it is lost with that server, and is never sent
+   twice, since it may have been a write. A form action is answered as a
+   refusal the screen shows ("Taking over", below); anything else, 503.
 
 ### Forms
 
@@ -182,14 +184,15 @@ web edition's adapter (`web/adapter.js`). An adapter is SvelteKit's public way
 to package an app for a runtime; this one uses only the builder's public calls
 (`writeClient`, `writeServer`, `generateManifest`, `generateFallback`):
 
-| Output (`build-web/`)             | What                                                              |
-| --------------------------------- | ----------------------------------------------------------------- |
-| `index.html`                      | SvelteKit's SPA shell, its start held until `boot.js` calls it    |
-| `_app/`                           | the client, exactly as the self-hosted build has it               |
-| `service-worker.js`               | the app's own service worker, built with `__WEB_EDITION__`        |
-| `boot.js`                         | starts a tab: the service worker, the lead, the server            |
-| `server/worker.js` and its chunks | SvelteKit's `Server` and all server code, bundled and minified    |
-| `server/files.json`               | the shell, `boot.js` and the server's files, for the offline copy |
+| Output (`build-web/`)             | What                                                                                    |
+| --------------------------------- | --------------------------------------------------------------------------------------- |
+| `index.html`                      | SvelteKit's SPA shell, its start held until `boot.js` calls it, and the starting screen |
+| `_app/`                           | the client, exactly as the self-hosted build has it                                     |
+| `service-worker.js`               | the app's own service worker, built with `__WEB_EDITION__`                              |
+| `boot.js`                         | starts a tab: the service worker, the lead, the server                                  |
+| `start.js`                        | the starting screen's rules, which `boot.js` imports                                    |
+| `server/worker.js` and its chunks | SvelteKit's `Server` and all server code, bundled and minified                          |
+| `server/files.json`               | the shell, `boot.js` and the server's files, for the offline copy                       |
 
 `yarn run serve:web` serves it locally at `http://localhost:42160/` (port 42160
 is the web edition's on the workstation).
@@ -608,9 +611,252 @@ Open, each for the card that needs it:
 - **No server-rendered HTML.** Every page is the shell, then its data. Layout
   is CSS media queries, so the first paint is still right for the device.
 
-- **What a tab shows while it starts, or when it cannot** (a Firefox private
-  window has no service workers), is a blank page today: the design brief
-  `WEB-EDITION-START.md` (card c1127) covers it.
+## Starting, and when it cannot
+
+What a tab shows from the first byte until the app opens, and in place of the
+app when it cannot start (handoff `web-edition-start`, its Start-, Fail- and
+Takeover boards; built in card c1128). The pieces:
+
+- **`web/start.js`**: the screen's markup and CSS, the two scripts the shell
+  runs before its first paint, and the rules (where a start is, what a
+  failure was, whether a window is private). The adapter puts the screen into
+  `index.html` (`paintTheStart`, after `holdTheStart`), and copies the file
+  beside `boot.js`, which imports it.
+- **`web/boot.js`** moves the screen on as each step really finishes, draws a
+  failure in its place, and takes it away once the app has drawn.
+- **`web/worker.js`** says when the server's code has loaded and when the
+  library is open, and what it lacks if it cannot open it.
+
+The screen is plain HTML and CSS: none of the app's code has loaded when it
+is painted. It reads the app's own tokens, which are there before the first
+paint because the shell links the app's stylesheets, and it draws the
+library's own frame, so the app opens over it with nothing moving: the
+desktop's sidebar and its wordmark at 17px, or the top bar's left cell with
+the wordmark (no 積ん読 on a phone, as the library), the header's height
+(`--header-h`), the section label, and the header's rule exactly as
+`NavLine` draws it. No spinner.
+
+### The starting screen
+
+**The theme is set before anything is drawn.** The shell's first script
+(`themeBeforePaint`) reads the app's own record of it, `tsundoku.theme` in
+localStorage, else the `tsundoku_theme` cookie, and sets `data-theme` on
+`<html>`.
+
+**The rule fills one step at a time**, a quarter for each, as each really
+finishes. It is never animated or guessed:
+
+| Step                   | Finished when                                                         | Told by                                    |
+| ---------------------- | --------------------------------------------------------------------- | ------------------------------------------ |
+| 01 GETTING READY       | the service worker is active (before the first visit's reload)        | `boot.js`                                  |
+| 02 STARTING            | the server worker's code has loaded (its module runs at all)          | the server worker, `tsundoku-step` server  |
+| 03 OPENING THE LIBRARY | SQLite has loaded and its OPFS pool is open                           | the server worker, `tsundoku-step` library |
+| 04 SETTING IT UP       | the server has started, which on a first visit climbs every migration | the server worker, `tsundoku-ready`        |
+
+A tab that does not lead (another tab's server answers it) has nothing more
+of its own to start once step 1 is done, and fills the rule at once.
+
+**A later visit** shows only the bar and `00 — STARTING · OPENING THE
+LIBRARY`, whatever the step; it is over in a second or two.
+
+**A first visit** is one where the library has never opened in this browser:
+`tsundoku.web.opened` in localStorage, set when the app opens, is missing.
+It lives beside the library's storage, so clearing the site's data clears
+both and the next visit is a first visit again. A first visit:
+
+- says `00 — FIRST VISIT` from the first paint, with the step under way on
+  the right (`GETTING READY`);
+- after 1.5 s adds "A library that lives in this browser.", the line under
+  it, and the four steps, each marked DONE, NOW or not yet, and the right
+  side becomes `2 OF 4 · STARTING`. A start that ends sooner never shows them;
+- **carries the same picture over its reload.** The step reached and when the
+  start began are kept in sessionStorage (`tsundoku.web.start`); the shell's
+  second script (`startView` and `drawStart`, inlined after the screen's
+  markup) draws from them before the page after the reload is painted, so the
+  rule, the label and the steps are where they were, and the 1.5 s counts
+  from the first page. The reload is not a step. There is not always one:
+  the service worker claims the tab when it activates, and when that happens
+  before `boot.js` looks, the tab is already controlled.
+
+The session record is dropped when the app opens or a start fails, so a later
+reload starts afresh.
+
+**The app opens in place.** The screen is a fixed layer over the page, and
+the app mounts under it as before (its client's start is held until
+`boot.js` calls it). Once the app has drawn its first screen, `boot.js`
+removes the layer in the next frame, so the first frame without it is the
+app's. The test checks that the wordmark is where the screen had it, on a
+desktop and on a phone. An error before the app draws anything is a failure
+to start, shown like any other.
+
+`data-web-boot` on `<html>` keeps its values (`registering`, `reloading`,
+`starting the server`, `ready`, `failed`), which the browser tests wait on.
+The screen itself, `#web-start`, carries `data-step` (steps done),
+`data-first`, `data-revealed` and, once a start fails, `data-failed` (the
+kind).
+
+### Could not start
+
+One screen per reason, drawn in place of the starting line under the same
+bar, with no rule (nothing is under way): what happened, what to do, one
+primary action, one way to read more (the sections below), and the reason in
+mono at the foot. `classify` in `web/start.js` tells them apart from what
+actually failed:
+
+| Reason             | Told by                                                                                                                                                                          | Foot                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| A private window   | Firefox with no `navigator.serviceWorker`                                                                                                                                        | `FIREFOX · PRIVATE WINDOW · NO SERVICE WORKERS` |
+| Storage turned off | a `SecurityError` or `NotAllowedError` from OPFS (`navigator.storage.getDirectory()`, tried first), from registering the service worker, or from the server worker's SQLite pool | `SITE DATA BLOCKED`                             |
+| A browser too old  | a part missing, found before starting (service workers outside Firefox, module workers, Web Locks, OPFS) or by the server worker (synchronous file access)                       | `MISSING · ` and each part                      |
+| Something else     | anything else                                                                                                                                                                    | `NOTHING IN THE LIBRARY WAS CHANGED`            |
+
+The server worker posts the error's name and what it lacks beside its text,
+so a refusal inside it is told apart as well as one in the page. The last
+screen carries the error's text, selectable, under WHAT IT SAID with COPY:
+where the start was (`At: starting the server`), the error as the browser
+printed it, and the browser, its system and the build (`Firefox 133 · Linux ·
+tsundoku 2026.11.25`). TRY AGAIN reloads the page.
+
+The sections below are where each screen's second button leads, so they are
+written for the person reading that screen.
+
+#### A private window
+
+Firefox turns off service workers in a private window, and tsundoku cannot
+run without one: the app's server runs in the tab, and the service worker is
+how the page reaches it. A private window would also throw the library away
+when it closes. Open the same address in a normal window; COPY THE ADDRESS
+puts it on the clipboard.
+
+#### Storage turned off
+
+tsundoku keeps the library in this browser's storage for the site, and the
+browser refused it: site data is blocked, for this site or for every site.
+The setting is in the browser's site settings for this address (the icon at
+the left of the address bar), or in its settings for cookies and site data:
+in Firefox, Settings › Privacy & Security › Cookies and Site Data › Manage
+Exceptions. Allow the site to keep data, then TRY AGAIN.
+
+#### A browser too old
+
+tsundoku runs inside the browser and needs these parts of it: service
+workers, module workers (`new Worker(url, { type: 'module' })`), Web Locks,
+the origin private file system (OPFS) and its synchronous file access from a
+worker. The screen names the ones missing. Any current Chrome, Edge or
+Firefox has them all.
+
+#### Something else
+
+Anything that is none of the above. Trying again usually works. If it keeps
+happening, COPY the text under WHAT IT SAID and send it with a report: it
+says where the start stopped, what the browser said, and which browser and
+build it was.
+
+### A private window in Chrome
+
+Chrome's incognito runs the web edition, and throws the library away when the
+window closes, so such a window says so in a standing band, `PRIVATE WINDOW`
+over `THIS LIBRARY DISAPPEARS WHEN IT CLOSES`, in the system's `Band`, with
+no ✕ (it stays true; doc/BANDS.md). Not the word INCOGNITO: that is the app's
+own reading mode, whose band is `INCOGNITO · NOTHING SAVED`, dashed.
+
+`boot.js` decides it before the app starts and marks `<html>`
+(`data-web-private`); the starting screen draws the same band at once, and the
+layout reads the mark, so the app opens with the band in the same place.
+
+**How it is told, and the trouble with it.** Chrome offers no incognito flag.
+The known signal was the storage quota: an incognito window's storage is
+kept in memory and its quota was a few hundred MB at most, a normal window's
+a share of the disk. `isPrivateByQuota` takes a quota
+under 1 GiB, in Chrome or Edge only, as incognito. Firefox is left out: its
+private windows cannot start at all (above), and its normal quota on a nearly
+full disk can be small.
+
+Measured on the workstation on 2026-11-25 with Playwright, on a page served
+over `http://localhost`, `navigator.storage.estimate()`:
+
+| Browser                                       | Window                                                  | Quota reported          |
+| --------------------------------------------- | ------------------------------------------------------- | ----------------------- |
+| Chrome 153.0.8010.36 (`google-chrome-stable`) | Playwright's `newContext()` (an off-the-record profile) | 10,737,418,240 (10 GiB) |
+| Chrome 153.0.8010.36                          | a persistent profile (`launchPersistentContext`)        | 10 GiB                  |
+| Chrome 153.0.8010.36                          | started by hand with `--incognito`, read over CDP       | 10 GiB                  |
+| Chromium (Playwright's), headless and headed  | the same three                                          | 10 GiB                  |
+| Firefox (Playwright's)                        | `newContext()` / a persistent profile                   | 3,365 MB / 10 GiB       |
+
+`webkitTemporaryStorage.queryUsageAndQuota` answers the same, and writing
+1 MB to OPFS raised the quota by the same 1 MB, in both windows: current
+Chrome reports the usage plus a fixed 10 GiB to every site, precisely so that
+incognito cannot be told apart this way. Edge is not installed on the
+workstation and was not measured. **So on Chrome 153 the band never shows.**
+It shows where the quota is still the real one (older Chromes), and the test
+sets the quota to show it. What to do instead (no band, or a line for every
+Chrome visitor) is the owner's decision, on the card.
+
+### Taking over
+
+When the leading tab closes with a write in hand, the write is lost with its
+server ("One tab leads", above). The relay answers a lost form action
+(`use:enhance`'s POST, marked `x-sveltekit-action`) as SvelteKit's own
+refusal, an ActionResult of type `failure`, status 503, whose data is
+`{ lost: 'takeover', action }` (`src/lib/web/takeover.ts`). `use:enhance`
+then keeps the screen and puts the answer in `page.form`, as for any refused
+action.
+
+The layout draws it, since it can come from any screen: the system's band
+(`Band`), `NOTHING CHANGED · NEW SHELF` (the action's name in words) over
+`THE TAB RUNNING TSUNDOKU CLOSED AS IT WAS SENT · THIS TAB RUNS IT NOW`,
+with TRY AGAIN and ✕. It lives in the form answer, like the screens' own
+refusals: ✕ remembers that answer, and the next answer is a new band. TRY
+AGAIN submits the same form again, with the same button, from the tab that
+took over; the layout keeps the last form sent for each action's name, and
+offers TRY AGAIN only while that form is still on the screen.
+
+Anything else that was lost (a screen's data, an endpoint) is still answered
+503 with "the tab that ran the server closed; try again".
+
+### Where it departs from the handoff
+
+| Where                              | Departs because                                                                                                                                                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Padding on a desktop               | The handoff's desktop board pads the label and the content 32px; the screen uses `--pad` (24px), which is what the library under it uses, so the app opens without the label moving.                                                              |
+| The top bar's left cell on a phone | The handoff pads it 24px and shows 積ん読; the library pads it `--pad` (16px) and hides 積ん読 on a phone, and the screen does what the library does, so the wordmark does not move when the app opens.                                           |
+| The private-window band            | Not in the handoff (the owner's addition). The card's one line, `PRIVATE WINDOW · THIS LIBRARY DISAPPEARS WHEN IT CLOSES`, is cut off on a phone in a one-line band, so it is the band's two lines, title over detail, the takeover band's shape. |
+| Where the bands sit                | The handoff draws the takeover band under the screen's bar. A takeover can come from any screen, so the layout draws it, and the layout's bands sit above the screen's bar (where incognito's is).                                                |
+| The action's name                  | "NEW SHELF" is the form action's own name in words (`newShelf`), not a label written for it, and stays English in the Portuguese app.                                                                                                             |
+| The site's name                    | The handoff writes tsundoku.lt; the screens say the address they are on (`location.host`).                                                                                                                                                        |
+| COPY and COPY THE ADDRESS          | Say COPIED for 2 s after copying; the handoff draws no answer.                                                                                                                                                                                    |
+| "Read more" buttons                | The handoff gives them no destination; they open the sections of this document above, in the public repository.                                                                                                                                   |
+| The unknown failure's error line   | The handoff's `Error: [TEXT]`; the error is printed as the browser prints it, its name first (`TypeError: …`), so a server worker's `Error: …` is not doubled.                                                                                    |
+| A failure's title on a desktop     | Not drawn; the tablet's 28px.                                                                                                                                                                                                                     |
+| Wide layouts                       | The handoff's landscape board (text beside the steps, 48px apart, steps 460px) applies from 1024px wide; its desktop board (56px, 440px) where the app has its desktop layout (a fine pointer as well).                                           |
+
+### What it does not do yet
+
+- **The screens are in English only.** They are drawn before any of the app
+  has loaded, including its language; the app's own bands (private window,
+  takeover) are translated.
+- **The theme is dark in practice.** The in-tab server never sees the theme
+  cookie (a service worker's requests do not carry cookies to it), so the
+  app's own `data.theme` is always dark and the layout writes that back into
+  `tsundoku.theme`. The starting screen follows the record faithfully; the
+  web edition's theme switching is a separate gap.
+- **A first visit's first paint can change font.** Plex Mono is not cached
+  before the first visit, so the screen's text may be drawn in the fallback
+  face for a moment (the positions hold; the widths change). Preloading the
+  mono face from the shell would avoid it.
+- **A lost read is an error page.** Only form actions get the refusal band.
+- **A screen that handles its form's result itself** without calling
+  `update()` never puts the lost answer in `page.form`, so it shows no band.
+- **TRY AGAIN needs the form still on screen.** A write sent from a sheet that
+  has since closed gets the band with ✕ only.
+- **The private-window band is dormant in current Chrome** (above).
+- **The TV's bar** has a safe top margin the starting screen does not draw.
+- `web/boot.js` is not type-checked (no spec imports it, since importing it
+  starts a tab); `web/start.js` is, through its spec.
+- **Seen while testing, not this screen's:** the library's GET STARTED poll
+  (`invalidate` every 5 s) can land while a form's redirect is still loading
+  on a busy machine and take the page back to the address it was on. The
+  write is done; only the address is wrong.
 
 ## Testing
 
@@ -620,10 +866,24 @@ Open, each for the card that needs it:
 - `tests/web/relay.spec.ts`, in the unit suite: the relay's half in the
   service worker, with fake windows: a request reaching the leader, waiting
   for one, finding one after the worker forgot, and a takeover's lost requests.
+- `tests/web/start.spec.ts`, in the unit suite: the starting screen's
+  rules (`web/start.js`): where a start is and what it carries over a
+  reload, what the screen says at each step (drawn on stand-in elements,
+  from the function's own text as the shell inlines it), what each failure
+  was, the could-not-start screens' words, the private-window rule, the
+  shell's painting. `tests/web/takeover.spec.ts`: a lost write's answer, and
+  the band's words for it.
 - **`yarn run test:web`**: the web build in Chromium and Firefox
   (`playwright.web.config.ts`, specs in `web/tests/`). It builds `build-web/`
   (under the same build lock as the main suite's build), serves it on 4185,
   and opens it as a first visit in each test: the empty library from the
   in-tab server, a write through a real form kept across a reload, a second
   tab using the first one's server and taking over when it closes, and static
-  files passing the server by. doc/TESTING.md, "The web edition".
+  files passing the server by. `web/tests/start.e2e.ts` opens the web edition
+  as "Starting, and when it cannot" describes: the steps' marks and the rule,
+  FIRST VISIT and its reload, a later visit, the app opening without its
+  wordmark moving (desktop and phone), the screen's measurements, each
+  failure it can force (no service workers, no Web Locks, storage refused by
+  the page or by the server worker's pool, a missing part found by the
+  server worker, anything else), the private-window band, and a write lost
+  in a takeover. doc/TESTING.md, "The web edition".
