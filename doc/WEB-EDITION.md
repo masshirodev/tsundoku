@@ -659,6 +659,27 @@ the leading tab (web/engine-start.js) → the fetcher extension → the site
 - **CheerpJ** is loaded from its CDN (`cjrtnc.leaningtech.com/5.0`), as its
   free licence for a one-person company requires, together with a visible
   "Built with CheerpJ" credit.
+- **What the app adds to the contract** (tsundoku-engine's `doc/FORK.md`,
+  "The browser target"):
+  - **An extension's JavaScript runs in the browser.** Some extensions run a
+    site's scripts through QuickJS, which is far too slow in CheerpJ (about
+    20 s to create; one page script did not finish in ten minutes). The
+    engine's browser target sends each script to
+    `BrowserScripts.evaluateNative` instead, and the engine's worker runs it
+    in a worker made from a `data:` URL (`web/script-sandbox.js`): an opaque
+    origin, with none of the app's storage, cookies or fetcher, since the
+    script is the site's code. One at a time, 30 s each, a script past the
+    limit losing its worker. That page list then takes 2.5 s (3.3 s on the
+    desktop engine).
+  - **A fetch's final URL**: the relay adds `X-Tsundoku-Final-Url` when a
+    redirect moved a fetch, and the engine shows OkHttp the redirect it would
+    have followed itself.
+  - **No FlareSolverr**: `cf-proxy-url` is dropped on the way to the engine
+    (`engineHeaders` in `web/engine-port.js`): a site's check is the visitor's
+    to pass in a tab of their own.
+  - **Bounded video**: the engine answers a call whole, in memory, so a
+    `/video/` call always asks for at most 8 MB; a player asks again for the
+    rest.
 - **Its storage.** CheerpJ's `/files/` is persistent (IndexedDB): the engine's
   data folder is `/files/engine`, so an extension converted once stays
   converted.

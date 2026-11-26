@@ -8,13 +8,16 @@
 // stand in for the server worker, the fetcher and the engine's worker.
 import { decodeHead, encodeAnswer, fromBase64 } from './engine-frame.js';
 
+/** The answer header that tells the engine a fetch's URL after its redirects. */
+export const FINAL_URL = 'X-Tsundoku-Final-Url';
+
 /** Where the build puts the slim engine jar (web/adapter.js). */
 export const ENGINE_JAR = '/engine/engine-browser.jar';
 
 /**
  * @typedef {{ postMessage(message: unknown, transfer?: Transferable[]): void }} Poster
  * @typedef {{ url: string, method?: string, headers?: [string, string][], body?: Uint8Array | null }} WebRequest
- * @typedef {{ status: number, headers: [string, string][], body: Uint8Array }} WebResponse
+ * @typedef {{ status: number, headers: [string, string][], body: Uint8Array, url?: string }} WebResponse
  * @typedef {{ fetch(request: WebRequest): Promise<WebResponse> }} FetcherLike
  * @typedef {{ state: 'ready', fetcher: FetcherLike } | { state: string }} Connection
  * @typedef {Poster & { onmessage: ((event: { data: any }) => void) | null, terminate(): void }} WorkerLike
@@ -104,7 +107,11 @@ export async function relay(fetcher, head, body) {
 	try {
 		const { method, url, headers } = decodeHead(head);
 		const r = await fetcher.fetch({ url, method, headers, body: body ? fromBase64(body) : null });
-		return encodeAnswer(r.status, r.headers, r.body);
+		// Where the fetch ended after redirects: the engine shows OkHttp the
+		// redirect it would have followed itself (tsundoku-engine, "The browser target").
+		const final =
+			r.url && r.url !== url ? [/** @type {[string, string]} */ ([FINAL_URL, r.url])] : [];
+		return encodeAnswer(r.status, [...r.headers, ...final], r.body);
 	} catch (e) {
 		return `ERR ${e instanceof Error ? e.message : String(e)}`;
 	}
