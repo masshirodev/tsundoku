@@ -27,6 +27,7 @@
 	import type { GroupBook } from './other-forms.server';
 	import GroupSheet from '../../GroupSheet.svelte';
 	import Band, { clearBandUrl } from '$lib/components/chrome/Band.svelte';
+	import KeepAsk from '$lib/components/web/KeepAsk.svelte';
 	import NavLine from '$lib/components/waiting/NavLine.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { num } from '$lib/i18n/format';
@@ -692,6 +693,8 @@
 				</form>
 			{/snippet}
 		</Band>
+		<!-- The web edition's first ADD: ask the browser to keep the library. -->
+		{#if __WEB_EDITION__}<KeepAsk />{/if}
 		<!-- PUT ON A SHELF: the band's second line, chips one tap each.
 		     Its names are the shelves' own, N OTHER SHELVES and + NEW SHELF; nothing
 		     here is named UNDO, HIDE, SHOW, MORE or ALL. -->

@@ -8,7 +8,9 @@ import {
 	ASKED_KEY,
 	askToKeep,
 	browserName,
+	keepAskBand,
 	keepLines,
+	onFirstAdd,
 	readKeep,
 	type KeepEnv
 } from '$lib/web/keep';
@@ -115,5 +117,42 @@ describe('asking', () => {
 		const { e } = env(true, { storage: false });
 		expect(await readKeep(e)).toMatchObject({ persisted: false });
 		expect(await askToKeep(e)).toMatchObject({ persisted: false, asked: true });
+	});
+});
+
+describe('the first ADD', () => {
+	const state = (o: Partial<{ persisted: boolean; asked: boolean; browser: string | null }>) => ({
+		persisted: false,
+		asked: false,
+		browser: 'FIREFOX',
+		...o
+	});
+
+	it('offers Firefox a band, since it asks the visitor and only from a tap', () => {
+		expect(onFirstAdd(state({}))).toBe('band');
+		expect(keepAskBand('FIREFOX')).toEqual({
+			title: 'KEEP THIS LIBRARY IN FIREFOX',
+			detail: 'FIREFOX ASKS ONCE · UNTIL THEN, A FULL DISK COULD CLEAR IT',
+			action: 'ASK FIREFOX →'
+		});
+	});
+
+	it('asks Chrome, Edge and the rest at once, without a band', () => {
+		for (const browser of ['CHROME', 'EDGE', 'SAFARI', null])
+			expect(onFirstAdd(state({ browser }))).toBe('silent');
+	});
+
+	it('never asks twice, nor a browser that keeps it already', () => {
+		expect(onFirstAdd(state({ asked: true }))).toBe('none');
+		expect(onFirstAdd(state({ browser: 'CHROME', asked: true }))).toBe('none');
+		expect(onFirstAdd(state({ persisted: true }))).toBe('none');
+	});
+
+	it('names no browser it does not know', () => {
+		expect(keepAskBand(null)).toEqual({
+			title: 'KEEP THIS LIBRARY IN THE BROWSER',
+			detail: 'THE BROWSER ASKS ONCE · UNTIL THEN, A FULL DISK COULD CLEAR IT',
+			action: 'ASK IT →'
+		});
 	});
 });
