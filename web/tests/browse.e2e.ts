@@ -1,6 +1,7 @@
 /**
  * Browsing a source and opening a series in the web edition (c1121): the
- * source's POPULAR through the engine in CheerpJ, its covers drawn in the tab
+ * source's POPULAR and a search through the engine in CheerpJ, its covers
+ * drawn in the tab
  * (web/sharp.js), and a series' preview, which draws at once and fills in
  * when the source answers (a streamed answer, doc/WEB-EDITION.md, "How a
  * request travels").
@@ -61,13 +62,21 @@ async function fakeSite(context: BrowserContext, episodes: Promise<void>) {
 		asked.push(url.host + url.pathname);
 		if (url.pathname.startsWith('/img/'))
 			return route.fulfill({ status: 200, contentType: 'image/png', body: PNG });
-		if (url.pathname.startsWith('/en/ranking/'))
+		// Search: the strips whose title has the keyword, in the ranking's shape.
+		const keyword = url.pathname.startsWith('/en/search')
+			? (url.searchParams.get('keyword') ?? '').toLowerCase()
+			: null;
+		if (url.pathname.startsWith('/en/ranking/') || keyword !== null)
 			return html(
 				route,
-				`<html><body><ul class="webtoon_list">${STRIPS.map(
-					(s) =>
-						`<li><a href="${listUrl(s)}"><img src="${SITE}/img/${s.slug}.png"><p class="title">${s.title}</p></a></li>`
-				).join('')}</ul></body></html>`
+				`<html><body><ul class="webtoon_list">${STRIPS.filter(
+					(s) => keyword === null || s.title.toLowerCase().includes(keyword)
+				)
+					.map(
+						(s) =>
+							`<li><a href="${listUrl(s)}"><img src="${SITE}/img/${s.slug}.png"><p class="title">${s.title}</p></a></li>`
+					)
+					.join('')}</ul></body></html>`
 			);
 		const strip = STRIPS.find((s) => url.pathname.includes(`/${s.slug}/list`));
 		if (strip)
@@ -102,7 +111,7 @@ async function fakeSite(context: BrowserContext, episodes: Promise<void>) {
 	return asked;
 }
 
-test('a source browsed, its covers drawn, and a series opened, its preview drawn before the source answers', async ({
+test('a source browsed and searched, its covers drawn, and a series opened, its preview drawn before the source answers', async ({
 	baseURL
 }) => {
 	test.setTimeout(900_000);
@@ -143,6 +152,20 @@ test('a source browsed, its covers drawn, and a series opened, its preview drawn
 		}, cover);
 		// The made-up image is 40 px wide, under the thumbnail's 400: kept as it is.
 		expect(drawn).toEqual({ status: 200, type: 'image/webp', width: 40 });
+
+		// A search, answered by the source: only the strip that matches. The
+		// new address first, so nothing is read off the POPULAR grid still on
+		// screen while the search's page replaces it.
+		await page.getByPlaceholder(/search Webtoons\.com/).fill('two');
+		await page.keyboard.press('Enter');
+		await expect(page).toHaveURL(/[?&]q=two\b/);
+		await expect
+			.poll(() => asked.includes('www.webtoons.com/en/search'), { timeout: 180_000 })
+			.toBe(true);
+		await expect(tile('Fake Strip Two')).toBeVisible({ timeout: 180_000 });
+		await expect(tile('Fake Strip One')).toHaveCount(0);
+		await page.goBack();
+		await expect(tile('Fake Strip One')).toBeVisible({ timeout: 180_000 });
 
 		// A series: its preview draws while the source's episode list is still
 		// held back, then fills in when it comes.
