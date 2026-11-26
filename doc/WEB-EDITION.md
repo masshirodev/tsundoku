@@ -290,6 +290,11 @@ TypeScript. Each part is checked against the real thing in
 - **`process`, `Buffer` and timers → `web/process.js`**, set before any server
   code loads. The environment names the database (`/tsundoku.sqlite`, in
   OPFS). Timers get Node's `unref()`, which the background jobs call.
+- **`node:buffer` → `web/buffer.js`**: the `buffer` package (v6, for the
+  BigInt reads an APK's signing block needs), taught `base64url`, which it
+  lacks and the server code uses for ids, tokens and MACs (a source's browse
+  page failed with "Unknown encoding: base64url"). Checked against Node's own
+  in `tests/web-edition.spec.ts`.
 - **`AsyncLocalStorage` → `web/async-hooks.js`.** Paraglide keeps each
   request's language in one. The browser has none, so this one holds one
   store at a time. Requests that interleave would see each other's store; in

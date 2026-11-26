@@ -8,19 +8,17 @@
 // A few modules are not stubbed but replaced: `path` is pure string work, and
 // a handful of calls that run while modules load must not throw.
 import { readFileSync } from 'node:fs';
-import { createRequire, isBuiltin as nodeIsBuiltin } from 'node:module';
+import { isBuiltin as nodeIsBuiltin } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const here = (/** @type {string} */ f) => fileURLToPath(new URL(f, import.meta.url));
-
-const require = createRequire(import.meta.url);
 
 /** @type {Record<string, string>} */
 const REPLACED = {
 	path: here('./node-path.js'),
 	'path/posix': here('./node-path.js'),
-	// The npm package is Node's Buffer for browsers.
-	buffer: require.resolve('buffer/'),
+	// The npm package is Node's Buffer for browsers, taught base64url.
+	buffer: here('./buffer.js'),
 	async_hooks: here('./async-hooks.js')
 };
 
