@@ -65,19 +65,36 @@ self.onmessage = async ({ data, ports }) => {
 			cookie ?? ''
 		);
 		const response = await server.respond(request, { getClientAddress: () => '127.0.0.1' });
-		const buffer = await response.arrayBuffer();
-		self.postMessage(
-			{
-				type: 'tsundoku-response',
-				id,
-				status: response.status,
-				statusText: response.statusText,
-				headers: [...response.headers],
-				setCookies: setCookiesOf(response.headers),
-				body: buffer
-			},
-			[buffer]
-		);
+		// The head at once, then the body as the server makes it: SvelteKit
+		// streams a load's promises (a source's series, a search's results),
+		// and a page draws what it has while the rest is on its way
+		// (src/lib/web/relay.ts, RELAY_CHUNK).
+		const head = {
+			type: 'tsundoku-response',
+			id,
+			status: response.status,
+			statusText: response.statusText,
+			headers: [...response.headers],
+			setCookies: setCookiesOf(response.headers)
+		};
+		if (!response.body) {
+			self.postMessage({ ...head, body: null });
+			return;
+		}
+		self.postMessage({ ...head, body: null, stream: true });
+		const reader = response.body.getReader();
+		try {
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				// Its own copy, so the transfer never takes a buffer the server still holds.
+				const chunk = value.slice().buffer;
+				self.postMessage({ type: 'tsundoku-chunk', id, chunk }, [chunk]);
+			}
+			self.postMessage({ type: 'tsundoku-end', id });
+		} catch (e) {
+			self.postMessage({ type: 'tsundoku-end', id, error: String(e?.message ?? e) });
+		}
 	} catch (e) {
 		const text = new TextEncoder().encode(`web edition server error: ${e?.stack ?? e}`).buffer;
 		self.postMessage(
