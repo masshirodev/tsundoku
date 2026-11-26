@@ -623,6 +623,13 @@ function asMihon(m: SourceManga): MihonManga {
 
 /** Remembers what the source calls a series and its chapters, so the worker needn't ask again. */
 function rememberAtSource(seriesId: number, m: SourceManga, now: number) {
+	// One transaction, not one per chapter: each statement on its own commits,
+	// and in the web edition every commit is a write to the tab's storage.
+	// A 1,199-chapter series took 3.5 minutes there before (c1134, 2026-11-26).
+	db().transaction(() => rememberRows(seriesId, m, now))();
+}
+
+function rememberRows(seriesId: number, m: SourceManga, now: number) {
 	const d = db();
 	d.prepare(
 		`INSERT INTO engine_series (series_id, source_id, engine_url, title, resolved_at) VALUES (?, ?, ?, ?, ?)
