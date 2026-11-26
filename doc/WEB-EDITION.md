@@ -63,6 +63,19 @@ a dedicated worker's synchronous file handles, which a service worker has not
 got. So a tab owns the server worker, and the service worker reaches it
 through that tab.
 
+**An answer comes back streamed.** The server worker sends a response's head
+as soon as SvelteKit has it, then its body piece by piece, then an end
+(`tsundoku-response` with `stream`, `tsundoku-chunk`, `tsundoku-end`); the tab
+passes each piece on, and the service worker answers the page with a stream
+at the head (`src/lib/web/relay.ts`). It matters because SvelteKit streams a
+load's promises: a source's series preview draws ASKING THE SOURCE… at once
+and fills in when the source answers, a search draws each source's results as
+they come. Until 2026-11-26 the worker read every body whole first, so those
+pages waited for their slowest part with nothing on screen (c1121). A body cut
+off part-way by the server ends in an error, and so does one whose tab is
+lost part-way, rather than hanging; the timing log ("Measuring") keeps both a
+streamed answer's head and its end.
+
 ### One service worker
 
 The web edition's service worker is the app's own, `src/service-worker.ts`,
@@ -693,7 +706,11 @@ what is signed, and the jar is not: it is not used.
 `web/tests/install.e2e.ts` runs the whole of it in Chromium with the real
 engine and the development fetcher, against a local repository listing a
 real extension signed by Keiyoushi's key: add the repository, install,
-reload, still installed.
+reload, still installed. `web/tests/browse.e2e.ts` goes on from there: the
+extension's POPULAR through the engine, its covers drawn in the tab, and a
+series opened, its preview on screen while the test still holds back the
+source's episode list (the streamed answer, "How a request travels"); every
+request to the extension's site is answered by the test with made-up pages.
 
 ## The engine
 
