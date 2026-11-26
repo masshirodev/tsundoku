@@ -59,6 +59,11 @@ from the file's header comment), and commit the result.
 
 ## The web edition
 
+**On GitHub too.** `.github/workflows/browsers.yml` runs `test:web` and
+`test:fetcher` on every push to main and every pull request (the repository is
+public, so its runners are free), in Chromium and a real Firefox: a red there is
+the same red as here. The main Playwright suite stays local.
+
 `yarn run test:web` is the web edition's browser test ([`WEB-EDITION.md`](WEB-EDITION.md),
 "Testing"): its own Playwright config, `playwright.web.config.ts`, and its own
 specs, `web/tests/*.e2e.ts`, outside `tests/` so the main suite never collects

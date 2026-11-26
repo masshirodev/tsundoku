@@ -1,0 +1,92 @@
+# The browser suites that need nothing of the workstation's, run where anyone
+# can see them (doc/TESTING.md): the web edition in Chromium and Firefox
+# (`yarn run test:web`) and the fetcher extension in both
+# (`yarn run test:fetcher`). Neither needs the engine, a seeded library or a
+# network site: each builds what it tests and serves it locally. The main
+# Playwright suite (`yarn run test:e2e`) stays local for now.
+#
+# Free for a public repository; the workstation runs them only by hand since
+# this was added (2026-11-26).
+name: browsers
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browsers-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      # package.json links kotoba as ../kotoba, so the two check out side by side.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: tsundoku
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: masshirodev/kotoba
+          path: kotoba
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.16.0
+      - run: yarn install --frozen-lockfile
+        working-directory: kotoba
+      # `prepare` copies kotoba's dictionary into static/dict, which the build takes.
+      - run: yarn install --frozen-lockfile
+        working-directory: tsundoku
+      - run: npx playwright install --with-deps chromium firefox
+        working-directory: tsundoku
+      - run: yarn run test:web
+        working-directory: tsundoku
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-web-results
+          path: tsundoku/test-results/
+          retention-days: 7
+
+  fetcher:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: tsundoku
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: masshirodev/kotoba
+          path: kotoba
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.16.0
+      # The fetcher runs in a real Firefox through web-ext (Playwright's own
+      # Firefox cannot load add-ons). The test skips Firefox when it finds
+      # none, so its path is set and checked here: a green run must have run it.
+      - id: firefox
+        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+      - run: test -x "${{ steps.firefox.outputs.firefox-path }}"
+      - run: yarn install --frozen-lockfile
+        working-directory: kotoba
+      - run: yarn install --frozen-lockfile
+        working-directory: tsundoku
+      - run: npx playwright install --with-deps chromium
+        working-directory: tsundoku
+      - run: yarn run test:fetcher
+        working-directory: tsundoku
+        env:
+          FIREFOX: ${{ steps.firefox.outputs.firefox-path }}
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-fetcher-results
+          path: tsundoku/test-results/
+          retention-days: 7
