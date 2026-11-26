@@ -549,6 +549,16 @@ shown within half a second of scrolling to it.
   first and puts it back after. It does this by hand: the browser's scroll
   anchoring is off on the strip (`overflow-anchor: none`), since it does
   nothing at the very top of a page and would otherwise do it twice.
+  **Changes that land together are kept once.** A chapter's data and its
+  neighbour's pages can arrive in the same moment, read online above all. A
+  `keepPlace` started while another is still waiting for the DOM joins it:
+  its change is made, and the one already waiting measures both. Two
+  measuring side by side each took the place from before either change and
+  each told the Page Down glide the content had moved. The window was put
+  back once, the glide went twice as far, to the top of the strip a chapter
+  back, and from there the strip crossed back and forth or walked back
+  through the series by itself (c1153, 2026-11-26; `tests/browse-online.e2e.ts`,
+  "never walks back by itself", whose pages arrive 0.3 to 2 s late).
   **The page under the middle is the strip's, whatever covers it:** READING's
   sheet, the controls, the lookup or a banner over the middle are looked
   through (`stripSlotAt` in `src/lib/reader/strip-slot.ts`, every element
