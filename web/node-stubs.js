@@ -34,12 +34,17 @@ const REPLACED = {
  */
 const IMPLEMENTED = {
 	fs: here('./fs.js'),
-	'fs/promises': here('./fs-promises.js')
+	'fs/promises': here('./fs-promises.js'),
+	crypto: here('./crypto.js')
 };
 
-/** The names a file of ours exports, read from its text (`export const name`). @param {string} file */
+/** The names a file of ours exports, read from its text (`export const name`, `export function name`). @param {string} file */
 const exportsOf = (file) =>
-	new Set([...readFileSync(file, 'utf8').matchAll(/^export const (\w+)/gm)].map((m) => m[1]));
+	new Set(
+		[...readFileSync(file, 'utf8').matchAll(/^export (?:const|(?:async )?function) (\w+)/gm)].map(
+			(m) => m[1]
+		)
+	);
 
 /** @type {Record<string, Record<string, string>>} */
 const AT_LOAD = {
@@ -62,10 +67,6 @@ const AT_LOAD = {
 		tmpdir: '() => "/tmp"',
 		hostname: '() => "tsundoku-web"',
 		networkInterfaces: '() => ({})'
-	},
-	crypto: {
-		randomUUID: '() => globalThis.crypto.randomUUID()',
-		getRandomValues: '(a) => globalThis.crypto.getRandomValues(a)'
 	}
 };
 

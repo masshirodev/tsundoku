@@ -267,6 +267,16 @@ TypeScript. Each part is checked against the real thing in
   (`web/node-path.js`, posix, checked against Node's), `buffer` (the npm
   package), `async_hooks` (below), and a few calls made while modules load
   (`util.promisify`, `util.debuglog`, `os.platform`, ...).
+- **`node:crypto` → `web/crypto.js`** (the "Crypto" the code reads). The
+  server code hashes inline and synchronously (an extension's handle, a
+  file's fingerprint, a cache key), and a browser's WebCrypto is
+  asynchronous, so `createHash` and `createHmac` are @noble/hashes' (audited,
+  MIT, synchronous; SHA-1, the SHA-2 family, MD5), and `randomBytes`,
+  `randomInt` and `randomUUID` the browser's own randomness;
+  `timingSafeEqual` compares in constant time. `tests/web/crypto.spec.ts`
+  holds every hash to Node's own output. Signatures are not here: the one
+  check that verifies one (an extension's APK) uses WebCrypto in both
+  editions ("Installing an extension").
 - **`undici` → `web/undici.js`.** The browser has `fetch`. tsundoku takes only
   undici's `Agent`, which `net-guard.ts` gives fetch so a server cannot be
   steered at private addresses; in a tab the "server" is the reader's own
