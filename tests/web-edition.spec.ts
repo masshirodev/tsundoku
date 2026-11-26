@@ -8,6 +8,7 @@ import BetterSqlite from 'better-sqlite3';
 // web/ is plain JavaScript with JSDoc types, checked by svelte-check through
 // these imports.
 import nodePath from 'node:path';
+import { randomBytes } from 'node:crypto';
 import WebSqlite, { load, ready } from '../web/sqlite.js';
 import * as webPath from '../web/node-path.js';
 import { nodeStubs } from '../web/node-stubs.js';
@@ -120,6 +121,28 @@ describe('the Buffer the server worker gets', () => {
 		expect(b.readBigUInt64LE(0)).toBe(1n);
 		expect(b.readUInt32LE(8)).toBe(2);
 		expect(typeof WebBuffer.prototype.readBigInt64LE).toBe('function');
+	});
+
+	// The package lacks base64url, which the server code uses for ids and
+	// tokens; web/buffer.js adds it. Every answer is checked against Node's.
+	it('speaks base64url as Node does', async () => {
+		const { Buffer: WebBuffer } = await import('../web/buffer.js');
+		expect(WebBuffer.isEncoding('base64url')).toBe(true);
+		for (let n = 0; n < 40; n++) {
+			const raw = randomBytes(n);
+			const want = raw.toString('base64url');
+			const web = WebBuffer.from(raw);
+			expect(web.toString('base64url')).toBe(want);
+			expect(web.toString('base64url', 1, n)).toBe(raw.toString('base64url', 1, n));
+			expect([...WebBuffer.from(want, 'base64url')]).toEqual([...raw]);
+			expect(WebBuffer.byteLength(want, 'base64url')).toBe(Buffer.byteLength(want, 'base64url'));
+		}
+		const out = WebBuffer.alloc(4);
+		out.write('-_8', 'base64url');
+		expect([...out]).toEqual([...Buffer.from('-_8', 'base64url'), 0, 0]);
+		// Every other encoding is the package's own.
+		expect(WebBuffer.from('héllo').toString()).toBe('héllo');
+		expect(WebBuffer.from('aGk=', 'base64').toString('hex')).toBe('6869');
 	});
 });
 
