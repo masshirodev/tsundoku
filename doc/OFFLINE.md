@@ -74,7 +74,7 @@ Never for a hidden series, while reveal is on, or incognito.
 
 | Cache                    | What                                         | How                                                                                                |
 | ------------------------ | -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `tsundoku-shell-<build>` | this build's scripts, styles, fonts, statics | cache first; old builds' shells deleted                                                            |
+| `tsundoku-shell-<build>` | this build's scripts, styles, fonts, statics | cache first; old builds' shells deleted (the web edition: once no open tab runs them, c1138)       |
 | `tsundoku-entries`       | cached chapters                              | page images **cache first**; manifests and the reader's page network first, the cache when offline |
 | `tsundoku-screens`       | the last copy of each screen and its data    | network first; used only when the network fails                                                    |
 

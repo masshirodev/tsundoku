@@ -139,6 +139,59 @@ server and the others use it. In `web/boot.js`:
    twice, since it may have been a write. A form action is answered as a
    refusal the screen shows ("Taking over", below); anything else, 503.
 
+### A new build
+
+A deploy replaces the host's files and brings a new service worker, which
+takes over at once: it must, since a first visit cannot start until a worker
+controls it. But the leading tab's server keeps running the build that tab
+loaded, and loads its route chunks lazily. Until c1138 (2026-11-26) the new
+worker deleted the old build's files as it took over, so the old server's
+next new screen asked for a chunk gone from the cache and from the host, and
+the tab failed with a 500 until it was reopened. A tab opened meanwhile also
+ran the new client against the old server. Now (`src/lib/web/builds.ts`,
+`src/lib/web/move.ts`, `src/service-worker.ts`):
+
+- **Every tab says which build it runs** (`tsundoku-build`, from `boot.js` at
+  its start, and again when the worker asks with `tsundoku-which-build`); the
+  leader's `tsundoku-leader` carries its build too. `boot.js` also writes it
+  on `<html data-web-build>`.
+- **A build's files stay while any open tab runs it.** The web edition's
+  `activate` deletes nothing; a build's `tsundoku-shell-<build>` goes once
+  every open tab has said its build and none runs that one. A tab too old to
+  say keeps every build until it closes, and is asked once only.
+- **One build at a time.** While the leader runs an older build, the worker
+  serves that build's fixed-name files (`/index.html`, `boot.js`,
+  `server/worker.js`, the engine) to every tab, so a tab opened meanwhile
+  runs the same build as the server. Files named by their content
+  (`/_app/immutable/`, the server's chunks) come from whichever kept build has
+  them.
+- **The tabs move together.** The app learns of a deploy from
+  `/_app/version.json`, which the worker now always takes from the host (the
+  server in the tab only knows its own build), and loads the next screen
+  whole, as the self-hosted app does. In the web edition that tap first has
+  the new worker fetched (`registration.update()`, also done as soon as the
+  deploy is seen), asks it which build it is, and if it is the new one tells
+  it to move (`tsundoku-moving`, answered before the tab goes, or the
+  navigation could reach the worker first and be given the old build). The
+  worker then serves its own build to everyone and sends every other tab
+  `tsundoku-reload`. The first tab to start again starts the new server.
+- **What it does not do.** A write in flight in another tab when it reloads
+  is lost with it, as when a tab is closed (a form is answered as a refusal,
+  "Taking over"); reading events are kept and sent again. A worker stopped
+  and started again forgets which build the leader runs until the leader
+  answers `tsundoku-who-leads`, and meanwhile serves its own. Chromium hands
+  over to a new worker only once the old one has no event in progress, so a
+  page that kept messaging the old worker would hold the new one back (the
+  test watches the registration instead).
+
+`web/tests/new-build.e2e.ts` makes a second build from `build-web/` the way a
+deploy changes the host (a new version, every server chunk renamed), opens a
+tab on the first, switches the host, and checks that the open tab still opens
+a screen whose server chunk it had not loaded, that a tab opened then runs
+the old build, that the next tap moves both to the new one, and that the old
+build's files go. Without the fix it fails in both browsers: Firefox at that
+screen, Chromium at the second tab.
+
 ### Forms
 
 A form posted without `use:enhance` is a navigation, whose answer the browser
@@ -900,9 +953,9 @@ What the web build does not do yet, each with its card:
   (c1150); **wording** that names a workstation (c1152).
 - **Speed.** About 5 s of Java for each page of a site an extension parses
   ("Measuring"); covers and pages one at a time through the engine (c1139).
-- **A new build under an open tab** breaks it until the tab is reopened
-  (c1138), which must be settled before the first deploy, as must what the
-  fetcher may reach on the reader's own network (c1140).
+- **Before the first deploy:** what the fetcher may reach on the reader's
+  own network (c1140). The "Built with CheerpJ" credit (c1135) and a new build
+  under an open tab ("A new build", c1138) are settled.
 - **Accounts and sync:** the library lives in one browser only.
 
 ## Measuring

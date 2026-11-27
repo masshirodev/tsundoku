@@ -4,6 +4,7 @@
 /// <reference lib="webworker" />
 import { build, files, prerendered, version } from '$service-worker';
 import { byteRange } from '$lib/cache/policy';
+import { builds as buildsOf, shellName, stale } from '$lib/web/builds';
 import { MESSAGES, postedForm, relay } from '$lib/web/relay';
 
 /**
@@ -30,6 +31,8 @@ import { MESSAGES, postedForm, relay } from '$lib/web/relay';
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
 const web = __WEB_EDITION__ ? relay(sw.clients) : null;
+/** The web edition's builds: which one to serve, which ones' files to keep (c1138). */
+const builds = __WEB_EDITION__ ? buildsOf(version) : null;
 
 /** The app's server: the network, or in the web edition the leading tab. */
 const server = (req: Request): Promise<Response> => (web ? web.send(req) : fetch(req));
@@ -45,11 +48,31 @@ const webFile = (path: string) =>
 	path.startsWith('/server/') ||
 	path.startsWith('/engine/');
 
+/**
+ * A file of the web edition's shell, from the build being served (c1138):
+ * the leader's while its server runs an older one, so a tab opened meanwhile
+ * runs that build too. A file named by its content (`/_app/immutable/`, a
+ * server chunk) is the same file in any build that has it, so any kept build
+ * answers it; a fixed name (`/index.html`, `/boot.js`, `/server/worker.js`)
+ * comes from the served build only, or the network.
+ */
+async function webShellFile(req: Request | string, path: string): Promise<Response> {
+	const served = shellName(builds?.serving() ?? version);
+	for (const name of new Set([served, SHELL])) {
+		const hit = await (await caches.open(name)).match(req);
+		if (hit) return hit;
+	}
+	const named = path.startsWith('/_app/immutable/') || isServerChunk(path);
+	return (named && (await caches.match(req))) || fetch(req);
+}
+const isServerChunk = (path: string) =>
+	path.startsWith('/server/') && path !== '/server/worker.js' && path !== '/server/files.json';
+
 /** Every file the build puts on the network, kept or not (the dictionary is
  * one): in the web edition, the requests that are not the server's. */
 const STATIC = new Set([...build, ...files, ...prerendered]);
 
-const SHELL = `tsundoku-shell-${version}`;
+const SHELL = shellName(version);
 const ENTRIES = 'tsundoku-entries';
 const SCREENS = 'tsundoku-screens';
 /** An anime's episodes kept on the device (doc/ANIME.md, "Offline"): written by the player only. */
@@ -75,11 +98,64 @@ sw.addEventListener('install', (event) => {
 });
 
 sw.addEventListener('message', (event) => {
-	if (!web || web.onMessage(event)) return;
-	if (event.data?.type === MESSAGES.precache) event.waitUntil(precache());
+	if (!web || !builds) return;
+	const data = event.data as { type?: string; build?: unknown } | null;
+	const from = event.source as { id?: unknown } | null;
+	const id = typeof from?.id === 'string' ? from.id : null;
+	// A tab's build, said on its own (every tab, at its start and when asked)
+	// or with its leading: kept while it is open, and the leader's served.
+	const build = typeof data?.build === 'string' ? data.build : null;
+	if (data?.type === MESSAGES.leader) builds.leader(build);
+	if ((data?.type === MESSAGES.leader || data?.type === MESSAGES.build) && id && build) {
+		builds.report(id, build);
+		event.waitUntil(prune());
+	}
+	if (web.onMessage(event) || data?.type === MESSAGES.build) return;
+	if (data?.type === MESSAGES.precache) event.waitUntil(precache());
+	else if (data?.type === MESSAGES.workerBuild) event.ports[0]?.postMessage(version);
+	else if (data?.type === MESSAGES.moving) {
+		// One tab is going to the new build: every other goes with it, so no
+		// tab is left talking to a server of another build.
+		builds.move();
+		event.ports[0]?.postMessage(true);
+		event.waitUntil(
+			sw.clients.matchAll({ type: 'window' }).then((all) => {
+				for (const w of all) if (w.id !== id) w.postMessage({ type: MESSAGES.reload });
+			})
+		);
+	}
 });
 
+/**
+ * The web edition deletes a build's files only once no open tab runs it: a
+ * tab's server loads its route chunks lazily, and a deploy takes the old ones
+ * off the host (c1138). Asked of every open tab when it is not known.
+ */
+async function prune(): Promise<void> {
+	if (!builds) return;
+	const open = await sw.clients.matchAll({ type: 'window' });
+	const keep = builds.keep(open.map((c) => c.id));
+	if (keep) {
+		await Promise.all(stale(await caches.keys(), keep).map((k) => caches.delete(k)));
+		return;
+	}
+	// Asked once each: a tab too old to answer must not have every other
+	// tab's answer ask again, round and round. Its build stays until it closes.
+	for (const w of open)
+		if (!askedBuild.has(w.id)) {
+			askedBuild.add(w.id);
+			w.postMessage({ type: MESSAGES.whichBuild });
+		}
+}
+/** The tabs already asked which build they run, by this worker. */
+const askedBuild = new Set<string>();
+
 sw.addEventListener('activate', (event) => {
+	// The web edition keeps older builds' files while a tab runs them (prune).
+	if (__WEB_EDITION__) {
+		event.waitUntil(sw.clients.claim().then(prune));
+		return;
+	}
 	event.waitUntil(
 		caches
 			.keys()
@@ -139,7 +215,7 @@ async function episodeFile(req: Request): Promise<Response> {
  * range is cut from it here.
  */
 async function engineFile(req: Request): Promise<Response> {
-	const shell = await caches.open(SHELL);
+	const shell = await caches.open(shellName(builds?.serving() ?? version));
 	let whole = await shell.match(req.url);
 	if (!whole) {
 		const res = await fetch(req.url);
@@ -193,14 +269,22 @@ sw.addEventListener('fetch', (event) => {
 		event.respondWith(engineFile(req));
 		return;
 	}
-	if (ASSETS.has(path) || (web && webFile(path))) {
+	// The build's version, always from the host: the app compares it with its
+	// own to learn a deploy happened (vite.config.ts). The server in the tab
+	// knows only the build it runs.
+	if (web && path === '/_app/version.json') return;
+	if (web && (webFile(path) || path.startsWith('/_app/immutable/'))) {
+		event.respondWith(webShellFile(req, path));
+		return;
+	}
+	if (ASSETS.has(path)) {
 		event.respondWith(caches.match(req).then((hit) => hit ?? fetch(req)));
 		return;
 	}
 	if (web && STATIC.has(path)) return;
 	if (web && req.mode === 'navigate') {
 		// Every screen is the shell, which then asks the server for its data.
-		event.respondWith(caches.match('/index.html').then((hit) => hit ?? fetch('/index.html')));
+		event.respondWith(webShellFile('/index.html', '/index.html'));
 		return;
 	}
 	// A page image: the cached copy first -- a turn back, or a chapter read

@@ -23,12 +23,22 @@ import { lostAnswer } from './takeover.ts';
 export const MESSAGES = {
 	/** service worker → leader: a request for the server, with a port for its answer */
 	request: 'tsundoku-request',
-	/** leader → service worker: "my server is ready, send me the requests" */
+	/** leader → service worker: "my server is ready, send me the requests" (with its `build`) */
 	leader: 'tsundoku-leader',
 	/** service worker → every window: "which of you leads?" (the leader answers `leader`) */
 	whoLeads: 'tsundoku-who-leads',
 	/** any page → service worker: keep the app's files for offline use */
-	precache: 'tsundoku-precache'
+	precache: 'tsundoku-precache',
+	/** every page → service worker: "I run this build" (`build`); kept while I am open (c1138) */
+	build: 'tsundoku-build',
+	/** service worker → every window: "which build do you run?" (each answers `build`) */
+	whichBuild: 'tsundoku-which-build',
+	/** a page → service worker, with a port: every tab to the new build now; I am going there myself (answered once it holds) */
+	moving: 'tsundoku-moving',
+	/** service worker → every other window: reload, onto the new build */
+	reload: 'tsundoku-reload',
+	/** a page → service worker, with a port: which build are you? (answers its version) */
+	workerBuild: 'tsundoku-worker-build'
 } as const;
 
 /** How long a request waits for a leader before it is answered 503. A first
