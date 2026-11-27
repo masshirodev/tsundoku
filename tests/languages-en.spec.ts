@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,19 +14,28 @@ import { writeEnglishPack } from './helpers/en-pack';
  * cut down to the cases that decide the rules; the e2e run uses the same file.
  */
 
-const dirs: string[] = [];
+// One pack for the whole file: every case only reads it, and writing a fresh
+// one for each case ran past the 5 s timeout when the whole suite shared the
+// box (a pre-push run, 2026-11-27).
+let dir = '';
+let pack = '';
+
+beforeAll(() => {
+	// os.tmpdir() is RAM on the workstation, so the fixture is removed below.
+	dir = mkdtempSync(join(tmpdir(), 'tsundoku-en-'));
+	pack = join(dir, 'en-wiktionary.db');
+	writeEnglishPack(pack);
+});
+
+afterAll(() => {
+	rmSync(dir, { recursive: true, force: true });
+});
 
 function mapDatabase() {
-	// os.tmpdir() is RAM on the workstation, so each fixture is removed below.
-	const dir = mkdtempSync(join(tmpdir(), 'tsundoku-en-'));
-	dirs.push(dir);
-	const file = join(dir, 'en-wiktionary.db');
-	writeEnglishPack(file);
-	return file;
+	return pack;
 }
 
 afterEach(() => {
-	for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 	setPackPath(join(tmpdir(), 'no-such-pack.db'));
 });
 

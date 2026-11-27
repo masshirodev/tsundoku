@@ -176,6 +176,18 @@ browsing record:
   ASKED TO SLOW DOWN, opening by itself after a 30 s countdown with no TRY
   AGAIN; SOURCES NOT ANSWERING and THE SOURCE DID NOT ANSWER, with TRY AGAIN;
   offline, ○ ONLINE ONLY.
+- **Only when opening.** Moving to another chapter of the same series (a
+  strip's crossing, CH. →, the end page's next) keeps the reader on screen
+  with the chapter it has while the next one's data is on its way, as a
+  downloaded chapter's page stays until its load is done, and takes the new
+  data when it lands (`src/routes/read/[entry]/+page.svelte`). The waiting
+  page is for a first open, another series, and a source that failed. Until
+  2026-11-27 it took the screen at every move: a chapter's page list is kept
+  ten minutes, the owner had read the chapter before for longer, so crossing
+  into the next asked the source again, the waiting page replaced the strip
+  ("a reload, like entering a new page"), and a new reader opened the chapter
+  at its start (c1158). One and the same reader also draws downloaded and
+  online chapters, so crossing from one to the other keeps the strip too.
 - **A rate limit is the whole chapter's, not a page's**: tsundoku learns of a
   limit when it asks for the page list, so the countdown is the waiting
   page's. A page refused later fails with RETRY.

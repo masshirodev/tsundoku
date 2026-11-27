@@ -26,6 +26,7 @@
 		zoom = 1,
 		outline = null,
 		src,
+		eager = new Set(),
 		shape = (_c, _i, p) => p,
 		onshape,
 		onpage,
@@ -49,6 +50,8 @@
 		 */
 		outline?: { entry: number; index: number } | null;
 		src: (c: StripChapter, i: number) => string;
+		/** Pages to ask for now, not as they near the screen (`stripEager`): `<chapter>:<page>`. */
+		eager?: Set<string>;
 		/** A page's shape for its box, where the manifest had none (a chapter read online). */
 		shape?: (c: StripChapter, i: number, p: Page) => Page & { guess?: boolean };
 		/** A page read online arrived at this size. */
@@ -268,7 +271,7 @@
 							h={s.h}
 							guess={!!s.guess}
 							fit="strip"
-							lazy
+							lazy={!eager.has(`${c.id}:${i}`)}
 							online={c.version.startsWith('online-')}
 							onshape={(w, h) => reshaped(c, i, w, h)}
 							rings={rings(c.id, i)}

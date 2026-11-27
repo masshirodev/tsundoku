@@ -200,8 +200,17 @@ A turned-to page is already there, not a box saying "P. 15".
 - **Each page is asked for once.** One preloader asks for the screens ahead;
   for an online page any second request would be another request to the
   source.
-- **Vertical** needs none of this: every page of the chapters on the strip is
-  in the page and loads as it comes.
+- **Vertical:** every page of the chapters on the strip is in the page and
+  loads as it nears the screen, and the next few pages ahead of the one being
+  read (`STRIP_AHEAD`, 3) are asked for at once, as are the next chapter's
+  first two in the chapter's last few pages (`stripEager`,
+  `src/lib/reader/reader.ts`). Lazily, a tall page read online over a slow
+  link was still on its way when it reached the screen: at the band the next
+  chapter met the reader as loading boxes, which read as the chapter
+  reloading (c1158, 2026-11-27). So a test that finds a strip's page by its
+  name ("Page 1") names its chapter too (`data-entry` on the page's slot): in
+  a chapter a few pages long, the next chapter's pages of the same names are
+  already in the strip from the first page (`web/tests/read.e2e.ts`' `shown`).
 
 The device cache (`keepAhead`, doc/OFFLINE.md) is a different thing: it
 keeps whole chapters for reading offline.
@@ -569,6 +578,21 @@ shown within half a second of scrolling to it.
   the strip shows the chapter above under a URL naming the one below. The
   rotation's and a reshaped page's look-ups use the same rule; nothing under
   the point (a gap) keeps nothing.
+- **Nor while the strip moves.** What lands above the page being read waits
+  until nothing is moving the strip: a neighbour arriving or leaving above it,
+  or its pages coming in (`splitAbove` in `src/lib/reader/reader.ts`,
+  `whenStill` in `ImageReader.svelte`). Changes below it land at once, since
+  they can't shove it. Still is no finger on the screen and no scroll for
+  250 ms (`STILL_MS`); then everything that waited is made at once, in one
+  `keepPlace`. Putting the place back is a scroll set by hand, and a touch
+  browser can drop that while a finger or a fling is moving the page: the
+  owner, reading a manhwa online on a tablet over Tailscale, scrolled up into
+  ch. 57 while ch. 56 landed above it, eleven screens of pages, and was at
+  57's first page two seconds later; crossing into 58 again, the strip walked
+  back to 57 and 56 by itself (c1158, 2026-11-27; the library's
+  `reading_events` showed every step). `tests/browse-online.e2e.ts`, "waits
+  for a still strip", models that browser (`scrollBy` does nothing while the
+  strip moves) on chapters of 25 tall pages from a source slow to list them.
 - **Nor on turning the device.** Portrait to landscape, or back, changes the
   strip's width, and every page's height scales with it while the scroll
   offset doesn't: in a manhwa that lands several pages away. The strip notes
@@ -630,7 +654,13 @@ shown within half a second of scrolling to it.
   chapter on its first page, whatever its progress said. **Only for the entry
   that navigation arrived at:** a mode switch opens the strip with no
   navigation, so a place left set would be replayed by the next crossing's
-  arrival, scrolling the strip back a whole chapter.
+  arrival, scrolling the strip back a whole chapter. "The entry it arrived at"
+  is the navigation's own target (`to.params.entry`), not the reader's data:
+  a chapter read online keeps the reader and its data while the next
+  chapter's comes ([`READING-ONLINE.md`](READING-ONLINE.md), "Only when
+  opening"), so on a crossing the data still named the chapter left, matched
+  a place left by a mode switch, and sent the strip to that chapter's first
+  page (c1158).
 - **CH. ← / →** in the controls go to a neighbour already on the strip by
   scrolling to it, and to anything else by starting the strip over there.
 - **The scrubber** moves within the chapter being read.

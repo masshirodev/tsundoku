@@ -36,9 +36,17 @@ test.afterAll(() => repo?.close());
 /**
  * A page of the chapter, once its image has arrived from the engine: by its
  * name, which the paged reader and the vertical strip (a webtoon opens in
- * the strip) both give it.
+ * the strip) both give it. Only the chapter in the address counts: near a
+ * chapter's end the strip already holds the next chapter's first pages
+ * (doc/READER.md, "Preloading"), named the same, and these chapters are
+ * three pages long, so that is from their first page.
  */
-const shown = (page: Page, n = 1) => page.getByRole('img', { name: `Page ${n}`, exact: true });
+const shown = (page: Page, n = 1) => {
+	const entry = new URL(page.url()).pathname.split('/')[2];
+	return page
+		.getByRole('img', { name: `Page ${n}`, exact: true })
+		.and(page.locator(`img:not([data-entry]:not([data-entry="${entry}"]) img)`));
+};
 
 test('the thin path: a chapter read online to its end, kept, listed in HISTORY, then added and found in the library', async ({
 	baseURL,

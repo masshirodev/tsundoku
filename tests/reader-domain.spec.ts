@@ -18,6 +18,8 @@ import {
 	swipeAction,
 	pagesAhead,
 	nearEnd,
+	splitAbove,
+	stripEager,
 	stripWindow,
 	mouseAction,
 	WheelTurn,
@@ -867,5 +869,61 @@ describe('libraryCells', () => {
 			cell: 'add',
 			unhide: null
 		});
+	});
+});
+
+describe('what may land above the page being read while the strip moves (c1158)', () => {
+	const c = (id: number) => ({ id });
+	it('lets the chapter being read and everything below it change, and holds what is above', () => {
+		const a = c(1);
+		const b = c(2);
+		const cur = c(3);
+		const d = c(4);
+		// Arriving in 3 from 2: 2 stays above, 4 comes below, 1 (two above) waits to go.
+		const now = [a, b, cur];
+		const next = [b, cur, d];
+		const { safe, above } = splitAbove(now, next, 3);
+		expect(safe).toEqual([a, b, cur, d]);
+		expect(above).toBe(true);
+	});
+
+	it('says nothing waits when nothing above changes', () => {
+		const b = c(2);
+		const cur = c(3);
+		expect(splitAbove([b, cur], [b, cur, c(4)], 3)).toEqual({
+			safe: [b, cur, expect.anything()],
+			above: false
+		});
+	});
+
+	it('treats a strip that does not hold the chapter yet as an opening: all of it now', () => {
+		const next = [c(5), c(6), c(7)];
+		expect(splitAbove([c(1), c(2)], next, 6)).toEqual({ safe: next, above: false });
+	});
+
+	it('holds a chapter arriving above, by itself the change that left the owner a chapter off', () => {
+		const cur = c(57);
+		const below = c(58);
+		const { safe, above } = splitAbove([cur, below], [c(56), cur, below], 57);
+		expect(safe.map((x) => x.id)).toEqual([57, 58]);
+		expect(above).toBe(true);
+	});
+});
+
+describe('the strip’s pages asked for at once (c1158)', () => {
+	const ch = (id: number, n: number) => ({ id, pages: Array.from({ length: n }) });
+	it('asks for the next few pages of the chapter being read', () => {
+		expect([...stripEager([ch(1, 20), ch(2, 20)], 1, 4)]).toEqual(['1:5', '1:6', '1:7']);
+	});
+
+	it('near the end, asks for the next chapter’s first pages too', () => {
+		expect([...stripEager([ch(1, 20), ch(2, 20)], 1, 17)]).toEqual(['1:18', '1:19', '2:0', '2:1']);
+		expect([...stripEager([ch(1, 20), ch(2, 20)], 1, 19)]).toEqual(['2:0', '2:1']);
+	});
+
+	it('asks for nothing it can’t name: a chapter not on the strip, or pages not in yet', () => {
+		expect(stripEager([ch(1, 20)], 9, 0).size).toBe(0);
+		expect(stripEager([{ id: 1, pages: null }], 1, 0).size).toBe(0);
+		expect([...stripEager([ch(1, 3), { id: 2, pages: null }], 1, 2)]).toEqual([]);
 	});
 });

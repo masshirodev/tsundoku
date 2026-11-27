@@ -29,8 +29,10 @@ import {
  *
  * Specs steer the fake over HTTP: POST /__reset, POST /__down (it stops
  * answering), POST /__novideo (every episode's video list comes back empty,
- * the player's NO SERVER), GET /__calls (what it was asked, filters
- * included).
+ * the player's NO SERVER), POST /__slowpages?ms= (every chapter's page list
+ * takes that long, as a slow source's does), POST /__manhwa?pages= (every
+ * chapter is that many tall pages of differing heights), GET /__calls (what
+ * it was asked, filters included). /__reset undoes all of them.
  */
 
 let calls: EngineCall[] = [];
@@ -39,6 +41,19 @@ let down = false;
 let noVideo = false;
 /** /__check: the next search takes this long, while example.org's "check" is solved. */
 let checkMs = 0;
+/**
+ * /__slowpages: every chapter's page list takes this long, as a real source's
+ * does over a slow link (c1158): the reader's data for a chapter read online
+ * then lands well after the navigation.
+ */
+let pageListMs = 0;
+/**
+ * /__manhwa: every chapter is this many tall pages of differing heights, as a
+ * manhwa's are, instead of three (c1158). A page read online has no size
+ * until its image arrives, so the strip lays such a chapter out on guesses
+ * that change as it is read.
+ */
+let manhwaPages = 0;
 const challenges: { solving: Record<string, number>; solved: Record<string, number> } = {
 	solving: {},
 	solved: {}
@@ -298,6 +313,12 @@ function answer(b: EngineCall): unknown {
 			}));
 		}
 		case 'getPageList':
+			if (manhwaPages > 0)
+				return Array.from({ length: manhwaPages }, (_, i) => ({
+					index: i,
+					url: '',
+					imageUrl: `http://127.0.0.1:8080/image/tall${i}`
+				}));
 			return [0, 1, 2].map((i) => ({
 				index: i,
 				url: '',
@@ -357,8 +378,12 @@ const png = (width: number, height: number) => {
 };
 // The second page is a manhwa's tall slice, which a box guessed in a manga's
 // shape once drew as a narrow column (browse-online.e2e.ts, "tall pages").
-const pageImage = (url: string) =>
-	url.startsWith('/image/page1') ? png(600, 3000) : png(600, 900);
+const pageImage = (url: string) => {
+	// A manhwa's page (/__manhwa): tall, each a different height.
+	const tall = /^\/image\/tall(\d+)/.exec(url);
+	if (tall) return png(720, 1600 + (Number(tall[1]) % 5) * 350);
+	return url.startsWith('/image/page1') ? png(600, 3000) : png(600, 900);
+};
 
 const CLIP = readFileSync('tests/fixtures/video/clip.webm');
 const SUBS = readFileSync('tests/fixtures/video/en.vtt');
@@ -397,6 +422,8 @@ function startEngine(): Promise<Server> {
 			down = false;
 			noVideo = false;
 			checkMs = 0;
+			pageListMs = 0;
+			manhwaPages = 0;
 			// What /__bump moved, put back, so a case repeated in this
 			// world meets the repository's 1.6.2 again (browse-extensions'
 			// first case installs 1.6.2, then moves it to 1.6.3).
@@ -412,6 +439,14 @@ function startEngine(): Promise<Server> {
 			return json(200, {});
 		}
 		if (req.url === '/__calls') return json(200, calls);
+		if (req.url?.startsWith('/__manhwa')) {
+			manhwaPages = Number(new URL(req.url, 'http://x').searchParams.get('pages')) || 25;
+			return json(200, {});
+		}
+		if (req.url?.startsWith('/__slowpages')) {
+			pageListMs = Number(new URL(req.url, 'http://x').searchParams.get('ms')) || 2000;
+			return json(200, {});
+		}
 		if (req.url?.startsWith('/__check')) {
 			checkMs = Number(new URL(req.url, 'http://x').searchParams.get('ms')) || 3000;
 			return json(200, {});
@@ -461,6 +496,10 @@ function startEngine(): Promise<Server> {
 					);
 			}
 			const a = answer(b);
+			if (b.method === 'getPageList' && pageListMs > 0) {
+				setTimeout(() => json(200, a), pageListMs);
+				return;
+			}
 			// A search behind a browser check: slow, and "solving" its site meanwhile.
 			if (b.method === 'getSearchManga' && checkMs > 0) {
 				const ms = checkMs;
@@ -725,6 +764,10 @@ export default async function setup() {
 				TSUNDOKU_TOKEN: E2E_TOKEN,
 				ENGINE_URL: `http://127.0.0.1:${ENGINE_PORT}`,
 				ENGINE_TOKEN: 'e2e-engine-token',
+				// A chapter's page list read online goes stale in 15 s here, not 10
+				// minutes (src/lib/server/pages/online.ts): a reader crossing into a
+				// chapter whose list has gone stale waits on the source (c1158).
+				TSUNDOKU_ONLINE_KEEP_MS: '15000',
 				TSUNDOKU_ANILIST: 'off',
 				// Covers and trash too, whatever folder isn't named below.
 				TSUNDOKU_HOME: join(store, 'home'),
