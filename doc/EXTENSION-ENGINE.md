@@ -498,9 +498,11 @@ form, so the trusted origin is always one the reader chose.
 **In the web edition** the same fetches go through the fetcher extension in
 the reader's browser, which refuses the reader's own network by the same
 definition (`src/lib/server/public-ip.ts`), redirects and DNS rebinding
-included. Its one way back is hosts the reader allows in the fetcher's own
-options, so a repository on the reader's NAS is allowed there, by its host
-([`WEB-EDITION.md`](WEB-EDITION.md), "The reader's own network").
+included. Its one way back is a host the reader allows: adding a repository on the
+reader's NAS is refused under REPOSITORIES with ALLOW `<host:port>`, which
+asks the reader in the fetcher's own window, and the form then finds the
+repository by itself ([`WEB-EDITION.md`](WEB-EDITION.md), "The reader's own
+network" and "Asking the reader").
 
 Tests: `tests/net-guard.spec.ts` ("a repository on the reader's own
 network"), and, through the real fetch, `tests/engine-extensions-db.spec.ts`

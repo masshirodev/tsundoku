@@ -777,6 +777,40 @@ answered yes without a window. A fetcher older than protocol 3 is reported
 `too-old` by the handshake, so there is no fetcher that can refuse but not
 ask; the design's board for one ("a fetcher too old to confirm") is not built.
 
+#### Where tsundoku meets a refusal
+
+A screen sees only the fetcher's sentence: the request went through the
+engine's Java or the server worker, often in the tab that leads rather than
+the one on screen, and before the screen's own script ran. So `relay()`
+(`web/engine-start.js`), which every web-edition request to a site passes
+through, remembers each refusal's data on its way past, in `localStorage`
+under `tsundoku:refusals`, which every tab of the origin reads, for ten
+minutes (`src/lib/web/refusals.ts`). A screen looks up the refusal whose
+sentence its error shows (`refusalIn`; `ownNetwork`,
+`src/lib/web/own-network.svelte.ts`) and draws it with
+`src/lib/components/web/OwnNetwork.svelte`, in three cases:
+
+- **The host the page asked for**: ALLOW `<host:port>`, which asks the
+  fetcher from the press; while its window is open the button reads ANSWER IN
+  THE FETCHER'S WINDOW. On yes, the screen tries again by itself: REPOSITORIES
+  asks the form again and says, once, ALLOWED IN THE FETCHER in its FOUND
+  block (`?allowed=`); a source's page loads itself again. On no, a quiet line
+  says why (cancelled, `declined` until a reload, `busy`).
+- **A redirect or an answer that landed on the reader's network**: where it
+  was sent, from which site (`refused.from`), and nothing to allow: tsundoku
+  doesn't ask the reader to follow a site onto their network.
+- **A proxy**: refusals for two or more sites that all answered from one
+  address (`proxySuspect`), on BROWSE and on a source's page: ALLOW
+  `<address>` on every port, through the same window.
+
+An ALLOW forgets the refusals it answered (`forgetRefusals`), so nothing goes
+on offering what is allowed. Tests: `tests/web/refusals.spec.ts`,
+`tests/web/engine.spec.ts` (the relay remembers a refusal and nothing else),
+and `web/tests/own-network.e2e.ts`: in Chromium, the real web edition with the
+development fetcher, a repository on `127.0.0.2` refused under REPOSITORIES,
+ALLOW, the fetcher's window, and the repository found with ALLOWED IN THE
+FETCHER.
+
 #### The options page
 
 `options.html` (the manifest's `options_ui`, opened in a tab): the list,

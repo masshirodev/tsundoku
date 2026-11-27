@@ -19,6 +19,8 @@
 	import type { Snapshot } from './$types';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
+	import OwnNetwork from '$lib/components/web/OwnNetwork.svelte';
+	import { ownNetwork } from '$lib/web/own-network.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import KeptOutline from './KeptOutline.svelte';
 	import { count } from '$lib/library/downloads';
@@ -652,6 +654,15 @@
 			<Band
 				title="FAILED TO LOAD · {data.source.failed.toUpperCase()}"
 				detail="TRY AGAIN IN EXTENSIONS"
+			/>
+		{:else if __WEB_EDITION__ && ownNetwork.in(shown.error)}
+			<!-- The fetcher refused the reader's own network (c1156). A real load
+			     after ALLOW, as TRY AGAIN's: SvelteKit would not ask this URL again. -->
+			<OwnNetwork
+				refused={ownNetwork.in(shown.error)!}
+				proxy={ownNetwork.proxy}
+				{name}
+				onallowed={() => location.reload()}
 			/>
 		{:else}
 			<!-- A check the site refused is remembered for ten minutes (doc/NOVELS.md),

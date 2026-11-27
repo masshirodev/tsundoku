@@ -384,7 +384,7 @@ function refusedError(why: Refused, askedFor: string): FetcherError {
 	const port = url.port || (url.protocol === 'https:' ? '443' : '80');
 	const asked = why.host === url.hostname && why.port === port;
 	const { message, ...data } = why;
-	return new FetcherError(message, { ...data, asked });
+	return new FetcherError(message, { ...data, asked, ...(asked ? {} : { from: url.hostname }) });
 }
 
 function describe(error: unknown): string {

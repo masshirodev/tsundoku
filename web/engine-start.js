@@ -8,6 +8,7 @@
 // stand in for the server worker, the fetcher and the engine's worker.
 import { decodeHead, encodeAnswer, fromBase64 } from './engine-frame.js';
 import { answerSize, siteOf } from './timing.js';
+import { recordRefusal } from '$lib/web/refusals';
 
 /** The answer header that tells the engine a fetch's URL after its redirects. */
 export const FINAL_URL = 'X-Tsundoku-Final-Url';
@@ -113,11 +114,15 @@ export function engineStarter({
  * One request of the engine's to a website, through the fetcher, answered in
  * the frame. A failure is an answer too ("ERR …"), which Java turns into the
  * IOException OkHttp expects of a network that failed.
+ * A refusal of the reader's own network is remembered on its way past
+ * (`noteRefusal`, src/lib/web/refusals.ts): the screen that shows its
+ * sentence then offers ALLOW for it.
  * @param {FetcherLike} fetcher
  * @param {string} head
  * @param {string} body
+ * @param {(refused: import('$lib/fetcher/protocol').Refusal, message: string) => void} [remember]
  */
-export async function relay(fetcher, head, body) {
+export async function relay(fetcher, head, body, remember = noteRefusal) {
 	try {
 		const { method, url, headers } = decodeHead(head);
 		const r = await fetcher.fetch({ url, method, headers, body: body ? fromBase64(body) : null });
@@ -127,6 +132,21 @@ export async function relay(fetcher, head, body) {
 			r.url && r.url !== url ? [/** @type {[string, string]} */ ([FINAL_URL, r.url])] : [];
 		return encodeAnswer(r.status, [...r.headers, ...final], r.body);
 	} catch (e) {
+		const refused = /** @type {{ refused?: import('$lib/fetcher/protocol').Refusal }} */ (e)
+			?.refused;
+		if (refused && e instanceof Error) remember(refused, e.message);
 		return `ERR ${e instanceof Error ? e.message : String(e)}`;
 	}
+}
+
+/**
+ * Remembers a refusal where every tab of the origin reads it, and tells this
+ * tab's own screens at once (a `storage` event reaches only the other tabs).
+ * @param {import('$lib/fetcher/protocol').Refusal} refused
+ * @param {string} message
+ */
+export function noteRefusal(refused, message) {
+	if (typeof localStorage === 'undefined') return;
+	recordRefusal(localStorage, refused, message, Date.now());
+	globalThis.dispatchEvent?.(new Event('tsundoku:refused'));
 }

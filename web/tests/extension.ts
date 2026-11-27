@@ -56,16 +56,20 @@ function repoAnswer(path: string): { type: string; body: Buffer | string } | nul
 	return null;
 }
 
-/** Starts the repository; `base` is its address. */
-export async function startRepo(): Promise<{ base: string; close: () => void }> {
+/**
+ * Starts the repository; `base` is its address. On 127.0.0.1 by default,
+ * which the development fetcher allows; on 127.0.0.2 it is a device on the
+ * reader's own network the fetcher refuses until allowed (own-network.e2e.ts).
+ */
+export async function startRepo(host = '127.0.0.1'): Promise<{ base: string; close: () => void }> {
 	const repo: Server = createServer((req, res) => {
 		const answer = repoAnswer(new URL(req.url ?? '/', 'http://x').pathname);
 		if (!answer) return void res.writeHead(404).end();
 		res.writeHead(200, { 'content-type': answer.type }).end(answer.body);
 	});
-	await new Promise<void>((resolve) => repo.listen(0, '127.0.0.1', resolve));
+	await new Promise<void>((resolve) => repo.listen(0, host, resolve));
 	return {
-		base: `http://127.0.0.1:${(repo.address() as AddressInfo).port}`,
+		base: `http://${host}:${(repo.address() as AddressInfo).port}`,
 		close: () => void repo.close()
 	};
 }

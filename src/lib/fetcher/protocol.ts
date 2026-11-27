@@ -218,6 +218,8 @@ export interface Refusal {
 	asked: boolean;
 	/** Where the answer came from, when a name led to the reader's network (check 3). */
 	answeredFrom?: string;
+	/** When not `asked`: the host the page asked for, which sent the request here. */
+	from?: string;
 }
 
 /**

@@ -332,6 +332,29 @@ describe('one web request of the engine’s', () => {
 		);
 	});
 
+	it('remembers a refusal of the reader’s own network on its way past, and answers ERR', async () => {
+		const refused = { host: 'nas.lan', port: '8080', asked: true };
+		const error = Object.assign(new Error('refused: nas.lan is on your own network'), { refused });
+		const fetcher = { fetch: async () => Promise.reject(error) };
+		const remembered: unknown[] = [];
+		const answer = await relay(
+			fetcher,
+			encodeHead('GET', 'http://nas.lan:8080/', []),
+			'',
+			(r, message) => remembered.push([r, message])
+		);
+		expect(answer).toBe('ERR refused: nas.lan is on your own network');
+		expect(remembered).toEqual([[refused, 'refused: nas.lan is on your own network']]);
+		// Any other failure is not one.
+		await relay(
+			{ fetch: async () => Promise.reject(new Error('network error')) },
+			encodeHead('GET', 'https://a.example/', []),
+			'',
+			(r) => remembered.push(r)
+		);
+		expect(remembered).toHaveLength(1);
+	});
+
 	it('a GET sends no body', async () => {
 		const fetcher = fetcherAnswering({ status: 200, headers: [], body: new Uint8Array() });
 		await relay(fetcher, encodeHead('GET', 'https://example.org/', []), '');

@@ -64,6 +64,12 @@ from the file's header comment), and commit the result.
 public, so its runners are free), in Chromium and a real Firefox: a red there is
 the same red as here. The main Playwright suite stays local.
 
+**The reader's own network.** `web/tests/own-network.e2e.ts` (c1156) needs no
+engine: a repository on `127.0.0.2`, which the development fetcher refuses, is
+added under REPOSITORIES, refused, allowed in the fetcher's own window, and
+found. Chromium only, since Firefox's add-on window can't be driven ("Asking
+the reader", under "The fetcher extension").
+
 **With the engine.** `web/tests/install.e2e.ts`, `web/tests/browse.e2e.ts` and
 `web/tests/read.e2e.ts` need the real engine and the fetcher, so they are skipped unless the web build
 is given a jar. `browse.e2e.ts` and `read.e2e.ts` answer every request to the extension's site
