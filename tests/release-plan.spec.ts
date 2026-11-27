@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	chromiumPath,
+	engineTmpPath,
 	engineWebViewEnv,
 	opener,
 	plan,
@@ -341,6 +342,19 @@ describe('the WebView switch (doc/EXTENSION-ENGINE.md, "Cloudflare and WebView e
 		expect({ ...{ ENGINE_WEBVIEW: 'on' }, ...p.engine.env }.ENGINE_WEBVIEW).toBe('off');
 		expect(engineWebViewEnv(true)).toEqual({ ENGINE_WEBVIEW: 'on' });
 		expect(engineWebViewEnv(false)).toEqual({ ENGINE_WEBVIEW: 'off' });
+	});
+
+	it('keeps the engine’s temporary files in the data folder, out of the system’s temp folder', () => {
+		const linux = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux' });
+		expect(linux.engine.args).toContain('-Djava.io.tmpdir=/h/engine/tmp');
+		expect(engineTmpPath('/h', 'linux')).toBe('/h/engine/tmp');
+		// Before -jar: after it, a -D is the jar's argument, not the JVM's.
+		expect(linux.engine.args.indexOf('-Djava.io.tmpdir=/h/engine/tmp')).toBeLessThan(
+			linux.engine.args.indexOf('-jar')
+		);
+		const home = 'C:\\Users\\Ami\\AppData\\Local\\tsundoku';
+		const windows = plan({ ...base, root: 'C:\\t', home, env: {}, platform: 'win32' });
+		expect(windows.engine.args).toContain(`-Djava.io.tmpdir=${home}\\engine\\tmp`);
 	});
 
 	it('tells the engine and the app the same Chromium folder, and the app where the switch is', () => {

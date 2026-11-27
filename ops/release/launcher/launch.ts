@@ -45,6 +45,7 @@ import { clearLogin, readLogin } from '../app/src/lib/server/login.ts';
 import { readSwitch } from '../app/src/lib/server/engine/webview-switch.ts';
 import { Log } from './log.ts';
 import {
+	engineTmpPath,
 	opener,
 	plan,
 	solverAt,
@@ -141,6 +142,7 @@ const planWith = (webview: boolean) =>
 // engine's start reads it each time (`engineProc`, below).
 const p = planWith(false);
 const webviewFile = switchPath(home, process.platform);
+const engineTmp = engineTmpPath(home, process.platform);
 
 console.log(`tsundoku ${version}`);
 console.log(`  data:   ${home}`);
@@ -283,6 +285,8 @@ function helper(make: () => Proc, delay = 2000, started?: (c: ChildProcess) => v
 let engineChild: ChildProcess | null = null;
 let engineWebView = false;
 function engineProc(): Proc {
+	// Java won't make its temporary folder; every start, a restart included, needs it.
+	mkdirSync(engineTmp, { recursive: true });
 	engineWebView = readSwitch(webviewFile);
 	if (engineWebView)
 		console.log(`  The engine runs WebView extensions (SETTINGS > BROWSE > WEBVIEW).`);
@@ -355,6 +359,15 @@ for (const at of [serving(), localOnly]) {
 rmSync(servingFile, { force: true });
 
 mkdirSync(join(home, 'engine'), { recursive: true });
+// What earlier engines left in their temporary folder: one stopped cleanly
+// empties its own, one killed doesn't. This start owns the data folder (the
+// check above), so none of its engines is running. A file Windows still holds
+// stays, and is cleared next time.
+try {
+	rmSync(engineTmp, { recursive: true, force: true });
+} catch (e) {
+	console.log(`  Couldn't empty ${engineTmp} entirely: ${(e as Error).message}`);
+}
 helper(engineProc, 2000, (c) => (engineChild = c));
 watchWebView();
 if (p.solver && solverDir) {

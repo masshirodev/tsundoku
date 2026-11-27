@@ -104,6 +104,11 @@ export function plan(o: {
 		args: [
 			// Source preferences stay in the data folder (tsundoku sends them on every call).
 			`-Djava.util.prefs.userRoot=${p.join(o.home, 'engine', 'prefs')}`,
+			// And its temporary files: the loader's working folder, the network
+			// cache and Chromium's. In the system's temp folder a tidy-up removed
+			// them from under a running engine, and every extension then failed to
+			// load; on Linux that folder is often a tmpfs, so they also took RAM.
+			`-Djava.io.tmpdir=${engineTmpPath(o.home, o.platform)}`,
 			'-jar',
 			p.join(o.root, 'engine', 'engine.jar'),
 			String(ports.engine),
@@ -286,6 +291,15 @@ export function solverBrowser(
  */
 export const switchPath = (home: string, platform: NodeJS.Platform) =>
 	(platform === 'win32' ? path.win32 : path.posix).join(home, 'engine', 'webview.json');
+
+/**
+ * The engine's temporary folder (`java.io.tmpdir`), under the data folder. The
+ * launcher makes it before every engine start, since Java won't, and empties
+ * it when it starts: it owns the data folder, so no engine of its is running
+ * then, and a killed engine's files would otherwise stay.
+ */
+export const engineTmpPath = (home: string, platform: NodeJS.Platform) =>
+	(platform === 'win32' ? path.win32 : path.posix).join(home, 'engine', 'tmp');
 
 /**
  * Where the engine downloads Chromium to and runs it from (`ENGINE_WEBVIEW_DIR`):

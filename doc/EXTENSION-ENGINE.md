@@ -15,13 +15,13 @@ lists every change from upstream and why, and how to follow upstream.
 
 ## Running it
 
-| Piece        | Where                                                                                                                                                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The fork     | The `tsundoku-engine` repository. Its `doc/FORK.md` lists every change from upstream and why                                                                                                                                                                  |
-| A release    | The bundle's own `engine/engine.jar`, run by the launcher with the bundle's JRE on `127.0.0.1:4590` (`ENGINE_PORT`). Under the data folder: its app directory `engine/app`, its APKs `engine/apks` (under each APK's SHA-256, its handle), and `engine/prefs` |
-| Development  | `ops/engine/compose.yml`: an image built from the fork, on `127.0.0.1:4591`, its APKs under `ENGINE_DATA`, started by hand. 4591, so it can run beside a release's engine                                                                                     |
-| The settings | `ENGINE_URL` and `ENGINE_TOKEN` in tsundoku's `.env` ([`SECRETS.md`](SECRETS.md))                                                                                                                                                                             |
-| The solver   | FlareSolverr beside the engine: the engine asks it through `cf-proxy-url`, the app through `NOVEL_SOLVER_URL` ("The solver", below). In a release it is an optional archive the launcher runs on `127.0.0.1:8191` once it has been unzipped                   |
+| Piece        | Where                                                                                                                                                                                                                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The fork     | The `tsundoku-engine` repository. Its `doc/FORK.md` lists every change from upstream and why                                                                                                                                                                                                    |
+| A release    | The bundle's own `engine/engine.jar`, run by the launcher with the bundle's JRE on `127.0.0.1:4590` (`ENGINE_PORT`). Under the data folder: its app directory `engine/app`, its APKs `engine/apks` (under each APK's SHA-256, its handle), `engine/prefs`, and its temporary files `engine/tmp` |
+| Development  | `ops/engine/compose.yml`: an image built from the fork, on `127.0.0.1:4591`, its APKs under `ENGINE_DATA`, started by hand. 4591, so it can run beside a release's engine                                                                                                                       |
+| The settings | `ENGINE_URL` and `ENGINE_TOKEN` in tsundoku's `.env` ([`SECRETS.md`](SECRETS.md))                                                                                                                                                                                                               |
+| The solver   | FlareSolverr beside the engine: the engine asks it through `cf-proxy-url`, the app through `NOVEL_SOLVER_URL` ("The solver", below). In a release it is an optional archive the launcher runs on `127.0.0.1:8191` once it has been unzipped                                                     |
 
 **In a release, the engine is the bundle's.** The launcher
 (`ops/release/launcher/plan.ts`) starts `engine/engine.jar` with the bundle's
@@ -30,6 +30,20 @@ launcher runs under `ops/systemd/tsundoku.service`, `systemctl --user restart
 tsundoku` restarts both. A fix to the engine reaches an install only in a
 release, whose `release.json` names the engine's commit
 ([`RELEASE.md`](RELEASE.md)).
+
+**Its temporary files are in the data folder too** (`engine/tmp`, the JVM's
+`java.io.tmpdir`): the loader's working folder, where each APK is written
+and converted, the network cache, and Chromium's. In the system's temp
+folder, something tidying it removed the working folder from under a
+running engine, and every extension then failed to load until a restart
+(c1136); on Linux that folder is often a tmpfs, so they took RAM as well.
+The launcher makes the folder before every engine start, because Java
+won't, and empties it when it starts. A cleanly stopped engine empties its
+own, but a killed one doesn't. The launcher owns the data folder at that point
+(it refuses to start twice), so no engine of its is running. The engine also
+makes its working folder again before each load (tsundoku-engine's
+`doc/FORK.md`), so a folder removed anyway costs nothing. Development's
+container keeps its temporary files inside the container.
 
 **For development**, build the image from the fork's checkout and start the
 compose file:
