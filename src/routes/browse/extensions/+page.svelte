@@ -9,6 +9,9 @@
 	import { page } from '$app/state';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
+	import OwnNetwork from '$lib/components/web/OwnNetwork.svelte';
+	import { ownNetwork } from '$lib/web/own-network.svelte';
+	import { m } from '$lib/paraglide/messages';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { count } from '$lib/library/downloads';
 	import { extFilterParams } from '$lib/library/ext-filters';
@@ -59,6 +62,8 @@
 	}
 
 	const base = resolve('/browse/extensions');
+	/** A host the reader just allowed in the fetcher from this form (c1156), said once in FOUND. */
+	const allowedNow = $derived(__WEB_EDITION__ ? page.url.searchParams.get('allowed') : null);
 	function link(over: Record<string, string | null>): string {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(page.url.searchParams);
@@ -1066,7 +1071,19 @@
 				<button class="f-btn">ASK</button>
 			{/if}
 		</form>
-		{#if data.preview && 'error' in data.preview}
+		{#if data.preview && 'error' in data.preview && __WEB_EDITION__ && ownNetwork.in(data.preview.error)}
+			<!-- The fetcher refused the reader's own network (c1156): ALLOW asks the
+			     fetcher, the reader answers in its window, and the form asks again. -->
+			<OwnNetwork
+				refused={ownNetwork.in(data.preview.error)!}
+				compact
+				onallowed={(entry) =>
+					goto(
+						`${base}?tab=repos&add=${encodeURIComponent(data.address ?? '')}&allowed=${encodeURIComponent(entry)}`,
+						{ invalidateAll: true }
+					)}
+			/>
+		{:else if data.preview && 'error' in data.preview}
 			<div class="found rule">
 				<div class="f-text">
 					<div class="f-a">NOT A REPOSITORY</div>
@@ -1091,7 +1108,11 @@
 							.join(', ') || 'NOTHING LISTED'}
 					</div>
 					<div class="f-b">
-						{p.novels
+						{#if allowedNow}<span class="allowed"
+								>{m.own_network_allowed({ host: '' })}<span class="host">{allowedNow}</span></span
+							>
+							·
+						{/if}{p.novels
 							? 'NOTHING IS INSTALLED UNTIL YOU PICK ONE · LNREADER SIGNS NOTHING: EACH PLUGIN IS PINNED BY ITS HASH WHEN INSTALLED'
 							: 'NOTHING IS INSTALLED UNTIL YOU PICK ONE · ITS SIGNING KEY IS KEPT TO CHECK EVERY INSTALL'}
 					</div>
@@ -1544,6 +1565,12 @@
 	.f-b {
 		font: 400 13px/1.4 var(--font-mono);
 		color: var(--text-2);
+	}
+	.f-b .allowed {
+		color: var(--text-1);
+	}
+	.f-b .host {
+		text-transform: none;
 	}
 	.f-add {
 		display: flex;

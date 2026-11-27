@@ -3,7 +3,7 @@
 // neither, so the background hands the browser's webRequest events here
 // (fetcher/background.ts), and the service asks, once its fetch has settled,
 // whether anything along the way was refused (reach.ts, checks 2 and 3).
-import { refusal, refusedAddress } from './reach.ts';
+import { refusal, refusedAddress, type Refused } from './reach.ts';
 
 /** What the background passes from a webRequest event, in both browsers' terms. */
 export interface RequestEvent {
@@ -26,7 +26,7 @@ export interface RequestEvent {
 }
 
 interface Watched {
-	refused: string | null;
+	refused: Refused | null;
 	/** Whether the browser has reported this request at all. */
 	linked: boolean;
 	/** Resolves when the browser reports the request finished, or failed. */
@@ -59,7 +59,7 @@ export class RequestWatch {
 	 * browser's report that the request finished (when the browser reported
 	 * it at all), hands back what was refused, if anything, and stops watching.
 	 */
-	expect(method: string, url: string): { done(): Promise<string | null> } {
+	expect(method: string, url: string): { done(): Promise<Refused | null> } {
 		const key = keyOf(method, url);
 		let settle = () => {};
 		const settled = new Promise<void>((resolve) => (settle = resolve));
@@ -119,9 +119,9 @@ export class RequestWatch {
 	}
 
 	/** Marks a request refused by a check made outside (Firefox's lookup before sending). */
-	refuse(event: RequestEvent, message: string): void {
+	refuse(event: RequestEvent, why: Refused): void {
 		const watched = this.byId.get(event.requestId);
-		if (watched) watched.refused ??= message;
+		if (watched) watched.refused ??= why;
 	}
 
 	/** For specs: how many requests are being watched. */

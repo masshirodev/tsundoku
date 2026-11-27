@@ -139,4 +139,35 @@ async function main() {
 	});
 }
 
-main().catch((error) => report({ state: 'crashed', error: String(error) }));
+/**
+ * The ask (c1156): a button that asks the fetcher to allow 127.0.0.2 on this
+ * port, then fetches it. The test presses it for real, so the page has the
+ * activation an ask needs, and answers in the fetcher's own window. Each
+ * press reports `ask-<n>` with the answer and the fetch after it.
+ */
+async function askPage() {
+	const connection = await connectFetcher(window, { timeoutMs: 5000 });
+	if (connection.state !== 'ready') return report({ state: connection.state });
+	const { fetcher } = connection;
+	// An ask with no press behind it, made at once: refused as no-press.
+	const unpressed = await fetcher.allow('127.0.0.2', port);
+	await report({ state: 'ready', unpressed });
+	let n = 0;
+	const button = document.createElement('button');
+	button.textContent = 'ASK';
+	button.addEventListener('click', async () => {
+		const at = ++n;
+		const answer = await fetcher.allow('127.0.0.2', port);
+		const after = await attempt(async () =>
+			summary(await fetcher.fetch({ url: `http://127.0.0.2:${port}/echo?case=allowed-${at}` }))
+		);
+		await fetch(`/results?label=ask-${at}`, {
+			method: 'POST',
+			body: JSON.stringify({ answer, after })
+		});
+	});
+	document.body.append(button);
+}
+
+if (label === 'ask') askPage().catch((error) => report({ state: 'crashed', error: String(error) }));
+else main().catch((error) => report({ state: 'crashed', error: String(error) }));

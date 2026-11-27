@@ -119,6 +119,28 @@ export function isOwnNetwork(url: URL): boolean {
 	return ipVersion(bare) ? !isPublicIp(bare) : isLocalName(bare);
 }
 
+/**
+ * A refusal: its sentence for the page, and what it refused as data (the
+ * protocol's `Refusal`, but for `asked`, which only the service can say,
+ * knowing which URL the page asked for).
+ */
+export interface Refused {
+	message: string;
+	host: string;
+	port: string;
+	answeredFrom?: string;
+}
+
+function refused(url: URL, via?: string): Refused {
+	const { host, port } = hostAndPort(url);
+	return {
+		message: refusedMessage(url.hostname, via),
+		host,
+		port,
+		...(via ? { answeredFrom: via } : {})
+	};
+}
+
 /** The refusal's words, one sentence for every check, so the page reads the same whichever caught it. */
 export function refusedMessage(host: string, via?: string): string {
 	const where = via ? `${host} led to ${via}, which` : host;
@@ -126,10 +148,10 @@ export function refusedMessage(host: string, via?: string): string {
 }
 
 /** Check 1: why [address] is refused before fetching, or null when it may be fetched. */
-export function refusal(address: string, allowed: readonly string[]): string | null {
+export function refusal(address: string, allowed: readonly string[]): Refused | null {
 	const url = new URL(address);
 	if (!isOwnNetwork(url) || allowedBy(url, allowed)) return null;
-	return refusedMessage(url.hostname);
+	return refused(url);
 }
 
 /**
@@ -142,11 +164,11 @@ export function refusedAddress(
 	address: string,
 	ip: string | undefined,
 	allowed: readonly string[]
-): string | null {
+): Refused | null {
 	if (!ip) return null;
 	const url = new URL(address);
 	if (allowedBy(url, allowed) || isPublicIp(ip) || addressAllowed(ip, allowed)) return null;
-	return refusedMessage(url.hostname, canonicalIp(ip));
+	return refused(url, canonicalIp(ip));
 }
 
 /**
@@ -159,13 +181,13 @@ export async function lookupRefusal(
 	address: string,
 	allowed: readonly string[],
 	resolve: (host: string) => Promise<string[]>
-): Promise<string | null> {
+): Promise<Refused | null> {
 	const url = new URL(address);
 	const bare = url.hostname.replace(/^\[|\]$/g, '');
 	if (ipVersion(bare) || isLocalName(bare) || allowedBy(url, allowed)) return null;
 	const addresses = await resolve(bare);
 	const local = addresses.find((ip) => !isPublicIp(ip) && !addressAllowed(ip, allowed));
-	return local ? refusedMessage(url.hostname, canonicalIp(local)) : null;
+	return local ? refused(url, canonicalIp(local)) : null;
 }
 
 // ---- check 2: the browser's rules -----------------------------------------------------------

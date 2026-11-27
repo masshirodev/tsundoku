@@ -7,14 +7,25 @@ import { decodeBody, encodeBody, type Transport, type WireBody } from './bytes.t
 import { buildRule, FetcherError, normaliseTarget, planRequest, responseHeaders } from './plan.ts';
 import {
 	mayAnswer,
+	senderOrigin,
+	type AllowRefusal,
 	type FetcherEdition,
+	type Refusal,
 	type SiteAccess,
 	type FetcherResponse,
 	type HeaderList,
 	type MessageSenderLike
 } from './protocol.ts';
 import { siteOf, type SuffixRules } from './psl.ts';
-import { builtInAllowed, guardRules, lookupRefusal, parseAllowEntry, refusal } from './reach.ts';
+import {
+	builtInAllowed,
+	guardRules,
+	lookupRefusal,
+	parseAllowEntry,
+	refusal,
+	type Refused
+} from './reach.ts';
+import { Asks, type AskDetails } from './asks.ts';
 import { KeyedQueue, RuleIds } from './schedule.ts';
 import { RequestWatch, type RequestEvent } from './watch.ts';
 
@@ -29,12 +40,22 @@ export interface WireRequest {
 export type WireResponse = Omit<FetcherResponse, 'body'> & { body: WireBody };
 
 export type RuntimeRequest =
-	{ kind: 'probe'; bytes: unknown } | { kind: 'fetch'; transport: Transport; request: WireRequest };
+	| { kind: 'probe'; bytes: unknown }
+	| { kind: 'fetch'; transport: Transport; request: WireRequest }
+	/** From the content script: ask the reader to allow a host (asks.ts); no port is every port. */
+	| { kind: 'allow'; host: string; port?: string };
+
+/** From the fetcher's own confirmation window (fetcher/confirm.ts), never a page's. */
+export type OwnPageRequest =
+	{ kind: 'ask-details'; id: string } | { kind: 'ask-answer'; id: string; allowed: boolean };
 
 export type RuntimeReply =
 	| { kind: 'probe'; bytes: unknown; access: SiteAccess }
 	| { kind: 'fetched'; ok: true; response: WireResponse }
-	| { kind: 'fetched'; ok: false; message: string };
+	| { kind: 'fetched'; ok: false; message: string; refused?: Refusal }
+	| { kind: 'allowed'; allowed: boolean; why?: AllowRefusal }
+	| { kind: 'ask-details'; details: AskDetails | null }
+	| { kind: 'ask-answered' };
 
 export interface CookieQuery {
 	url: string;
@@ -62,6 +83,22 @@ export interface FetcherDeps {
 	/** The hosts the reader allowed in the fetcher's options, as stored. */
 	allowedHosts(): Promise<string[]>;
 	/**
+	 * Stores the reader's allowed hosts (the options page reads the same
+	 * key), and that [asked] was allowed when tsundoku asked (options.ts's meta).
+	 */
+	saveAllowedHosts(hosts: string[], asked: string): Promise<void>;
+	/**
+	 * The extension's own base URL (`runtime.getURL('')`, with its trailing
+	 * slash), whose pages (the confirmation window) may answer an ask. Compared
+	 * as a prefix of the sender's URL: an extension URL's origin is not one
+	 * every runtime agrees on.
+	 */
+	ownBase: string;
+	/** The confirmation window (asks.ts): open, bring forward, close. */
+	openAsk(id: string): Promise<number>;
+	focusWindow(windowId: number): Promise<void>;
+	closeWindow(windowId: number): Promise<void>;
+	/**
 	 * The addresses a name resolves to, where the browser lets an extension
 	 * ask before a request is sent (Firefox's `dns`); absent in Chromium.
 	 */
@@ -82,6 +119,8 @@ export function createFetcherService(deps: FetcherDeps) {
 	// guard's rules go in before the first request is sent; a fetcher that
 	// could not install them sends nothing, rather than sending unguarded.
 	let allowed: string[] = builtInAllowed(deps.edition);
+	/** The reader's own entries, as stored, without the built-in ones. */
+	let readerHosts: string[] = [];
 	let guardIds: number[] = [];
 	const watch = new RequestWatch(() => allowed);
 	async function installGuard(reader: readonly string[]) {
@@ -91,10 +130,51 @@ export function createFetcherService(deps: FetcherDeps) {
 		await deps.replaceRules(guardIds, rules);
 		guardIds = rules.map((r) => r.id);
 		allowed = next;
+		readerHosts = entries;
 	}
 	const ready = cleared.then(async () => installGuard(await deps.allowedHosts()));
 	// Each later change waits for the one before, so two never interleave.
 	let guarding: Promise<unknown> = ready;
+	function setAllowedHosts(hosts: string[]): Promise<void> {
+		guarding = guarding.then(
+			() => installGuard(hosts),
+			() => installGuard(hosts)
+		);
+		return guarding as Promise<void>;
+	}
+
+	// Refused answers by the address they came from: how many sites, since
+	// when. A proxy on the reader's network shows itself this way, and the
+	// confirmation window may say so, since the fetcher saw it itself.
+	const seenFrom = new Map<string, { sites: Set<string>; since: number }>();
+	function noteRefused(refused: Refusal) {
+		if (!refused.answeredFrom) return;
+		const seen = seenFrom.get(refused.answeredFrom) ?? { sites: new Set(), since: Date.now() };
+		seen.sites.add(refused.host);
+		seenFrom.set(refused.answeredFrom, seen);
+	}
+
+	const asks = new Asks({
+		seen(address) {
+			const s = seenFrom.get(address);
+			return s ? { sites: s.sites.size, since: s.since } : undefined;
+		},
+		open: (id) => deps.openAsk(id),
+		focus: (windowId) => deps.focusWindow(windowId),
+		close: (windowId) => deps.closeWindow(windowId),
+		allowed: () => allowed,
+		// Stored and in force before the page hears ALLOWED, so its retry
+		// isn't refused by rules not yet replaced.
+		async allow(entry) {
+			const hosts = [...readerHosts.filter((e) => e !== entry), entry];
+			await deps.saveAllowedHosts(hosts, entry);
+			await setAllowedHosts(hosts);
+		}
+	});
+
+	/** Whether [sender] is one of the fetcher's own pages (the confirmation window). */
+	const fromOwnPage = (sender: MessageSenderLike) =>
+		sender.id === deps.extensionId && !!sender.url?.startsWith(deps.ownBase);
 
 	async function readCookies(url: string) {
 		const partitionKey = { topLevelSite: siteOf(url, deps.suffixes()) };
@@ -133,7 +213,7 @@ export function createFetcherService(deps: FetcherDeps) {
 			throw new FetcherError(`the fetcher's guard could not be set up: ${describe(error)}`);
 		}
 		const refused = refusal(target.url, allowed);
-		if (refused) throw new FetcherError(refused);
+		if (refused) throw refusedError(refused, target.url);
 		return queue.run(`${target.method} ${target.url}`, async () => {
 			// Read in turn, not before queueing: the request ahead may have been
 			// answered with cookies this one must carry.
@@ -166,11 +246,11 @@ export function createFetcherService(deps: FetcherDeps) {
 					// A hop the guard's rules blocked fails as a bare network
 					// error: what the watch saw is the reason to give.
 					const why = await watching.done();
-					throw why ? new FetcherError(why) : error;
+					throw why ? refusedError(why, plan.url) : error;
 				}
 				// An answer from the reader's own network arrives as any other.
 				const why = await watching.done();
-				if (why) throw new FetcherError(why);
+				if (why) throw refusedError(why, plan.url);
 				const { response, bytes } = sent;
 				const headers: HeaderList = [];
 				response.headers.forEach((value, name) => headers.push([name, value]));
@@ -203,8 +283,30 @@ export function createFetcherService(deps: FetcherDeps) {
 		 * script on an allowed origin, or not one of the protocol's.
 		 */
 		answer(message: unknown, sender: MessageSenderLike): Promise<RuntimeReply> | null {
+			if (fromOwnPage(sender)) {
+				const own = message as Partial<OwnPageRequest> | null;
+				if (own?.kind === 'ask-details' && typeof own.id === 'string')
+					return Promise.resolve({ kind: 'ask-details' as const, details: asks.details(own.id) });
+				if (own?.kind === 'ask-answer' && typeof own.id === 'string')
+					return asks
+						.answer(own.id, own.allowed === true)
+						.then(() => ({ kind: 'ask-answered' as const }));
+				return null;
+			}
 			if (!mayAnswer(sender, deps.extensionId, deps.edition)) return null;
 			const m = message as Partial<RuntimeRequest> | null;
+			if (m?.kind === 'allow') {
+				const tabId = sender.tab?.id;
+				const origin = senderOrigin(sender);
+				const port = m.port === undefined ? null : m.port;
+				if (typeof m.host !== 'string' || (port !== null && typeof port !== 'string')) return null;
+				if (tabId === undefined || !origin) return null;
+				return asks.ask(tabId, origin, m.host, port).then((a) => ({
+					kind: 'allowed' as const,
+					allowed: a.allowed,
+					...(a.allowed ? {} : { why: a.why })
+				}));
+			}
 			if (m?.kind === 'probe') {
 				// A browser that cannot say is treated as giving no access: the
 				// page then tells the visitor to grant it, rather than failing later.
@@ -218,7 +320,10 @@ export function createFetcherService(deps: FetcherDeps) {
 				(error: unknown) => ({
 					kind: 'fetched' as const,
 					ok: false as const,
-					message: describe(error)
+					message: describe(error),
+					...(error instanceof FetcherError && error.refused
+						? (noteRefused(error.refused), { refused: error.refused })
+						: {})
 				})
 			);
 		},
@@ -245,12 +350,14 @@ export function createFetcherService(deps: FetcherDeps) {
 			watch.finished(event);
 		},
 		/** The reader changed the allowed hosts in the fetcher's options. */
-		setAllowedHosts(hosts: string[]): Promise<void> {
-			guarding = guarding.then(
-				() => installGuard(hosts),
-				() => installGuard(hosts)
-			);
-			return guarding as Promise<void>;
+		setAllowedHosts,
+		/** A window closed (`windows.onRemoved`, or a tab on Firefox for Android). */
+		windowClosed(windowId: number): void {
+			asks.closed(windowId);
+		},
+		/** A tab loaded a new page: what it cancelled may be asked again. */
+		tabLoaded(tabId: number): void {
+			asks.reloaded(tabId);
 		},
 		/** For specs: the hosts allowed now, built-in ones included. */
 		get allowed(): readonly string[] {
@@ -265,6 +372,19 @@ export function createFetcherService(deps: FetcherDeps) {
 			return watch.size;
 		}
 	};
+}
+
+/**
+ * A refusal as the page receives it: the sentence, and the data, with
+ * `asked` saying whether the refused host is the one the page asked for
+ * ([askedFor]) rather than one a redirect or an answer landed on.
+ */
+function refusedError(why: Refused, askedFor: string): FetcherError {
+	const url = new URL(askedFor);
+	const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+	const asked = why.host === url.hostname && why.port === port;
+	const { message, ...data } = why;
+	return new FetcherError(message, { ...data, asked, ...(asked ? {} : { from: url.hostname }) });
 }
 
 function describe(error: unknown): string {

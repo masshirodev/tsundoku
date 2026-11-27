@@ -10,5 +10,8 @@ startRelay({
 	win: window,
 	send: (message) => api.runtime.sendMessage(message) as Promise<RuntimeReply | undefined>,
 	version: api.runtime.getManifest().version,
-	edition: __FETCHER_EDITION__
+	edition: __FETCHER_EDITION__,
+	// The page's own activation, which the content script shares: an ask is
+	// forwarded only while the reader is pressing something there.
+	pressed: () => navigator.userActivation?.isActive ?? false
 });

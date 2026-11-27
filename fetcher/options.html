@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>tsundoku fetcher · options</title>
+		<link rel="stylesheet" href="./pages.css" />
+		<script type="module" src="./options.ts"></script>
+	</head>
+	<body>
+		<header class="bar">
+			<span>tsundoku</span>
+			<span class="grow" id="title"></span>
+			<span class="note" id="answers"></span>
+		</header>
+		<div class="band" id="removed" role="status" hidden>
+			<div class="tx">
+				<div id="removed-what"></div>
+				<div class="d" id="removed-note"></div>
+			</div>
+			<button class="cell" type="button" id="undo"></button>
+		</div>
+		<main>
+			<p class="intro" id="intro"></p>
+			<div class="label"><span id="list-label"></span><span id="list-count"></span></div>
+			<section class="rows" id="list" aria-labelledby="list-label"></section>
+			<div class="hint" id="remove-hint" hidden></div>
+			<details class="hand" id="hand">
+				<summary>
+					<span id="hand-label"></span><span class="when-closed" id="hand-open"></span
+					><span class="when-open" id="hand-close"></span>
+				</summary>
+				<div class="inhand">
+					<label class="label" for="add"
+						><span id="field-label"></span><span id="field-note"></span
+					></label>
+					<form class="field" id="form">
+						<input id="add" autocomplete="off" inputmode="url" spellcheck="false" />
+						<button class="cell primary" type="submit" id="add-button" disabled></button>
+					</form>
+					<div class="msg" id="msg" role="alert" hidden></div>
+					<section class="keep" id="keep" hidden>
+						<div class="kr">
+							<div class="kk" id="keeps"></div>
+							<div class="kv">
+								<span id="keep-entry"></span><span class="s" id="keep-note"></span>
+							</div>
+							<button class="cell" type="button" id="keep-toggle" hidden></button>
+						</div>
+						<p class="prose" id="keep-prose"></p>
+					</section>
+					<div class="hint" id="port-rule"></div>
+				</div>
+			</details>
+		</main>
+	</body>
+</html>

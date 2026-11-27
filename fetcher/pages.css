@@ -1,0 +1,396 @@
+/*
+ * The fetcher's own pages (confirm.html, options.html; handoff
+ * `fetcher-options`, revision 1): the app's own tokens and fonts, so the
+ * extension reads as part of tsundoku. Latin Plex Sans only, and the app's
+ * own Plex Mono build (src/lib/styles/fonts-mono.css says why that one).
+ */
+@import '../src/lib/styles/colors.css';
+@import '../src/lib/styles/spacing.css';
+@import '../src/lib/styles/fonts-mono.css';
+
+@font-face {
+	font-family: 'IBM Plex Sans';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'IBM Plex Sans';
+	font-style: normal;
+	font-weight: 500;
+	font-display: swap;
+	src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-500-normal.woff2') format('woff2');
+}
+
+:root {
+	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+	--font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+	--pad: 32px;
+}
+@media (max-width: 600px) {
+	:root {
+		--pad: 16px;
+	}
+}
+
+* {
+	box-sizing: border-box;
+}
+body {
+	margin: 0;
+	background: var(--surface-page);
+	color: var(--text-1);
+	font-family: var(--font-sans);
+}
+button {
+	font: inherit;
+	color: inherit;
+	border-radius: 0;
+	cursor: pointer;
+}
+:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 3px var(--surface-page),
+		0 0 0 7px var(--text-1);
+}
+button:focus-visible {
+	box-shadow:
+		inset 0 0 0 3px var(--surface-page),
+		inset 0 0 0 7px var(--text-1);
+}
+.mono {
+	font-family: var(--font-mono);
+}
+.dim {
+	color: var(--text-2);
+}
+
+/* A cell button, the system's way: square, hairline-separated. */
+.cell {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: var(--hit-min);
+	padding: 0 20px;
+	border: 0;
+	border-left: var(--hairline);
+	background: transparent;
+	font: 500 14px/1.2 var(--font-mono);
+	white-space: nowrap;
+}
+.primary {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+.primary:disabled {
+	background: var(--line-1);
+	color: var(--text-2);
+	cursor: default;
+}
+
+/* ---- the confirmation window ---- */
+.confirm {
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
+}
+.strip {
+	display: flex;
+	height: 44px;
+	border-bottom: var(--hairline);
+	background: var(--surface-panel);
+	font: 500 13px/1 var(--font-mono);
+	letter-spacing: 0.06em;
+	color: var(--text-2);
+}
+.strip span {
+	display: flex;
+	align-items: center;
+	padding: 0 24px;
+}
+.strip span + span {
+	margin-left: auto;
+	border-left: var(--hairline);
+}
+.ask {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 24px;
+}
+.who {
+	font: 500 13px/1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	color: var(--text-2);
+}
+.who b {
+	color: var(--text-1);
+	font-weight: 500;
+	letter-spacing: 0;
+}
+.target {
+	margin: 4px 0 0;
+	font: 500 28px/1.15 var(--font-mono);
+	word-break: break-all;
+}
+.what {
+	font: 400 13px/1.4 var(--font-mono);
+	color: var(--text-2);
+}
+.seen {
+	border: var(--hairline);
+	padding: 12px 14px;
+	font: 400 13px/1.5 var(--font-mono);
+	color: var(--text-2);
+}
+.prose {
+	margin: 10px 0 0;
+	font: 400 15px/1.55 var(--font-sans);
+	color: var(--text-prose);
+	max-width: 62ch;
+}
+.choose {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	border-top: var(--hairline);
+}
+.choose .cell {
+	min-height: 56px;
+	border-left: 0;
+}
+.choose .cell + .cell {
+	border-left: var(--hairline);
+}
+
+/* ---- the options page ---- */
+.bar {
+	display: flex;
+	height: 64px;
+	border-bottom: var(--hairline);
+}
+.bar > * {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 0 var(--pad);
+	font: 500 14px/1.2 var(--font-mono);
+	white-space: nowrap;
+}
+.bar > * + * {
+	border-left: var(--hairline);
+}
+.bar .grow {
+	flex: 1;
+}
+.bar .note {
+	font-weight: 400;
+	font-size: 13px;
+	color: var(--text-2);
+}
+.band {
+	display: flex;
+	min-height: 56px;
+	background: var(--surface-panel);
+	border-bottom: var(--hairline);
+}
+.band .tx {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 4px;
+	padding: 8px var(--pad);
+	font: 500 14px/1.3 var(--font-mono);
+}
+.band .d {
+	font: 400 13px/1.35 var(--font-mono);
+	color: var(--text-2);
+}
+main {
+	max-width: 784px;
+	margin: 0 auto;
+	padding: 0 var(--pad) 48px;
+	display: flex;
+	flex-direction: column;
+}
+.intro {
+	margin: 32px 0 0;
+	font: 400 15px/1.55 var(--font-sans);
+	color: var(--text-prose);
+	max-width: 62ch;
+}
+.label {
+	display: flex;
+	justify-content: space-between;
+	gap: 16px;
+	margin: 28px 0 10px;
+	font: 500 13px/1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	color: var(--text-2);
+}
+.label b {
+	color: var(--text-1);
+	font-weight: 500;
+}
+.rows {
+	border: var(--hairline);
+}
+.empty {
+	padding: 22px 20px;
+	font: 400 15px/1.5 var(--font-sans);
+	color: var(--text-2);
+}
+.entry {
+	display: flex;
+	min-height: 64px;
+}
+.entry + .entry {
+	border-top: var(--hairline);
+}
+.entry .h {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 5px;
+	padding: 10px 20px;
+}
+.entry .host {
+	font: 500 16px/1.2 var(--font-mono);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.entry .cov {
+	font: 400 13px/1.2 var(--font-mono);
+	color: var(--text-2);
+}
+.hint {
+	margin-top: 10px;
+	font: 400 13px/1.5 var(--font-mono);
+	color: var(--text-2);
+}
+details.hand {
+	margin-top: 24px;
+	border: var(--hairline);
+}
+details.hand summary {
+	list-style: none;
+	display: flex;
+	min-height: 56px;
+	cursor: pointer;
+	font: 500 14px/1.2 var(--font-mono);
+}
+details.hand summary::-webkit-details-marker {
+	display: none;
+}
+details.hand summary span {
+	display: flex;
+	align-items: center;
+	padding: 0 20px;
+}
+details.hand summary span:first-child {
+	flex: 1;
+}
+details.hand summary span + span {
+	border-left: var(--hairline);
+	font-weight: 400;
+	font-size: 13px;
+	color: var(--text-2);
+}
+details.hand[open] summary {
+	border-bottom: var(--hairline);
+}
+details.hand[open] .when-closed,
+details.hand:not([open]) .when-open {
+	display: none;
+}
+.inhand {
+	padding: 20px;
+}
+.inhand .label {
+	margin-top: 0;
+}
+.field {
+	display: flex;
+}
+.field input {
+	flex: 1;
+	min-width: 0;
+	height: 56px;
+	padding: 0 18px;
+	background: var(--surface-page);
+	border: 1px solid var(--line-2);
+	border-right: 0;
+	color: var(--text-1);
+	font: 400 16px/1 var(--font-mono);
+	border-radius: 0;
+	outline: none;
+}
+.field input:focus,
+.field input.on {
+	border-color: var(--text-1);
+}
+.field .cell {
+	min-height: 56px;
+	border-left: 0;
+}
+@media (max-width: 600px) {
+	.field {
+		flex-direction: column;
+	}
+	.field input {
+		border-right: 1px solid var(--line-2);
+		border-bottom: 0;
+	}
+}
+.msg {
+	margin-top: 10px;
+	font: 500 13px/1.5 var(--font-mono);
+}
+.msg .s {
+	font-weight: 400;
+	color: var(--text-2);
+}
+.keep {
+	margin-top: 12px;
+	border: var(--hairline);
+	border-top: var(--rule-strong);
+}
+.keep .kr {
+	display: flex;
+	min-height: 56px;
+	border-bottom: var(--hairline);
+}
+.keep .kk {
+	width: 120px;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	padding: 0 16px;
+	border-right: var(--hairline);
+	font: 500 13px/1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	color: var(--text-2);
+}
+.keep .kv {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 14px;
+	padding: 8px 16px;
+	font: 500 16px/1.2 var(--font-mono);
+}
+.keep .kv .s {
+	font: 400 13px var(--font-mono);
+	color: var(--text-2);
+}
+.keep .prose {
+	margin: 0;
+	padding: 20px;
+}

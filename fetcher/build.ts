@@ -49,6 +49,25 @@ for (const name of ['background', 'content']) {
 		}
 	});
 }
+// The fetcher's own pages (c1156): the confirmation window and the options
+// page, each a page with its module script and the app's tokens and fonts,
+// bundled and left unminified like the scripts above.
+await build({
+	configFile: false,
+	logLevel: 'warn',
+	root: here,
+	base: './',
+	define: { __FETCHER_EDITION__: JSON.stringify(edition) },
+	build: {
+		outDir,
+		emptyOutDir: false,
+		minify: false,
+		target: ['firefox140', 'chrome138'],
+		rollupOptions: {
+			input: { confirm: `${here}confirm.html`, options: `${here}options.html` }
+		}
+	}
+});
 const template = JSON.parse(readFileSync(`${here}manifest.json`, 'utf8'));
 writeFileSync(
 	`${outDir}manifest.json`,

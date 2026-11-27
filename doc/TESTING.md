@@ -64,6 +64,17 @@ from the file's header comment), and commit the result.
 public, so its runners are free), in Chromium and a real Firefox: a red there is
 the same red as here. The main Playwright suite stays local.
 
+**The reader's own network.** `web/tests/own-network.e2e.ts` (c1156) needs no
+engine: a repository on `127.0.0.2`, which the development fetcher refuses, is
+added under REPOSITORIES, refused, allowed in the fetcher's own window, and
+found. Chromium only, since Firefox's add-on window can't be driven ("Asking
+the reader", under "The fetcher extension"). It runs in `browsers.yml`'s
+`web` job, which builds the development fetcher for it (`yarn run
+build:fetcher --dev`) before `yarn run test:web`; by hand, build it first too.
+Any test that calls `fetcherBrowser` without that build fails at once, naming
+the command, rather than waiting a minute for a fetcher that isn't there (PR
+#18's first CI run did the waiting).
+
 **With the engine.** `web/tests/install.e2e.ts`, `web/tests/browse.e2e.ts` and
 `web/tests/read.e2e.ts` need the real engine and the fetcher, so they are skipped unless the web build
 is given a jar. `browse.e2e.ts` and `read.e2e.ts` answer every request to the extension's site
@@ -265,6 +276,15 @@ in `fetcher/` or `src/lib/fetcher/`; nothing else runs it, CI included.
   is what Chromium can't prevent, and its answer is refused. Firefox's lookup
   before sending is the unit spec's (`tests/fetcher-service.spec.ts`): its
   `network.dns.localDomains` maps only to `127.0.0.1`, which is allowed.
+- **Asking the reader** (c1156): Chromium only, in its own profile. The test
+  page's ask mode (`?label=ask`) asks once with no press (refused, no
+  window), then offers a button the test presses for real, so the page has the
+  activation an ask needs; the test answers in the fetcher's own window
+  (`context.waitForEvent('page')`), which closes itself once answered. It then
+  drives the options page at `chrome-extension://<id>/options.html` and reads
+  the browser's session rules from the service worker. Firefox runs its
+  add-on under web-ext, which Playwright can't reach, so the ask there is the
+  unit specs' (`tests/fetcher-asks.spec.ts`).
 - **The partitioned cookie** is set as a source would set Cloudflare's: a tab
   visits `http://localhost/set-cookies`, which answers `cf_clearance=…; Secure;
 SameSite=None; Partitioned`. Partitioned needs Secure, and both browsers

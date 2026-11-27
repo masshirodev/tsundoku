@@ -678,6 +678,17 @@ SOURCE · THE SOURCE IS HIDDEN WITH THEM · REVEAL SHOWS BOTH`. Inside reveal
 - **Incognito.** Adding and downloading are deliberate edits, like FAV and
   MARK READ, so they go ahead, and a shelf chip and UNDO save.
 
+### A device on the reader's own network (web edition)
+
+When the fetcher refuses a source's request because it reached the reader's
+own network (a Komga on the NAS, a redirect to the router), the page draws
+that instead of DID NOT ANSWER: for the source's own host, ALLOW
+`<host:port>`, which the reader answers in the fetcher's own window, and the
+page loads itself again; for a redirect, where it was sent and nothing to
+allow; and when several sites answered from one address, a proxy, with ALLOW
+for that address. BROWSE shows the proxy too. The self-hosted app never meets
+these. [`WEB-EDITION.md`](WEB-EDITION.md), "Where tsundoku meets a refusal".
+
 ## A site's check
 
 Some sites sit behind a Cloudflare check, and the engine passes it through

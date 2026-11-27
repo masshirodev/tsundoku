@@ -6,7 +6,17 @@
 import type { FetcherRequest, HeaderList } from './protocol.ts';
 
 /** A failure the page is told about in words, never a crash of the extension. */
-export class FetcherError extends Error {}
+import type { Refusal } from './protocol.ts';
+
+export class FetcherError extends Error {
+	/** Set when this is a refusal of the reader's own network (reach.ts). */
+	readonly refused?: Refusal;
+
+	constructor(message: string, refused?: Refusal) {
+		super(message);
+		this.refused = refused;
+	}
+}
 
 /** The methods a session rule can be scoped to in both browsers. */
 const METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);

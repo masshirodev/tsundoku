@@ -11,6 +11,7 @@ import { build } from 'vite';
 import { startServer, type Received } from './server.ts';
 import { BINARY_ANSWER, ENGINE_AGENT } from './shared.ts';
 import { builtInAllowed, GUARD_FIRST_ID, guardRules } from '../../src/lib/fetcher/reach.ts';
+import { FETCHER_PROTOCOL } from '../../src/lib/fetcher/protocol.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 // The development build answers the test server's loopback page; the store
@@ -126,7 +127,7 @@ function assertRun(
 ) {
 	expect(foreign.state, 'no fetcher on a foreign origin').toBe('missing');
 	expect(page.state).toBe('ready');
-	expect(page.protocol).toBe(2);
+	expect(page.protocol).toBe(FETCHER_PROTOCOL);
 	expect(page.version).toBe(manifest.version);
 	expect(page.access, 'site access, granted').toBe('all');
 	expect(page.transport, 'how this browser carries bytes in runtime messages').toBe(transport);
@@ -316,6 +317,117 @@ function firefox(profile: string, startUrls: string[]) {
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright needs the object pattern
+test('asking the reader to allow a host, and the options page, in Chromium', async ({}, testInfo) => {
+	test.skip(!built, 'run yarn run test:fetcher, which builds both editions');
+	const server = await startServer(pageScript);
+	const profile = testInfo.outputPath('chromium-ask-profile');
+	const context = await chromium.launchPersistentContext(profile, {
+		channel: 'chromium',
+		headless: true,
+		args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`]
+	});
+	type Asked = {
+		answer: { allowed: boolean; why?: string };
+		after: { ok: boolean; error?: string; value?: { status: number } };
+	};
+	const asked = async (label: string) => {
+		await reported(server, [label]);
+		const result = server.results.get(label) as Asked;
+		server.results.delete(label);
+		return result;
+	};
+	try {
+		const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+		// chrome-extension://<id>: Node's URL calls that origin null.
+		const extensionBase = /^chrome-extension:\/\/[^/]+/.exec(worker.url())![0];
+		const page = await context.newPage();
+		await page.goto(`http://127.0.0.1:${server.port}/page?label=ask`);
+		await reported(server, ['ask']);
+		// An ask the page made by itself, with no press behind it: no window.
+		expect(server.results.get('ask')).toEqual({
+			state: 'ready',
+			unpressed: { allowed: false, why: 'no-press' }
+		});
+		server.results.delete('ask');
+
+		// A press asks; the fetcher's own window shows what it knows itself.
+		const [first] = await Promise.all([context.waitForEvent('page'), page.click('button')]);
+		await first.waitForLoadState();
+		expect(first.url()).toMatch(new RegExp(`^${extensionBase}/confirm\\.html\\?ask=`));
+		await expect(first.locator('#target')).toHaveText(`127.0.0.2:${server.port}`);
+		await expect(first.locator('#origin')).toHaveText(`127.0.0.1:${server.port}`);
+		// CANCEL holds the focus, so Enter never allows.
+		await expect(first.locator('#cancel')).toBeFocused();
+		// Enter presses CANCEL, and the fetcher closes its window at once.
+		await Promise.all([first.waitForEvent('close'), first.keyboard.press('Enter').catch(() => {})]);
+		const cancelled = await asked('ask-1');
+		expect(cancelled.answer).toEqual({ allowed: false, why: 'cancelled' });
+		expect(cancelled.after.ok).toBe(false);
+		expect(cancelled.after.error).toMatch(/^refused: 127\.0\.0\.2 is on your own network/);
+
+		// Cancelled in this tab: not asked again, no window.
+		await page.click('button');
+		expect((await asked('ask-2')).answer).toEqual({ allowed: false, why: 'declined' });
+
+		// A new page load may ask again; this time the reader allows it.
+		await page.reload();
+		await reported(server, ['ask']);
+		server.results.delete('ask');
+		const [second] = await Promise.all([context.waitForEvent('page'), page.click('button')]);
+		await Promise.all([
+			second.waitForEvent('close'),
+			second
+				.locator('#allow')
+				.click()
+				.catch(() => {})
+		]);
+		const allowed = await asked('ask-1');
+		expect(allowed.answer).toEqual({ allowed: true });
+		// In force before the page heard yes: its retry reached 127.0.0.2.
+		expect(allowed.after).toMatchObject({ ok: true, value: { status: 200 } });
+		expect(
+			server.received.some((r) => r.url === '/echo?case=allowed-1' && r.host === '127.0.0.2')
+		).toBe(true);
+
+		// The options page lists it as allowed when tsundoku asked, and REMOVE
+		// takes it out of the browser's rules at once, UNDO puts it back.
+		const options = await context.newPage();
+		await options.goto(`${extensionBase}/options.html`);
+		const row = options.locator('.entry', { hasText: `127.0.0.2:${server.port}` });
+		await expect(row.locator('.cov')).toHaveText(/ALLOWED WHEN TSUNDOKU ASKED, TODAY/);
+		const allowRules = () =>
+			worker.evaluate(
+				async () =>
+					(await chrome.declarativeNetRequest.getSessionRules()).filter(
+						(r: { action: { type: string } }) => r.action.type === 'allow'
+					).length
+			);
+		const before = await allowRules();
+		await row.getByRole('button', { name: /REMOVE/ }).click();
+		await expect(options.locator('#removed')).toBeVisible();
+		await expect.poll(allowRules).toBe(before - 1);
+		await options.locator('#undo').click();
+		await expect.poll(allowRules).toBe(before);
+		await expect(options.locator('.entry', { hasText: `127.0.0.2:${server.port}` })).toBeVisible();
+
+		// ADD BY HAND refuses a host on the internet, and keeps a local one.
+		await options.locator('summary').click();
+		await options.locator('#add').fill('mangadex.org');
+		await expect(options.locator('#msg')).toContainText('mangadex.org IS ON THE INTERNET');
+		await expect(options.locator('#add-button')).toBeDisabled();
+		await options.locator('#add').fill('http://nas.lan:8080/repo/index.min.json');
+		await expect(options.locator('#keep-entry')).toHaveText('nas.lan:8080');
+		await options.locator('#add-button').click();
+		await expect(options.locator('.entry', { hasText: 'nas.lan:8080' })).toBeVisible();
+		await expect.poll(allowRules).toBe(before + 1);
+	} finally {
+		await context.close();
+		await server.close();
+		rmSync(profile, { recursive: true, force: true });
+	}
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright needs the object pattern
 test('the fetcher in Firefox', async ({}, testInfo) => {
 	test.skip(!built, 'run yarn run test:fetcher, which builds both editions');
 	test.skip(!existsSync(firefoxBinary), `no Firefox at ${firefoxBinary} (set FIREFOX)`);
@@ -393,7 +505,12 @@ function runBundle(file: string, origin: string) {
 			onCompleted: { addListener: () => {} },
 			onErrorOccurred: { addListener: () => {} }
 		},
-		storage: { local: { get: async () => ({}) }, onChanged: { addListener: () => {} } }
+		storage: {
+			local: { get: async () => ({}), set: async () => {} },
+			onChanged: { addListener: () => {} }
+		},
+		windows: { onRemoved: { addListener: () => {} } },
+		tabs: { onRemoved: { addListener: () => {} }, onUpdated: { addListener: () => {} } }
 	};
 	const window = {
 		location: { origin },

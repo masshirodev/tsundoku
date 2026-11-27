@@ -45,6 +45,10 @@ jobs:
         working-directory: tsundoku
       - run: npx playwright install --with-deps chromium firefox
         working-directory: tsundoku
+      # own-network.e2e.ts drives the real fetcher with no engine, so it runs
+      # here rather than in the engine job, and needs the development build.
+      - run: yarn run build:fetcher --dev
+        working-directory: tsundoku
       - run: yarn run test:web
         working-directory: tsundoku
         # A developer's .env is in the build's environment too: the web

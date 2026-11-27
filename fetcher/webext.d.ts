@@ -13,7 +13,7 @@ interface WebExtSender {
 	origin?: string;
 	url?: string;
 	frameId?: number;
-	tab?: unknown;
+	tab?: { id?: number };
 }
 
 interface WebExtCookie {
@@ -26,6 +26,7 @@ interface WebExtCookie {
 
 interface WebExtRule {
 	id: number;
+	action: { type: string };
 }
 
 /** A webRequest event's details, as far as the fetcher reads them (src/lib/fetcher/watch.ts). */
@@ -93,9 +94,39 @@ interface WebExtApi {
 		onCompleted: WebExtRequestEvent<void>;
 		onErrorOccurred: WebExtRequestEvent<void>;
 	};
+	/**
+	 * The confirmation window (src/lib/fetcher/asks.ts). Firefox for Android
+	 * has no `windows`, so there it is a tab.
+	 */
+	windows?: {
+		create(options: {
+			url: string;
+			type: 'popup';
+			width: number;
+			height: number;
+			focused: boolean;
+		}): Promise<{ id?: number }>;
+		update(windowId: number, options: { focused: boolean }): Promise<unknown>;
+		remove(windowId: number): Promise<void>;
+		onRemoved: { addListener(listener: (windowId: number) => void): void };
+	};
+	tabs: {
+		create(options: { url: string; active: boolean }): Promise<{ id?: number }>;
+		update(tabId: number, options: { active: boolean }): Promise<unknown>;
+		remove(tabId: number): Promise<void>;
+		onRemoved: { addListener(listener: (tabId: number) => void): void };
+		onUpdated: {
+			addListener(
+				listener: (tabId: number, change: { status?: string; url?: string }) => void
+			): void;
+		};
+	};
 	/** The reader's allowed hosts (the fetcher's options). */
 	storage: {
-		local: { get(key: string): Promise<Record<string, unknown>> };
+		local: {
+			get(key: string): Promise<Record<string, unknown>>;
+			set(items: Record<string, unknown>): Promise<void>;
+		};
 		onChanged: {
 			addListener(
 				listener: (changes: Record<string, { newValue?: unknown }>, area: string) => void

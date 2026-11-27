@@ -326,27 +326,38 @@ describe('the allow list', () => {
 
 describe('the checks before and after fetching', () => {
 	it('refuses the reader’s own network before fetching, unless allowed', () => {
-		expect(refusal('http://192.168.1.1/', [])).toMatch(
+		expect(refusal('http://192.168.1.1/', [])?.message).toMatch(
 			/^refused: 192\.168\.1\.1 is on your own network/
 		);
-		expect(refusal('http://router.lan/', [])).toMatch(/router\.lan/);
-		expect(refusal('http://[::1]:9/', [])).toMatch(/\[::1\]/);
+		expect(refusal('http://router.lan/', [])?.message).toMatch(/router\.lan/);
+		expect(refusal('http://[::1]:9/', [])?.message).toMatch(/\[::1\]/);
 		expect(refusal('http://router.lan/', ['router.lan'])).toBe(null);
 		expect(refusal('https://mangadex.org/', [])).toBe(null);
-		expect(refusal('http://192.168.1.1/', [])).toBe(
-			"refused: 192.168.1.1 is on your own network; allow it in the fetcher's options to reach it"
-		);
+		expect(refusal('http://192.168.1.1/', [])).toEqual({
+			message:
+				"refused: 192.168.1.1 is on your own network; allow it in the fetcher's options to reach it",
+			host: '192.168.1.1',
+			port: '80'
+		});
+		expect(refusal('https://nas.lan:8443/x', [])).toMatchObject({ host: 'nas.lan', port: '8443' });
+		expect(refusal('https://nas.lan/x', [])).toMatchObject({ host: 'nas.lan', port: '443' });
 		expect(isOwnNetwork(new URL('https://1.1.1.1/'))).toBe(false);
 	});
 
 	it('refuses an answer from a private address a public name led to', () => {
-		expect(refusedAddress('https://evil.example/', '192.168.1.1', [])).toMatch(/evil\.example/);
-		expect(refusedAddress('https://evil.example/', '::1', [])).toMatch(/evil\.example/);
+		expect(refusedAddress('https://evil.example/', '192.168.1.1', [])?.message).toMatch(
+			/evil\.example/
+		);
+		expect(refusedAddress('https://evil.example/', '::1', [])?.message).toMatch(/evil\.example/);
 		expect(refusedAddress('https://good.example/', '93.184.216.34', [])).toBe(null);
 		expect(refusedAddress('https://good.example/', undefined, [])).toBe(null);
-		expect(refusedAddress('https://evil.example/', '192.168.1.1', [])).toBe(
-			"refused: evil.example led to 192.168.1.1, which is on your own network; allow it in the fetcher's options to reach it"
-		);
+		expect(refusedAddress('https://evil.example/', '192.168.1.1', [])).toEqual({
+			message:
+				"refused: evil.example led to 192.168.1.1, which is on your own network; allow it in the fetcher's options to reach it",
+			host: 'evil.example',
+			port: '443',
+			answeredFrom: '192.168.1.1'
+		});
 		// A host the reader allowed may resolve wherever it does.
 		expect(refusedAddress('http://nas.example/', '192.168.1.5', ['nas.example'])).toBe(null);
 		// An allowed address covers whatever name led there: a proxy on the
@@ -359,7 +370,7 @@ describe('the checks before and after fetching', () => {
 			refusedAddress('https://www.webtoons.com/', '0:0::1', builtInAllowed('development'))
 		).toBe(null);
 		expect(
-			refusedAddress('https://rebind.test/', '127.0.0.2', builtInAllowed('development'))
+			refusedAddress('https://rebind.test/', '127.0.0.2', builtInAllowed('development'))?.message
 		).toMatch(/127\.0\.0\.2/);
 	});
 
@@ -382,7 +393,7 @@ describe('the lookup before sending', () => {
 			'rebind.example': ['93.184.216.34', '192.168.0.9'],
 			'ok.example': ['93.184.216.34']
 		});
-		expect(await lookupRefusal('https://rebind.example/', [], at)).toMatch(
+		expect((await lookupRefusal('https://rebind.example/', [], at))?.message).toMatch(
 			/^refused: rebind\.example led to 192\.168\.0\.9/
 		);
 		expect(await lookupRefusal('https://ok.example/', [], at)).toBe(null);

@@ -5,6 +5,8 @@
 	import SourceRow from './SourceRow.svelte';
 	import ConcealBand from './ConcealBand.svelte';
 	import AddedBand from './AddedBand.svelte';
+	import OwnNetwork from '$lib/components/web/OwnNetwork.svelte';
+	import { ownNetwork } from '$lib/web/own-network.svelte';
 	import { ago } from '$lib/library/tracking';
 	import { count } from '$lib/library/downloads';
 	import {
@@ -214,6 +216,15 @@
 	<StartTrail start={data.start} />
 	<!-- A press's band: while it runs and its one result, on every browse screen. -->
 	<PressBand reveal={data.reveal} />
+	<!-- Every site refused from one address on the reader's own network: a
+	     proxy, as Chromium reports one (c1156). The latest such refusal names it. -->
+	{#if __WEB_EDITION__ && ownNetwork.proxy}
+		{@const proxy = ownNetwork.proxy}
+		{@const refused = ownNetwork.list.find((r) => r.answeredFrom === proxy.address)}
+		{#if refused}
+			<OwnNetwork {refused} {proxy} onallowed={() => location.reload()} />
+		{/if}
+	{/if}
 	<!-- CONCEAL ITS SERIES outside reveal: its source is mostly
 	     hidden now, so the band is here, and names no source. -->
 	{#if data.concealed}

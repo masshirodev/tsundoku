@@ -13,7 +13,7 @@ import { createServer, type Server } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 
@@ -56,16 +56,20 @@ function repoAnswer(path: string): { type: string; body: Buffer | string } | nul
 	return null;
 }
 
-/** Starts the repository; `base` is its address. */
-export async function startRepo(): Promise<{ base: string; close: () => void }> {
+/**
+ * Starts the repository; `base` is its address. On 127.0.0.1 by default,
+ * which the development fetcher allows; on 127.0.0.2 it is a device on the
+ * reader's own network the fetcher refuses until allowed (own-network.e2e.ts).
+ */
+export async function startRepo(host = '127.0.0.1'): Promise<{ base: string; close: () => void }> {
 	const repo: Server = createServer((req, res) => {
 		const answer = repoAnswer(new URL(req.url ?? '/', 'http://x').pathname);
 		if (!answer) return void res.writeHead(404).end();
 		res.writeHead(200, { 'content-type': answer.type }).end(answer.body);
 	});
-	await new Promise<void>((resolve) => repo.listen(0, '127.0.0.1', resolve));
+	await new Promise<void>((resolve) => repo.listen(0, host, resolve));
 	return {
-		base: `http://127.0.0.1:${(repo.address() as AddressInfo).port}`,
+		base: `http://${host}:${(repo.address() as AddressInfo).port}`,
 		close: () => void repo.close()
 	};
 }
@@ -151,6 +155,11 @@ export async function fetcherBrowser(
 	report: () => string;
 	close: () => Promise<void>;
 }> {
+	// Without the build, the browser starts with no fetcher and the test waits a
+	// minute for an answer that cannot come: say what is missing instead.
+	const build = browserName === 'firefox' ? FETCHER_FIREFOX : FETCHER;
+	if (!existsSync(join(build, 'manifest.json')))
+		throw new Error(`No fetcher build in ${build}: run \`yarn run build:fetcher --dev\` first.`);
 	const profile = mkdtempSync(join(process.cwd(), 'test-results', `${name}-profile-`));
 	const common = { headless: true, baseURL, viewport: { width: 1440, height: 900 } };
 	let context: BrowserContext;

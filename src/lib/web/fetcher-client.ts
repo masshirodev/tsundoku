@@ -9,10 +9,26 @@ import {
 	isFetcherMessage,
 	type FetcherRequest,
 	type FetcherResponse,
+	type AllowRefusal,
 	type PageMessage,
+	type Refusal,
 	type SiteAccess
 } from '../fetcher/protocol.ts';
 import type { MessageWindow } from '../fetcher/relay.ts';
+
+/**
+ * A fetch the fetcher refused because it reached the reader's own network
+ * (src/lib/fetcher/reach.ts): the sentence, and what was refused as data.
+ */
+export class FetcherRefused extends Error {
+	readonly refused: Refusal;
+
+	constructor(message: string, refused: Refusal) {
+		super(message);
+		this.name = 'FetcherRefused';
+		this.refused = refused;
+	}
+}
 
 export interface Fetcher {
 	protocol: number;
@@ -26,9 +42,19 @@ export interface Fetcher {
 	 */
 	access: Exclude<SiteAccess, 'none'>;
 	fetch(request: FetcherRequest): Promise<FetcherResponse>;
+	/**
+	 * Asks the reader, in the fetcher's own window, to allow [host] on
+	 * [port], or on every port without one (a proxy's address). Call it from
+	 * a press: the fetcher refuses an ask with no press behind it. It answers
+	 * only what the reader chose, never the list.
+	 */
+	allow(host: string, port?: string): Promise<AllowAnswer>;
 	/** Stops listening; requests still pending are rejected. */
 	close(): void;
 }
+
+/** What the reader chose, or why they were never asked. */
+export type AllowAnswer = { allowed: true } | { allowed: false; why: AllowRefusal };
 
 export type FetcherConnection =
 	| { state: 'ready'; fetcher: Fetcher }
@@ -69,6 +95,7 @@ export function connectFetcher(
 		string,
 		{ resolve(response: FetcherResponse): void; reject(error: Error): void }
 	>();
+	const asks = new Map<string, (answer: AllowAnswer) => void>();
 
 	return new Promise((resolve) => {
 		let connected = false;
@@ -98,11 +125,26 @@ export function connectFetcher(
 				resolve({ state: 'ready', fetcher: fetcher(protocol, version, transport, access) });
 				return;
 			}
+			if (message.kind === 'allowed') {
+				const answer = asks.get(message.id);
+				if (!answer) return;
+				asks.delete(message.id);
+				answer(
+					message.allowed ? { allowed: true } : { allowed: false, why: message.why ?? 'cancelled' }
+				);
+				return;
+			}
 			const waiting = pending.get(message.id);
 			if (!waiting) return;
 			pending.delete(message.id);
 			if (message.kind === 'response') waiting.resolve(message.response);
-			else waiting.reject(new Error(message.message));
+			else if (message.kind === 'error') {
+				waiting.reject(
+					message.refused
+						? new FetcherRefused(message.message, message.refused)
+						: new Error(message.message)
+				);
+			}
 		};
 
 		const fetcher = (
@@ -122,10 +164,26 @@ export function connectFetcher(
 					post({ channel: FETCHER_CHANNEL, from: 'page', kind: 'request', id, request });
 				});
 			},
+			allow(host, port) {
+				const id = `${prefix}:${next++}`;
+				return new Promise((resolve) => {
+					asks.set(id, resolve);
+					post({
+						channel: FETCHER_CHANNEL,
+						from: 'page',
+						kind: 'allow',
+						id,
+						host,
+						...(port === undefined ? {} : { port })
+					});
+				});
+			},
 			close() {
 				win.removeEventListener('message', listener);
 				for (const waiting of pending.values()) waiting.reject(new Error('the fetcher was closed'));
 				pending.clear();
+				for (const answer of asks.values()) answer({ allowed: false, why: 'cancelled' });
+				asks.clear();
 			}
 		});
 
