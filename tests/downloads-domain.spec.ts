@@ -175,6 +175,19 @@ describe('the DOWNLOAD row', () => {
 	it('keeps its cells, dimmed, when the engine isn’t answering or the device is offline', () => {
 		const down = downloadRow(entries, { kind: 'down', since: 0 }, true, clock);
 		expect(down.b).toBe('○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION · SINCE 14:02');
+		// The web edition's engine is in the tab (c1152).
+		const downWeb = downloadRow(
+			entries,
+			{ kind: 'down', since: 0 },
+			true,
+			clock,
+			null,
+			clock,
+			undefined,
+			false,
+			true
+		);
+		expect(downWeb.b).toBe('○ NOT ANSWERING · THE EXTENSION ENGINE IN THIS TAB · SINCE 14:02');
 		expect(down.cells.every((c) => c.dim)).toBe(true);
 		const states = chapterStates(entries, urls, chapters, []);
 		const off = downloadRow(entries, { kind: 'ok', states }, false, clock);

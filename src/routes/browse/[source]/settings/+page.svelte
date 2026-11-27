@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { engineDownLine } from '$lib/waiting';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
@@ -128,7 +129,7 @@
 
 	{#if data.down === 'down'}
 		<Band
-			title="○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION"
+			title={engineDownLine(__WEB_EDITION__)}
 			detail="THESE ARE THE VALUES TSUNDOKU KEPT · A CHANGE IS SENT WITH THE NEXT CALL"
 		/>
 	{:else if data.down}

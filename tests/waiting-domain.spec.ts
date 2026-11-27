@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { askedLine, destinationOf, fillOf, nextChangeIn, phaseAt, stalledLine } from '$lib/waiting';
+import {
+	askedLine,
+	destinationOf,
+	engineDownLine,
+	fillOf,
+	nextChangeIn,
+	phaseAt,
+	stalledLine
+} from '$lib/waiting';
 
 describe('phaseAt', () => {
 	it('follows the design’s scale: pressed, line at 150 ms, outline at 1 s, stalled at 10 s', () => {
@@ -52,5 +60,11 @@ describe('destinationOf', () => {
 		// The web edition has no workstation: its server is the reader's own tab.
 		expect(stalledLine(false)).toBe('○ WORKSTATION NOT ANSWERING');
 		expect(stalledLine(true)).toBe('○ STILL WORKING ON IT');
+	});
+
+	it('names where the extension engine runs, which is the edition’s (c1152)', () => {
+		expect(engineDownLine(false)).toBe('○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION');
+		// The web edition's engine runs in the reader's own tab: no workstation.
+		expect(engineDownLine(true)).toBe('○ NOT ANSWERING · THE EXTENSION ENGINE IN THIS TAB');
 	});
 });

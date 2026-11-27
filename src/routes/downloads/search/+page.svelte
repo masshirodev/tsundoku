@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { engineDownLine } from '$lib/waiting';
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -191,7 +192,7 @@
 
 {#if data.down}
 	<div class="note">
-		○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION · NOTHING CAN BE SEARCHED
+		{engineDownLine(__WEB_EDITION__)} · NOTHING CAN BE SEARCHED
 	</div>
 {:else if data.q && data.all}
 	{#if data.kinds.length > 1}

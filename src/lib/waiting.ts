@@ -72,5 +72,15 @@ export function destinationOf(
 export const stalledLine = (web: boolean) =>
 	web ? '○ STILL WORKING ON IT' : '○ WORKSTATION NOT ANSWERING';
 
+/**
+ * The engine not answering, as BROWSE, DOWNLOADS, SEARCH THE SOURCES, a
+ * source's SETTINGS and a series' DOWNLOAD row say it: "the extension engine"
+ * is one of the few places the app names it (doc/BROWSE.md). Where it runs is
+ * the edition's: the self-hosted app's on the workstation, the web edition's
+ * in the reader's own tab, where there is no workstation (c1152).
+ */
+export const engineDownLine = (web: boolean) =>
+	`○ NOT ANSWERING · THE EXTENSION ENGINE ${web ? 'IN THIS TAB' : 'ON THE WORKSTATION'}`;
+
 export const askedLine = (elapsed: number) =>
 	`ASKED ${Math.floor(elapsed / 1000)} S AGO · STILL ASKING`;
