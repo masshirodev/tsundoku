@@ -416,6 +416,65 @@ export function stripWindow<C extends { id: number }>(
 }
 
 /**
+ * The part of a new strip window that may land while the reader is moving
+ * (c1158): the chapter being read and everything below it as [next] has them,
+ * and above it the strip as it is ([now]). Only a change above the page being
+ * read shoves it, and putting the place back by scrolling is not to be
+ * trusted while a finger or a fling is moving the page: a touch browser can
+ * drop that scroll, which left the owner a chapter's height off, at the start
+ * of the chapter scrolled up into, and walked the strip back by itself. So
+ * the rest, `above`, waits until the strip is still. `above` is false when
+ * nothing above differs.
+ */
+export function splitAbove<C extends { id: number }>(
+	now: C[],
+	next: C[],
+	currentId: number
+): { safe: C[]; above: boolean } {
+	const at = (list: C[]) => list.findIndex((c) => c.id === currentId);
+	const nowAt = at(now);
+	const nextAt = at(next);
+	// Not on the strip yet: an opening, not a move. Nothing is moving it.
+	if (nowAt < 0 || nextAt < 0) return { safe: next, above: false };
+	const aboveNow = now.slice(0, nowAt);
+	const aboveNext = next.slice(0, nextAt);
+	const above = aboveNow.length !== aboveNext.length || aboveNow.some((c, i) => c !== aboveNext[i]);
+	return { safe: [...aboveNow, ...next.slice(nextAt)], above };
+}
+
+/** How many pages ahead of the one being read the strip asks for at once. */
+export const STRIP_AHEAD = 3;
+/** Within this many pages of a chapter's end, the next chapter's first pages are asked for too. */
+export const STRIP_NEXT_FIRST = 2;
+
+/**
+ * The strip's pages to ask for now rather than as they near the screen
+ * (doc/READER.md, "Preloading"; c1158): the next few pages of the chapter
+ * being read, and near its end the next chapter's first pages. Lazily, a
+ * page is asked for about a screen before it shows, and over a slow link a
+ * tall page read online is still on its way when it arrives: at the band
+ * the next chapter met the reader as loading boxes, which read as the
+ * chapter reloading. Keys are `<chapter>:<page>`.
+ */
+export function stripEager(
+	chapters: { id: number; pages: unknown[] | null }[],
+	currentId: number,
+	at: number
+): Set<string> {
+	const eager = new Set<string>();
+	const i = chapters.findIndex((c) => c.id === currentId);
+	const current = chapters[i];
+	if (!current?.pages) return eager;
+	const last = current.pages.length - 1;
+	for (let p = at + 1; p <= Math.min(last, at + STRIP_AHEAD); p++) eager.add(`${current.id}:${p}`);
+	const next = chapters[i + 1];
+	if (next?.pages && at >= last - STRIP_NEXT_FIRST)
+		for (let p = 0; p < Math.min(STRIP_NEXT_FIRST, next.pages.length); p++)
+			eager.add(`${next.id}:${p}`);
+	return eager;
+}
+
+/**
  * A wide page outside spreads (doc/READER.md, "Wide pages"): shown whole
  * (FIT), as its two halves one after the other (SPLIT), or turned a quarter
  * to fill a portrait screen (ROTATE). Spreads show a wide page whole anyway.

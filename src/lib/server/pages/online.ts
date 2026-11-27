@@ -17,6 +17,12 @@ import { entryOriginSql } from '../season-facts.ts';
 
 /** How long a chapter's page list is trusted: a source's addresses go stale, and the engine forgets its tokens on restart. */
 const KEEP_MS = 10 * 60 * 1000;
+/**
+ * That, unless `TSUNDOKU_ONLINE_KEEP_MS` says otherwise. Only the browse test
+ * world sets it (tests/browse-setup.ts), so a spec can meet a list that has
+ * gone stale under a reader without waiting ten minutes (c1158).
+ */
+const keepMs = () => Number(process.env.TSUNDOKU_ONLINE_KEEP_MS) || KEEP_MS;
 const MAX_KEPT = 200;
 const lists = new Map<number, { at: number; targets: string[] }>();
 
@@ -63,7 +69,7 @@ export function streamsOnline(entryId: number, db = getDb()): boolean {
 
 async function listOf(entryId: number, fresh = false): Promise<{ at: number; targets: string[] }> {
 	const kept = lists.get(entryId);
-	if (!fresh && kept && Date.now() - kept.at < KEEP_MS) return kept;
+	if (!fresh && kept && Date.now() - kept.at < keepMs()) return kept;
 	const { pages } = await chapterAtSource(entryId, { db: getDb(), now: Date.now });
 	const list = {
 		at: Date.now(),

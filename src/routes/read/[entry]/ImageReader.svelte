@@ -106,6 +106,8 @@
 		type Wide,
 		pagesAhead,
 		nearEnd,
+		splitAbove,
+		stripEager,
 		stripWindow,
 		shapeOf,
 		CURSOR_IDLE_MS,
@@ -1123,6 +1125,16 @@
 		version
 	});
 
+	/** The strip's neighbours as the reader's data has them now: none when stopped at the ends. */
+	const heldPrev = () => {
+		const p = stopAtEnd ? null : readable(data.prev);
+		return p && stripChapter(p);
+	};
+	const heldNext = () => {
+		const n = stopAtEnd ? null : readable(data.next);
+		return n && stripChapter(n);
+	};
+
 	/** The keepPlace measuring now, and whether a change joined it while it waited. */
 	let placeKept: { again: boolean } | null = null;
 	/**
@@ -1176,14 +1188,84 @@
 		}
 	}
 
+	// ---- what lands above the page being read waits for a still strip (c1158) ----
+	// A change above the page being read shoves it, and keepPlace puts it back
+	// by scrolling. A touch browser can drop that scroll while a finger or a
+	// fling is moving the page: the owner, reading a manhwa online on a
+	// tablet over Tailscale, scrolled up into the chapter before and the one
+	// above it landed, eleven screens of pages, with the scroll that should
+	// have answered it lost. He was at that chapter's start, and the next
+	// crossing walked the strip back two chapters by itself. So what lands
+	// above waits until nothing is moving the strip, and is then kept in one go.
+	/** When the strip last scrolled, by anything. */
+	let scrolledAt = 0;
+	/** Fingers on the screen now. */
+	let touching = 0;
+	/** How long without a scroll counts as still. */
+	const STILL_MS = 250;
+	/** Changes above the page being read, waiting for the strip to be still. */
+	let heldAbove: (() => void)[] = [];
+	let stillTimer: ReturnType<typeof setTimeout> | undefined;
+	const isStill = () => touching === 0 && performance.now() - scrolledAt >= STILL_MS;
+	/** Makes [change] now if the strip is still, else once it is. */
+	function whenStill(change: () => void) {
+		heldAbove.push(change);
+		flushWhenStill();
+	}
+	function flushWhenStill() {
+		clearTimeout(stillTimer);
+		if (heldAbove.length === 0) return;
+		if (!isStill()) {
+			stillTimer = setTimeout(flushWhenStill, STILL_MS);
+			return;
+		}
+		const changes = heldAbove;
+		heldAbove = [];
+		void keepPlace(() => {
+			for (const change of changes) change();
+		});
+	}
+	$effect(() => {
+		if (mode !== 'vertical') return;
+		const scrolled = () => (scrolledAt = performance.now());
+		const down = (e: TouchEvent) => (touching = e.touches.length);
+		const up = (e: TouchEvent) => {
+			touching = e.touches.length;
+			scrolledAt = performance.now();
+		};
+		addEventListener('scroll', scrolled, { passive: true });
+		addEventListener('touchstart', down, { passive: true });
+		addEventListener('touchend', up, { passive: true });
+		addEventListener('touchcancel', up, { passive: true });
+		return () => {
+			removeEventListener('scroll', scrolled);
+			removeEventListener('touchstart', down);
+			removeEventListener('touchend', up);
+			removeEventListener('touchcancel', up);
+			clearTimeout(stillTimer);
+			// Off the strip, nothing is kept: what waited is the strip's to redo.
+			heldAbove = [];
+			touching = 0;
+		};
+	});
+	/** Whether chapter [id] is above the chapter being read on the strip. */
+	const isAbove = (id: number) => {
+		const at = strip.findIndex((c) => c.id === data.entry.id);
+		const it = strip.findIndex((c) => c.id === id);
+		return at >= 0 && it >= 0 && it < at;
+	};
+
 	async function loadStripPages(id: number) {
 		try {
 			const r = await fetch(resolve('/api/entries/[id]/pages', { id: String(id) }));
 			const m = r.ok ? ((await r.json()) as { pages: Page[]; version: string }) : null;
 			if (!m) return;
-			void keepPlace(() => {
+			const arrive = () => {
 				strip = strip.map((c) => (c.id === id ? { ...c, pages: m.pages, version: m.version } : c));
-			});
+			};
+			// A chapter above the one being read: its pages wait for a still strip.
+			if (isAbove(id)) whenStill(arrive);
+			else void keepPlace(arrive);
 		} catch {
 			// Offline and not kept: the band says LOADING, and the chapter opens from the controls.
 		}
@@ -1241,7 +1323,19 @@
 				placeAt = { id, page: at };
 				void tick().then(place);
 			} else {
-				void keepPlace(() => (strip = held));
+				// Below the page being read now; above it once the strip is still.
+				const { safe, above } = splitAbove(strip, held, id);
+				void keepPlace(() => (strip = safe));
+				if (above)
+					whenStill(() => {
+						// The window as it is by then, with whatever arrived meanwhile.
+						strip = stripWindow(
+							strip,
+							strip.find((c) => c.id === data.entry.id) ?? current,
+							heldPrev(),
+							heldNext()
+						);
+					});
 				// CH. → from the controls, to a neighbour already on the strip: go to it.
 				if (!scrolledHere) {
 					endHold(true);
@@ -1267,12 +1361,17 @@
 			.querySelector(`[data-entry="${placeAt.id}"][data-index="${placeAt.page}"]`)
 			?.scrollIntoView({ block: 'start' });
 	}
-	afterNavigate(() => {
+	afterNavigate(({ to }) => {
 		// Only for the entry this navigation arrived at: a placeAt left by
 		// the strip's opening on a mode switch (no navigation, so nothing cleared
 		// it) is not where a later crossing goes. Replayed, it scrolled the strip
 		// back a whole chapter to the page the switch opened at.
-		if (placeAt?.id === data.entry.id) place();
+		// The navigation's own target, not `data.entry`: a chapter read online
+		// keeps this reader, and its data, while the next chapter's data is on
+		// its way (+page.svelte), so on a crossing `data.entry` was still the
+		// chapter left, matched the place left by the switch, and the strip went
+		// back to that chapter's first page (c1158).
+		if (placeAt && placeAt.id === Number(to?.params?.entry)) place();
 		placeAt = null;
 	});
 
@@ -2529,6 +2628,7 @@
 					{zoom}
 					outline={chrome && hlCell ? { entry: data.entry.id, index: at } : null}
 					src={(c, i) => pageSrc(c.id, c.version, i)}
+					eager={stripEager(strip, data.entry.id, at)}
 					shape={(c, i, p) => shaped(c.id, i, p)}
 					onshape={(c, i, w, h) => learnShape(c.id, i, w, h)}
 					onpage={stripPage}

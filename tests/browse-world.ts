@@ -83,6 +83,12 @@ export const engineDown = () => fetch(`${ENGINE}/__down`, { method: 'POST' });
 /** Every episode's video list comes back empty until the next reset: the player's NO SERVER. */
 export const noVideo = () => fetch(`${ENGINE}/__novideo`, { method: 'POST' });
 /** The next search waits [ms] while the engine "passes" example.org's browser check. */
+/** Every chapter's page list from the fake source takes [ms], as a slow source's does (c1158). */
+export const slowPageLists = (ms = 2000) =>
+	fetch(`${ENGINE}/__slowpages?ms=${ms}`, { method: 'POST' });
+/** Every chapter is [pages] tall pages of differing heights, as a manhwa's are (c1158). */
+export const manhwaChapters = (pages = 25) =>
+	fetch(`${ENGINE}/__manhwa?pages=${pages}`, { method: 'POST' });
 export const behindACheck = (ms = 3000) => fetch(`${ENGINE}/__check?ms=${ms}`, { method: 'POST' });
 export const bumpWebtoons = () => fetch(`${ENGINE}/__bump`, { method: 'POST' });
 export const REPO = (name: 'good' | 'bad' | 'notrepo') =>
