@@ -1,3 +1,4 @@
+import { keptSearch } from '../search-kept.ts';
 import { keepOrPromote } from '../browsing.ts';
 import { createHash } from 'node:crypto';
 import { join } from '../fspath.ts';
@@ -256,9 +257,16 @@ function sourceLabel(sourceId: string): string {
 export async function novelSearch(
 	sourceId: string,
 	query: string,
-	reveal: boolean
+	reveal: boolean,
+	fresh = false
 ): Promise<SearchHit[]> {
-	const { items } = await novelPage(sourceId, 'filtered', 1, { query });
+	// Kept for this search's other kinds, as an extension's is (search-kept.ts).
+	const items = await keptSearch(
+		sourceId,
+		query,
+		fresh,
+		async () => (await novelPage(sourceId, 'filtered', 1, { query })).items
+	);
 	return novelHits(sourceId, items, reveal, query);
 }
 

@@ -1,3 +1,4 @@
+import { keptSearch } from '../search-kept.ts';
 import { coverRoute } from '../novels/source.ts';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
@@ -494,19 +495,26 @@ export function asHits(
 	return out;
 }
 
-/** One source's answer to a query. */
+/**
+ * One source's answer to a query: the one kept from this search's other
+ * kinds when it is recent (search-kept.ts), asked again with [fresh].
+ */
 export async function searchSource(
 	sourceId: string,
 	query: string,
-	reveal: boolean
+	reveal: boolean,
+	fresh = false
 ): Promise<SearchHit[]> {
-	const page = await callSource<{ mangas: EngineManga[] }>(
-		sourceId,
-		'getSearchManga',
-		{ page: 1, search: query },
-		45_000
-	);
-	return asHits(sourceId, page.mangas, reveal, query);
+	const mangas = await keptSearch(sourceId, query, fresh, async () => {
+		const page = await callSource<{ mangas: EngineManga[] }>(
+			sourceId,
+			'getSearchManga',
+			{ page: 1, search: query },
+			45_000
+		);
+		return page.mangas;
+	});
+	return asHits(sourceId, mangas, reveal, query);
 }
 
 type EngineChapter = {

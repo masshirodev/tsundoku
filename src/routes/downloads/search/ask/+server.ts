@@ -21,7 +21,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	if (!q || !sources.some((s) => s.id === source)) error(404, 'not found');
 	const kind = url.searchParams.get('kind');
 	if (kind && kindOfSource(source) !== kind) error(404, 'not found');
-	const answer = await searchSource(source, q, reveal).then(
+	// TRY AGAIN: asked afresh, not given the answer kept from before (search-kept.ts).
+	const answer = await searchSource(source, q, reveal, true).then(
 		(value): Settled<SearchHit[]> => ({ ok: true, value }),
 		(e): Settled<SearchHit[]> => ({ ok: false, error: (e as Error).message })
 	);

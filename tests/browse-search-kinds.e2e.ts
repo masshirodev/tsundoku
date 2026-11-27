@@ -21,7 +21,7 @@ const sources = (page: Page) => page.getByRole('navigation', { name: 'Sources' }
 const searchCalls = async () =>
 	(await engineCalls()).filter((c) => c.method.startsWith('getSearch') && c.search === Q);
 
-test('ALL asks every kind’s sources, a kind only its own, and the kind stays through a reload', async ({
+test('ALL asks every kind’s sources once; a kind, a reload and ALL again ask none again', async ({
 	page
 }) => {
 	await page.goto(`/downloads/search?q=${Q}`);
@@ -38,7 +38,8 @@ test('ALL asks every kind’s sources, a kind only its own, and the kind stays t
 	expect(underAll.some((c) => c.sourceId === SOURCES.open.id)).toBe(true);
 	expect(underAll.some((c) => c.sourceId === ANIME_SOURCE.id)).toBe(true);
 
-	// ANIME: its one source's tab, no manga hit, and the manga source not asked.
+	// ANIME: its one source's tab, no manga hit, and nothing asked again: ALL
+	// already has the anime source's answer (c1141, src/lib/server/search-kept.ts).
 	const before = underAll.length;
 	await band.getByRole('link', { name: /^ANIME/ }).click();
 	await page.waitForURL(/kind=anime/);
@@ -50,9 +51,9 @@ test('ALL asks every kind’s sources, a kind only its own, and the kind stays t
 	await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
 	await expect(page.locator('.label').first()).toContainText('1 OF 1 SOURCE ANSWERED');
 	const underAnime = (await searchCalls()).slice(before);
-	expect(underAnime.map((c) => c.sourceId)).toEqual([ANIME_SOURCE.id]);
+	expect(underAnime.map((c) => c.sourceId)).toEqual([]);
 
-	// A reload keeps the kind, and still asks only its source.
+	// A reload keeps the kind, and asks nothing again either.
 	const beforeReload = (await searchCalls()).length;
 	await page.reload();
 	await expect(kinds(page).getByRole('link', { name: /^ANIME/ })).toHaveClass(/\bon\b/);
@@ -62,16 +63,36 @@ test('ALL asks every kind’s sources, a kind only its own, and the kind stays t
 	]);
 	await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
 	const afterReload = (await searchCalls()).slice(beforeReload);
-	expect(afterReload.map((c) => c.sourceId)).toEqual([ANIME_SOURCE.id]);
+	expect(afterReload.map((c) => c.sourceId)).toEqual([]);
 
 	// A source's tab under a kind keeps the kind; ALL in the band goes back to every source.
 	await expect(tabs.nth(1)).toHaveAttribute(
 		'href',
 		new RegExp(`kind=anime&source=${ANIME_SOURCE.id}$`)
 	);
+	const beforeBack = (await searchCalls()).length;
 	await kinds(page).getByRole('link', { name: /^ALL/ }).click();
 	await page.waitForURL((u) => !u.searchParams.has('kind'));
 	await expect(sources(page).getByRole('link', { name: SOURCES.open.name })).toBeVisible();
+	await expect(page.locator('a.hit', { hasText: 'Filtered One' }).first()).toBeVisible();
+	await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
+	// Back on ALL: every source's answer again, and not one source asked again.
+	expect((await searchCalls()).slice(beforeBack)).toEqual([]);
+	// Each source was asked once in all, whatever was picked.
+	const ids = (await searchCalls()).map((c) => c.sourceId);
+	expect(ids.length).toBe(new Set(ids).size);
+});
+
+test('TRY AGAIN asks the source afresh, not the answer kept for the search', async ({ page }) => {
+	const ask = () =>
+		page.request.get(
+			`/downloads/search/ask?${new URLSearchParams({ q: Q, source: SOURCES.open.id })}`
+		);
+	const before = (await searchCalls()).length;
+	expect((await ask()).status()).toBe(200);
+	expect((await ask()).status()).toBe(200);
+	const asked = (await searchCalls()).slice(before).filter((c) => c.sourceId === SOURCES.open.id);
+	expect(asked.length).toBe(2);
 });
 
 test('a re-ask under a kind is refused for a source of another kind', async ({ page }) => {
