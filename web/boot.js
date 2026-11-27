@@ -62,8 +62,18 @@ const MSG = {
 	request: 'tsundoku-request',
 	leader: 'tsundoku-leader',
 	whoLeads: 'tsundoku-who-leads',
-	precache: 'tsundoku-precache'
+	precache: 'tsundoku-precache',
+	build: 'tsundoku-build',
+	whichBuild: 'tsundoku-which-build',
+	reload: 'tsundoku-reload'
 };
+
+/** The build this tab runs (the adapter writes it into the shell): said to the
+ * service worker, which keeps its files while the tab is open (c1138). */
+const BUILD = document.getElementById('web-start')?.dataset.build ?? '';
+// Kept on <html> too, where it stays once the starting screen is gone: the
+// tests read it, and so can anyone asking which build a tab runs.
+document.documentElement.dataset.webBuild = BUILD;
 
 /** Where the start is, for the tests (`data-web-boot`) and for the unknown failure's report. */
 let stage = 'registering';
@@ -117,7 +127,12 @@ const timing = timings({ on: timingOn(), into: (globalThis.__tsundokuTimings = [
 
 /** Tells the service worker this tab's server takes the requests. */
 function announce() {
-	navigator.serviceWorker.controller?.postMessage({ type: MSG.leader });
+	navigator.serviceWorker.controller?.postMessage({ type: MSG.leader, build: BUILD });
+}
+
+/** Tells the service worker which build this tab runs. */
+function sayBuild() {
+	navigator.serviceWorker.controller?.postMessage({ type: MSG.build, build: BUILD });
 }
 
 /** Starts the server worker; resolves once it is ready to answer. */
@@ -333,7 +348,12 @@ async function boot() {
 		if (data?.type === MSG.request && relayTo) relayTo(data, ports);
 		// The service worker was stopped and forgot who leads: say so again.
 		else if (data?.type === MSG.whoLeads && relayTo) announce();
+		else if (data?.type === MSG.whichBuild) sayBuild();
+		// Another tab is going to a new build: every tab goes, so none is left
+		// talking to a server of another build (doc/WEB-EDITION.md, "A new build").
+		else if (data?.type === MSG.reload) location.reload();
 	};
+	sayBuild();
 
 	const first = lead({ ifAvailable: true });
 	if (await first.got) await first.serving;

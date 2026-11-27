@@ -9,6 +9,7 @@
 	import { applyAction, enhance } from '$app/forms';
 	import type { ActionResult } from '@sveltejs/kit';
 	import { page, updated } from '$app/state';
+	import { checkForNewWorker, moveToNewBuild } from '$lib/web/move';
 	import { resolve } from '$app/paths';
 	import Banner from '$lib/components/chrome/Banner.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
@@ -301,9 +302,18 @@
 		// Taps and goto() only: back and forward stay as they are, or history would jump.
 		if (updated.current && nav.to && (nav.type === 'link' || nav.type === 'goto')) {
 			nav.cancel();
-			location.href = nav.to.url.href;
+			// The web edition's tabs share one server, so they move together
+			// (doc/WEB-EDITION.md, "A new build").
+			if (__WEB_EDITION__) void moveToNewBuild(nav.to.url.href);
+			else location.href = nav.to.url.href;
 		}
 	});
+	// A deploy seen: the web edition fetches the new service worker now, so it
+	// is in by the time the reader goes somewhere.
+	if (__WEB_EDITION__)
+		$effect(() => {
+			if (updated.current) void checkForNewWorker();
+		});
 
 	let navSeq = 0;
 	/** Which way the screen on its way moves: its outline, if one shows first, slides in with it. */
