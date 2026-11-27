@@ -1194,7 +1194,7 @@
 	// fling is moving the page: the owner, reading a manhwa online on a
 	// tablet over Tailscale, scrolled up into the chapter before and the one
 	// above it landed, eleven screens of pages, with the scroll that should
-	// have answered it lost. He was at that chapter's start, and the next
+	// have answered it lost. They were at that chapter's start, and the next
 	// crossing walked the strip back two chapters by itself. So what lands
 	// above waits until nothing is moving the strip, and is then kept in one go.
 	/** When the strip last scrolled, by anything. */

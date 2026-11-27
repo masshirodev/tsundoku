@@ -477,7 +477,7 @@ test('on a slow source, what lands above the page being read waits for a still s
  * c1158, the owner's words: "the reader loads the next chapter while I scroll,
  * but after I pass the boundary I'm moved to the start with a reload, like
  * entering a new page". A chapter's page list read online is kept ten minutes
- * (15 s in this world, `TSUNDOKU_ONLINE_KEEP_MS`). He had read the chapter
+ * (15 s in this world, `TSUNDOKU_ONLINE_KEEP_MS`). They had read the chapter
  * before for longer than that, so crossing into the next one asked the source
  * again, and a crossing is a navigation: the reader waited by throwing itself
  * away for the waiting page, and a new reader opened the chapter at its start.

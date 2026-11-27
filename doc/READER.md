@@ -207,7 +207,10 @@ A turned-to page is already there, not a box saying "P. 15".
   `src/lib/reader/reader.ts`). Lazily, a tall page read online over a slow
   link was still on its way when it reached the screen: at the band the next
   chapter met the reader as loading boxes, which read as the chapter
-  reloading (c1158, 2026-11-27).
+  reloading (c1158, 2026-11-27). So a test that finds a strip's page by its
+  name ("Page 1") names its chapter too (`data-entry` on the page's slot): in
+  a chapter a few pages long, the next chapter's pages of the same names are
+  already in the strip from the first page (`web/tests/read.e2e.ts`' `shown`).
 
 The device cache (`keepAhead`, doc/OFFLINE.md) is a different thing: it
 keeps whole chapters for reading offline.
