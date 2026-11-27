@@ -6,11 +6,11 @@
  * Firefox, JSON in Chromium).
  */
 import { describe, expect, it } from 'vitest';
-import { FETCHER_CHANNEL, type SiteAccess } from '../src/lib/fetcher/protocol.ts';
+import { FETCHER_CHANNEL, FETCHER_PROTOCOL, type SiteAccess } from '../src/lib/fetcher/protocol.ts';
 import { startRelay, type MessageWindow } from '../src/lib/fetcher/relay.ts';
 import { parseSuffixList } from '../src/lib/fetcher/psl.ts';
 import { createFetcherService, type RuntimeReply } from '../src/lib/fetcher/service.ts';
-import { connectFetcher } from '../src/lib/web/fetcher-client.ts';
+import { connectFetcher, FetcherRefused } from '../src/lib/web/fetcher-client.ts';
 
 type Listener = (event: MessageEvent) => void;
 
@@ -65,7 +65,9 @@ const crossings = {
 function extension(
 	browser: keyof typeof crossings,
 	win = fakeWindow(),
-	access: { now: SiteAccess } = { now: 'all' }
+	access: { now: SiteAccess } = { now: 'all' },
+	/** The reader: whether they are pressing, and what they answer in the fetcher's window. */
+	reader: { pressing: boolean; allows: boolean } = { pressing: true, allows: true }
 ) {
 	const cross = crossings[browser];
 	const service = createFetcherService({
@@ -79,6 +81,22 @@ function extension(
 		clearRules: async () => undefined,
 		replaceRules: async () => undefined,
 		allowedHosts: async () => [],
+		saveAllowedHosts: async () => undefined,
+		ownBase: 'chrome-extension://ext/',
+		async openAsk(id) {
+			const ownWindow = {
+				id: 'ext',
+				tab: { id: 50 },
+				url: `chrome-extension://ext/confirm.html?ask=${id}`
+			};
+			setTimeout(
+				() => void service.answer({ kind: 'ask-answer', id, allowed: reader.allows }, ownWindow),
+				0
+			);
+			return 1;
+		},
+		focusWindow: async () => undefined,
+		closeWindow: async () => undefined,
 		async fetch(url, init) {
 			if (url.includes('down'))
 				throw new TypeError('NetworkError when attempting to fetch resource.');
@@ -86,11 +104,12 @@ function extension(
 			return new Response(body, { status: 200, headers: { 'x-url': url } });
 		}
 	});
-	const sender = { id: 'ext', tab: {}, frameId: 0, url: `${win.location.origin}/library` };
+	const sender = { id: 'ext', tab: { id: 3 }, frameId: 0, url: `${win.location.origin}/library` };
 	const relay = startRelay({
 		win,
 		version: '0.1.0',
 		edition: 'store',
+		pressed: () => reader.pressing,
 		send: async (message) => cross(await service.answer(cross(message), sender)!)
 	});
 	return { win, relay };
@@ -105,7 +124,7 @@ describe('the handshake', () => {
 			expect(connection.state).toBe('ready');
 			if (connection.state !== 'ready') return;
 			expect(connection.fetcher).toMatchObject({
-				protocol: 2,
+				protocol: 3,
 				version: '0.1.0',
 				transport: browser === 'firefox' ? 'binary' : 'base64',
 				access: 'all'
@@ -148,6 +167,7 @@ describe('the handshake', () => {
 			win,
 			version: '0.1.0',
 			edition: 'store',
+			pressed: () => true,
 			send: () => Promise.reject(new Error('Receiving end does not exist.'))
 		});
 		expect(await connectFetcher(win, { timeoutMs: 30 })).toEqual({ state: 'missing' });
@@ -155,21 +175,34 @@ describe('the handshake', () => {
 
 	it('says missing when the background answers the probe with something else', async () => {
 		const win = fakeWindow();
-		startRelay({ win, version: '0.1.0', edition: 'store', send: async () => undefined });
+		startRelay({
+			win,
+			version: '0.1.0',
+			edition: 'store',
+			pressed: () => true,
+			send: async () => undefined
+		});
 		expect(await connectFetcher(win, { timeoutMs: 30 })).toEqual({ state: 'missing' });
 	});
 
 	it('says missing on a loopback page in the store build', async () => {
 		const win = fakeWindow('http://localhost:5173');
 		expect(
-			startRelay({ win, version: '0.1.0', edition: 'store', send: async () => undefined })
+			startRelay({
+				win,
+				version: '0.1.0',
+				edition: 'store',
+				pressed: () => true,
+				send: async () => undefined
+			})
 		).toBeNull();
 		expect(await connectFetcher(win, { timeoutMs: 20 })).toEqual({ state: 'missing' });
 	});
 
 	it.each([
 		[1, 'too-old'],
-		[3, 'too-new']
+		[2, 'too-old'],
+		[4, 'too-new']
 	])('refuses a fetcher on protocol %i as %s', async (protocol, state) => {
 		const win = fakeWindow();
 		const pending = connectFetcher(win);
@@ -194,7 +227,7 @@ describe('the handshake', () => {
 			from: 'fetcher',
 			kind: 'hello',
 			to,
-			protocol: 2,
+			protocol: 3,
 			version,
 			transport: 'binary',
 			access: 'all'
@@ -257,7 +290,7 @@ describe('requests', () => {
 			from: 'fetcher',
 			kind: 'hello',
 			to: nonceOf(win),
-			protocol: 2,
+			protocol: 3,
 			version: '0.1.0',
 			transport: 'binary',
 			access: 'all'
@@ -286,6 +319,81 @@ describe('requests', () => {
 	});
 });
 
+describe('the reader’s own network (c1156)', () => {
+	it.each(['firefox', 'chromium'] as const)(
+		'delivers a refusal with what it refused, in %s',
+		async (browser) => {
+			const { win } = extension(browser);
+			const connection = await connectFetcher(win);
+			if (connection.state !== 'ready') throw new Error(connection.state);
+			const error = await connection.fetcher
+				.fetch({ url: 'http://nas.lan:8080/index.min.json' })
+				.catch((e: unknown) => e);
+			expect(error).toBeInstanceOf(FetcherRefused);
+			expect((error as FetcherRefused).refused).toEqual({
+				host: 'nas.lan',
+				port: '8080',
+				asked: true
+			});
+			expect((error as FetcherRefused).message).toMatch(
+				/^refused: nas\.lan is on your own network/
+			);
+		}
+	);
+
+	it.each(['firefox', 'chromium'] as const)(
+		'asks the reader, and the page hears only what they chose, in %s',
+		async (browser) => {
+			const reader = { pressing: true, allows: true };
+			const { win } = extension(browser, fakeWindow(), { now: 'all' }, reader);
+			const connection = await connectFetcher(win);
+			if (connection.state !== 'ready') throw new Error(connection.state);
+			expect(await connection.fetcher.allow('nas.lan', '8080')).toEqual({ allowed: true });
+			// Allowed and in force: the retry is fetched.
+			expect((await connection.fetcher.fetch({ url: 'http://nas.lan:8080/x' })).status).toBe(200);
+			reader.allows = false;
+			expect(await connection.fetcher.allow('printer.lan', '631')).toEqual({
+				allowed: false,
+				why: 'cancelled'
+			});
+		}
+	);
+
+	it('forwards no ask without a press of the reader’s behind it', async () => {
+		const reader = { pressing: false, allows: true };
+		const { win } = extension('chromium', fakeWindow(), { now: 'all' }, reader);
+		const connection = await connectFetcher(win);
+		if (connection.state !== 'ready') throw new Error(connection.state);
+		expect(await connection.fetcher.allow('nas.lan', '8080')).toEqual({
+			allowed: false,
+			why: 'no-press'
+		});
+		await expect(connection.fetcher.fetch({ url: 'http://nas.lan:8080/x' })).rejects.toBeInstanceOf(
+			FetcherRefused
+		);
+	});
+
+	it('answers an ask still open when the client closes as cancelled', async () => {
+		const win = fakeWindow();
+		const pending = connectFetcher(win);
+		deliver(win, {
+			channel: FETCHER_CHANNEL,
+			from: 'fetcher',
+			kind: 'hello',
+			to: nonceOf(win),
+			protocol: FETCHER_PROTOCOL,
+			version: '0.1.0',
+			transport: 'binary',
+			access: 'all'
+		});
+		const connection = await pending;
+		if (connection.state !== 'ready') throw new Error(connection.state);
+		const answer = connection.fetcher.allow('nas.lan', '80');
+		connection.fetcher.close();
+		expect(await answer).toEqual({ allowed: false, why: 'cancelled' });
+	});
+});
+
 describe('the relay', () => {
 	/** A relay whose background answers probes properly and fetches with `send`. */
 	function relayWith(send: (message: unknown) => Promise<RuntimeReply | undefined>) {
@@ -294,6 +402,7 @@ describe('the relay', () => {
 			win,
 			version: '0.1.0',
 			edition: 'store',
+			pressed: () => true,
 			send: (message) =>
 				message.kind === 'probe'
 					? Promise.resolve({ kind: 'probe', bytes: message.bytes, access: 'all' })
@@ -307,6 +416,7 @@ describe('the relay', () => {
 			win: fakeWindow(),
 			version: '0.1.0',
 			edition: 'store',
+			pressed: () => true,
 			send: () => Promise.reject(new Error('Receiving end does not exist.'))
 		});
 		expect(await relay!.transport).toBe('base64');

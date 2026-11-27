@@ -40,6 +40,11 @@ function fakeBrowser(
 	// the older cases count are only those.
 	const guard = new Map<number, unknown>();
 	const allowed: string[] = [];
+	const saved: string[][] = [];
+	const askedEntries: string[] = [];
+	const opened: string[] = [];
+	const focused: number[] = [];
+	const closedWindows: number[] = [];
 	const deps: FetcherDeps = {
 		extensionId: 'ext',
 		edition: 'store',
@@ -69,13 +74,42 @@ function fakeBrowser(
 			}
 		},
 		allowedHosts: async () => [...allowed],
+		async saveAllowedHosts(hosts, asked) {
+			saved.push([...hosts]);
+			askedEntries.push(asked);
+		},
+		ownBase: 'chrome-extension://ext/',
+		async openAsk(id) {
+			opened.push(id);
+			return 100 + opened.length;
+		},
+		async focusWindow(windowId) {
+			focused.push(windowId);
+		},
+		async closeWindow(windowId) {
+			closedWindows.push(windowId);
+		},
 		async fetch(url, init) {
 			const live = [...rules.values()];
 			sent.push({ url, init, rules: live });
 			return network(url, init, live);
 		}
 	};
-	return { deps, rules, guard, allowed, jar, partitions, queries, sent };
+	return {
+		deps,
+		rules,
+		guard,
+		allowed,
+		saved,
+		askedEntries,
+		opened,
+		focused,
+		closedWindows,
+		jar,
+		partitions,
+		queries,
+		sent
+	};
 }
 
 function ask(
@@ -618,5 +652,154 @@ describe('the reader’s own network (c1140)', () => {
 			await service.requestStarted(event('https://other.example/', { requestId: 'z' }))
 		).toEqual({ cancel: false });
 		expect(lookups).toEqual(['rebind.example', 'source.example']);
+	});
+});
+
+describe('what a refusal tells the page (c1156)', () => {
+	it('says what it refused, and whether it is the host the page asked for', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		const asked = await ask(service, { url: 'http://nas.lan:8080/index.min.json' });
+		expect(asked).toMatchObject({
+			ok: false,
+			refused: { host: 'nas.lan', port: '8080', asked: true }
+		});
+		browser.deps.fetch = async (url) => {
+			await service.requestStarted({
+				requestId: 'h',
+				url,
+				method: 'GET',
+				tabId: -1,
+				fromExtension: true
+			});
+			service.requestConnected({
+				requestId: 'h',
+				url,
+				method: 'GET',
+				tabId: -1,
+				fromExtension: true,
+				ip: '93.184.216.34',
+				redirectUrl: 'http://192.168.1.1/admin'
+			});
+			service.requestFinished({
+				requestId: 'h',
+				url,
+				method: 'GET',
+				tabId: -1,
+				fromExtension: true
+			});
+			throw new TypeError('Failed to fetch');
+		};
+		const hop = await ask(service, { url: 'https://source.example/go' });
+		expect(hop).toMatchObject({
+			ok: false,
+			refused: { host: '192.168.1.1', port: '80', asked: false }
+		});
+	});
+
+	it('names where the answer came from when a name led to the reader’s network', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		browser.deps.fetch = async (url) => {
+			const e = { requestId: 'a', url, method: 'GET', tabId: -1, fromExtension: true };
+			await service.requestStarted(e);
+			service.requestConnected({ ...e, ip: '192.168.1.2' });
+			service.requestFinished(e);
+			return new Response('a proxy, or a rebinding');
+		};
+		const reply = await ask(service, { url: 'https://mangadex.org/' });
+		expect(reply).toMatchObject({
+			ok: false,
+			refused: { host: 'mangadex.org', port: '443', asked: true, answeredFrom: '192.168.1.2' }
+		});
+	});
+});
+
+describe('asking the reader, through the service (c1156)', () => {
+	const PAGE = {
+		id: 'ext',
+		tab: { id: 7 },
+		frameId: 0,
+		url: 'https://tsundoku.lt/browse/extensions'
+	};
+	const WINDOW = {
+		id: 'ext',
+		tab: { id: 50 },
+		url: 'chrome-extension://ext/confirm.html?ask=ask-1'
+	};
+	const tick = () => new Promise((r) => setTimeout(r, 0));
+
+	it('opens the window for a page’s ask, and stores and enforces the host before saying yes', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		const answer = service.answer({ kind: 'allow', host: 'nas.lan', port: '8080' }, PAGE)!;
+		await tick();
+		expect(browser.opened).toEqual(['ask-1']);
+		// The window reads what to show from the background, never from the page.
+		expect(await service.answer({ kind: 'ask-details', id: 'ask-1' }, WINDOW)).toEqual({
+			kind: 'ask-details',
+			details: { origin: 'https://tsundoku.lt', host: 'nas.lan', port: '8080' }
+		});
+		expect(
+			await service.answer({ kind: 'ask-answer', id: 'ask-1', allowed: true }, WINDOW)
+		).toEqual({
+			kind: 'ask-answered'
+		});
+		expect(await answer).toEqual({ kind: 'allowed', allowed: true });
+		expect(browser.saved).toEqual([['nas.lan:8080']]);
+		expect(browser.askedEntries).toEqual(['nas.lan:8080']);
+		expect(service.allowed).toContain('nas.lan:8080');
+		// In force at once: the page's retry is fetched.
+		expect((await ask(service, { url: 'http://nas.lan:8080/index.min.json' })).ok).toBe(true);
+		expect(browser.closedWindows).toEqual([101]);
+	});
+
+	it('takes an answer only from its own window, and an ask only from tsundoku’s page', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		const answer = service.answer({ kind: 'allow', host: 'nas.lan', port: '8080' }, PAGE)!;
+		await tick();
+		// tsundoku's page can't answer for the reader, nor read the ask.
+		expect(service.answer({ kind: 'ask-answer', id: 'ask-1', allowed: true }, PAGE)).toBe(null);
+		expect(service.answer({ kind: 'ask-details', id: 'ask-1' }, PAGE)).toBe(null);
+		// Another site's page can't ask at all.
+		expect(
+			service.answer(
+				{ kind: 'allow', host: 'nas.lan', port: '80' },
+				{ ...PAGE, url: 'https://evil.example/' }
+			)
+		).toBe(null);
+		// The window can't fetch.
+		expect(
+			service.answer(
+				{ kind: 'fetch', transport: 'base64', request: { url: 'https://a.example/' } },
+				WINDOW
+			)
+		).toBe(null);
+		service.windowClosed(101);
+		expect(await answer).toEqual({ kind: 'allowed', allowed: false, why: 'cancelled' });
+		expect(browser.saved).toEqual([]);
+		// Cancelled in tab 7: not asked again there until it loads a page.
+		expect(await service.answer({ kind: 'allow', host: 'nas.lan', port: '8080' }, PAGE)).toEqual({
+			kind: 'allowed',
+			allowed: false,
+			why: 'declined'
+		});
+		service.tabLoaded(7);
+		void service.answer({ kind: 'allow', host: 'nas.lan', port: '8080' }, PAGE);
+		await tick();
+		expect(browser.opened).toEqual(['ask-1', 'ask-2']);
+	});
+
+	it('keeps the reader’s other entries when it adds one', async () => {
+		const browser = fakeBrowser();
+		browser.allowed.push('komga.home.arpa');
+		const service = createFetcherService(browser.deps);
+		await ask(service, { url: 'https://source.example/' });
+		const answer = service.answer({ kind: 'allow', host: 'nas.lan', port: '8080' }, PAGE)!;
+		await tick();
+		await service.answer({ kind: 'ask-answer', id: 'ask-1', allowed: true }, WINDOW);
+		await answer;
+		expect(browser.saved).toEqual([['komga.home.arpa', 'nas.lan:8080']]);
 	});
 });

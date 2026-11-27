@@ -4,6 +4,7 @@
 import list from '../src/lib/fetcher/public_suffix_list.dat?raw';
 import { siteAccessFrom } from '../src/lib/fetcher/protocol.ts';
 import { parseSuffixList, type SuffixRules } from '../src/lib/fetcher/psl.ts';
+import { ALLOWED_META_KEY, readMeta } from '../src/lib/fetcher/options.ts';
 import { ALLOWED_HOSTS_KEY, readAllowedHosts } from '../src/lib/fetcher/reach.ts';
 import { createFetcherService } from '../src/lib/fetcher/service.ts';
 import type { RequestEvent } from '../src/lib/fetcher/watch.ts';
@@ -28,6 +29,37 @@ const service = createFetcherService({
 	replaceRules: (removeRuleIds, addRules) =>
 		api.declarativeNetRequest.updateSessionRules({ removeRuleIds, addRules }),
 	allowedHosts: async () => readAllowedHosts(await api.storage.local.get(ALLOWED_HOSTS_KEY)),
+	async saveAllowedHosts(hosts, asked) {
+		const meta = readMeta(await api.storage.local.get(ALLOWED_META_KEY));
+		meta[asked] = { via: 'asked', at: Date.now() };
+		await api.storage.local.set({ [ALLOWED_HOSTS_KEY]: hosts, [ALLOWED_META_KEY]: meta });
+	},
+	ownBase: api.runtime.getURL(''),
+	// The confirmation window: a small window of its own where there are
+	// windows, a tab on Firefox for Android, which has none.
+	async openAsk(id) {
+		const url = api.runtime.getURL(`confirm.html?ask=${encodeURIComponent(id)}`);
+		if (api.windows) {
+			const made = await api.windows.create({
+				url,
+				type: 'popup',
+				width: 440,
+				height: 460,
+				focused: true
+			});
+			if (made.id === undefined) throw new Error('no window');
+			return made.id;
+		}
+		const tab = await api.tabs.create({ url, active: true });
+		if (tab.id === undefined) throw new Error('no tab');
+		return tab.id;
+	},
+	async focusWindow(id) {
+		await (api.windows
+			? api.windows.update(id, { focused: true })
+			: api.tabs.update(id, { active: true }));
+	},
+	closeWindow: (id) => (api.windows ? api.windows.remove(id) : api.tabs.remove(id)),
 	// Firefox lets an extension resolve a name before a request is sent;
 	// Chromium has no such call, and its check comes after (reach.ts).
 	resolve: api.dns ? async (host) => (await api.dns!.resolve(host)).addresses : undefined,
@@ -88,4 +120,12 @@ api.storage.onChanged.addListener((changes, area) => {
 			readAllowedHosts({ [ALLOWED_HOSTS_KEY]: changes[ALLOWED_HOSTS_KEY].newValue })
 		);
 	}
+});
+
+// The confirmation window closing unanswered is a CANCEL; a tab that loads
+// a new page may ask again about a host it cancelled (src/lib/fetcher/asks.ts).
+if (api.windows) api.windows.onRemoved.addListener((id) => service.windowClosed(id));
+else api.tabs.onRemoved.addListener((id) => service.windowClosed(id));
+api.tabs.onUpdated.addListener((tabId, change) => {
+	if (change.status === 'loading') service.tabLoaded(tabId);
 });

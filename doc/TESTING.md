@@ -265,6 +265,15 @@ in `fetcher/` or `src/lib/fetcher/`; nothing else runs it, CI included.
   is what Chromium can't prevent, and its answer is refused. Firefox's lookup
   before sending is the unit spec's (`tests/fetcher-service.spec.ts`): its
   `network.dns.localDomains` maps only to `127.0.0.1`, which is allowed.
+- **Asking the reader** (c1156): Chromium only, in its own profile. The test
+  page's ask mode (`?label=ask`) asks once with no press (refused, no
+  window), then offers a button the test presses for real, so the page has the
+  activation an ask needs; the test answers in the fetcher's own window
+  (`context.waitForEvent('page')`), which closes itself once answered. It then
+  drives the options page at `chrome-extension://<id>/options.html` and reads
+  the browser's session rules from the service worker. Firefox runs its
+  add-on under web-ext, which Playwright can't reach, so the ask there is the
+  unit specs' (`tests/fetcher-asks.spec.ts`).
 - **The partitioned cookie** is set as a source would set Cloudflare's: a tab
   visits `http://localhost/set-cookies`, which answers `cf_clearance=…; Secure;
 SameSite=None; Partitioned`. Partitioned needs Secure, and both browsers

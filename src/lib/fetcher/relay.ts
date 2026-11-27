@@ -9,6 +9,7 @@ import {
 	FETCHER_PROTOCOL,
 	isAllowedOrigin,
 	isPageMessage,
+	type AllowRefusal,
 	type FetcherEdition,
 	type FetcherMessage,
 	type FetcherRequest
@@ -31,6 +32,12 @@ export interface RelayDeps {
 	version: string;
 	/** The build's edition, which decides the origins served. */
 	edition: FetcherEdition;
+	/**
+	 * Whether the reader is pressing something on the page right now
+	 * (`navigator.userActivation.isActive`): an ask to allow a host is
+	 * forwarded only then, so a page can't raise the fetcher's window on its own.
+	 */
+	pressed(): boolean;
 }
 
 export interface Relay {
@@ -40,7 +47,7 @@ export interface Relay {
 }
 
 /** Starts the relay, or does nothing and returns null on any other origin. */
-export function startRelay({ win, send, version, edition }: RelayDeps): Relay | null {
+export function startRelay({ win, send, version, edition, pressed }: RelayDeps): Relay | null {
 	const origin = win.location.origin;
 	if (!isAllowedOrigin(origin, edition)) return null;
 
@@ -96,7 +103,17 @@ export function startRelay({ win, send, version, edition }: RelayDeps): Relay | 
 				}
 			});
 			if (reply?.kind !== 'fetched') throw new Error('the fetcher gave no answer');
-			if (!reply.ok) throw new Error(reply.message);
+			if (!reply.ok) {
+				post({
+					channel: FETCHER_CHANNEL,
+					from: 'fetcher',
+					kind: 'error',
+					id,
+					message: reply.message,
+					...(reply.refused ? { refused: reply.refused } : {})
+				});
+				return;
+			}
 			const body = decodeBody(reply.response.body);
 			post(
 				{
@@ -114,6 +131,28 @@ export function startRelay({ win, send, version, edition }: RelayDeps): Relay | 
 		}
 	}
 
+	/** Carries an ask to allow a host to the background, which asks the reader. */
+	async function ask(id: string, host: string, port: string | undefined) {
+		const answer = (allowed: boolean, why?: AllowRefusal) =>
+			post({
+				channel: FETCHER_CHANNEL,
+				from: 'fetcher',
+				kind: 'allowed',
+				id,
+				allowed,
+				...(why ? { why } : {})
+			});
+		// Read at once: the press is over by the time anything else has run.
+		if (!pressed()) return answer(false, 'no-press');
+		try {
+			const reply = await send({ kind: 'allow', host, ...(port === undefined ? {} : { port }) });
+			if (reply?.kind !== 'allowed') return answer(false, 'cancelled');
+			answer(reply.allowed, reply.allowed ? undefined : reply.why);
+		} catch {
+			answer(false, 'cancelled');
+		}
+	}
+
 	const listener = (event: MessageEvent) => {
 		if (event.source !== win || event.origin !== origin) return;
 		const message = event.data;
@@ -121,6 +160,13 @@ export function startRelay({ win, send, version, edition }: RelayDeps): Relay | 
 		if (message.kind === 'ping' && typeof message.nonce === 'string') hello(message.nonce);
 		else if (message.kind === 'request' && typeof message.id === 'string' && message.request) {
 			void relay(message.id, message.request);
+		} else if (
+			message.kind === 'allow' &&
+			typeof message.id === 'string' &&
+			typeof message.host === 'string' &&
+			(message.port === undefined || typeof message.port === 'string')
+		) {
+			void ask(message.id, message.host, message.port);
 		}
 	};
 	win.addEventListener('message', listener);

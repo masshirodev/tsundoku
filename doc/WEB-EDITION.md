@@ -411,14 +411,15 @@ source, so it rarely needs updating and holds nothing worth reviewing beyond
 "it makes requests" (the design's reasons are in the private design
 repository's `plans/WEB-EDITION.md`, "The fetcher extension").
 
-| Where                           | What                                                                                                                                                                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/lib/fetcher/`              | Everything the extension decides: the protocol, the origin check, headers, cookies, rules, bytes, the suffix list, and what it may reach on the reader's own network (`reach.ts`, `watch.ts`). Pure, with no `chrome.*`. |
-| `src/lib/web/fetcher-client.ts` | The page's side: the handshake, and `fetch()` through the extension.                                                                                                                                                     |
-| `fetcher/background.ts`         | The background (a service worker in Chromium, an event page in Firefox): hands the browser's APIs to `src/lib/fetcher/service.ts`.                                                                                       |
-| `fetcher/content.ts`            | The content script: hands the page's window to `src/lib/fetcher/relay.ts`.                                                                                                                                               |
-| `fetcher/manifest.json`         | The manifest's template: the build fills in the content script's matches. `fetcher/webext.d.ts` types the few WebExtension calls made.                                                                                   |
-| `fetcher/build.ts`              | Bundles each script into one unminified classic file, in `build-fetcher/store/` or `build-fetcher/development/` for Chromium, with a copy under Firefox's manifest beside each (`…-firefox/`; below).                    |
+| Where                                                         | What                                                                                                                                                                                                                     |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/lib/fetcher/`                                            | Everything the extension decides: the protocol, the origin check, headers, cookies, rules, bytes, the suffix list, and what it may reach on the reader's own network (`reach.ts`, `watch.ts`). Pure, with no `chrome.*`. |
+| `src/lib/web/fetcher-client.ts`                               | The page's side: the handshake, and `fetch()` through the extension.                                                                                                                                                     |
+| `fetcher/background.ts`                                       | The background (a service worker in Chromium, an event page in Firefox): hands the browser's APIs to `src/lib/fetcher/service.ts`.                                                                                       |
+| `fetcher/content.ts`                                          | The content script: hands the page's window to `src/lib/fetcher/relay.ts`.                                                                                                                                               |
+| `fetcher/confirm.*`, `fetcher/options.*`, `fetcher/pages.css` | The fetcher's own pages: the confirmation window and the options page ("Asking the reader", "The options page").                                                                                                         |
+| `fetcher/manifest.json`                                       | The manifest's template: the build fills in the content script's matches. `fetcher/webext.d.ts` types the few WebExtension calls made.                                                                                   |
+| `fetcher/build.ts`                                            | Bundles each script into one unminified classic file, in `build-fetcher/store/` or `build-fetcher/development/` for Chromium, with a copy under Firefox's manifest beside each (`…-firefox/`; below).                    |
 
 The logic lives in `src/lib/fetcher/` rather than beside the manifest because
 the page and the extension share its protocol (one `FETCHER_PROTOCOL`, one set
@@ -473,22 +474,40 @@ The page and the content script share the page's window and talk by
 messages whose `source` is that window, whose origin is its own, whose
 `channel` is `tsundoku-fetcher`, and whose `from` is the other side.
 
-| Message                                                                               | Direction      | What                                                                                        |
-| ------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------- |
-| `ping` `{ nonce }`                                                                    | page → fetcher | Is a fetcher here, and what can it reach?                                                   |
-| `hello` `{ to, protocol, version, transport, access }`                                | fetcher → page | The answer to one ping (`to` is its nonce), once the background has answered a fresh probe. |
-| `request` `{ id, request: { url, method, headers, body } }`                           | page → fetcher | `headers` is a list of `[name, value]` pairs (order and repeats kept); `body` a Uint8Array. |
-| `response` `{ id, response: { status, statusText, url, redirected, headers, body } }` | fetcher → page | `url` is the final one after redirects; `body` a Uint8Array whose buffer is transferred.    |
-| `error` `{ id, message }`                                                             | fetcher → page | In words: `network error: …`, `only http and https are fetched, not file:`, …               |
+| Message                                                                               | Direction      | What                                                                                            |
+| ------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| `ping` `{ nonce }`                                                                    | page → fetcher | Is a fetcher here, and what can it reach?                                                       |
+| `hello` `{ to, protocol, version, transport, access }`                                | fetcher → page | The answer to one ping (`to` is its nonce), once the background has answered a fresh probe.     |
+| `request` `{ id, request: { url, method, headers, body } }`                           | page → fetcher | `headers` is a list of `[name, value]` pairs (order and repeats kept); `body` a Uint8Array.     |
+| `response` `{ id, response: { status, statusText, url, redirected, headers, body } }` | fetcher → page | `url` is the final one after redirects; `body` a Uint8Array whose buffer is transferred.        |
+| `error` `{ id, message, refused? }`                                                   | fetcher → page | In words: `network error: …`, `only http and https are fetched, not file:`, …; `refused` below. |
+| `allow` `{ id, host, port? }`                                                         | page → fetcher | Ask the reader to allow a host on the reader's own network; no `port` is every port.            |
+| `allowed` `{ id, allowed, why? }`                                                     | fetcher → page | What the reader chose, or why they were never asked (`AllowRefusal`). Never the list.           |
+
+A refusal of the reader's own network carries what it refused as data
+(protocol 3, c1156), so the page needn't read it out of the sentence:
+`refused: { host, port, asked, answeredFrom? }`. `host` is as a URL writes it,
+`port` the one it would have connected to (the scheme's own when none was
+written), `asked` whether it is the host the page asked for rather than one a
+redirect or an answer landed on, and `answeredFrom` the address the answer
+came from when a name led to the reader's network (check 3, below). The
+page's client rejects with a `FetcherRefused` holding it.
 
 Between the content script and the background, runtime messages: a `probe`
-of bytes, echoed with the site access (below), and `fetch`
-`{ transport, request }`, answered by `fetched` `{ ok, response | message }`.
+of bytes, echoed with the site access (below), `fetch` `{ transport, request }`,
+answered by `fetched` `{ ok, response | message, refused? }`, and `allow`
+`{ host, port? }`, answered by `allowed`. The confirmation window, an extension
+page of the fetcher's own, sends `ask-details` and `ask-answer` ("Asking the
+reader", below); the background takes those only from a sender whose URL is
+under the extension's own base (`runtime.getURL('')`), and takes everything
+else only from its content script on an allowed origin, so neither can stand
+in for the other.
 
 ### The handshake
 
 The extension announces `FETCHER_PROTOCOL` (`src/lib/fetcher/protocol.ts`),
-a whole number raised only when a message changes shape. `connectFetcher()`
+a whole number raised only when a message changes shape: 3 since 2026-11-27
+(c1156: `refused` and `allow`), 2 before. `connectFetcher()`
 pings and waits for the hello that answers its ping, and answers one of five:
 
 - `ready`, with a `fetcher` whose `fetch(request)` resolves to the response
@@ -720,8 +739,71 @@ the one connected to; Firefox says when a request was proxied, and its address
 is then not judged). The development build always allows `localhost`,
 `127.0.0.1` and `[::1]` (`builtInAllowed`), since its tests' sites are on
 loopback; `127.0.0.2` is loopback too and refused, which is what the browser
-test aims at. The options page where the reader edits the list is not built
-yet (c1156); until it is, the list is empty.
+test aims at. How the reader adds to the list is "Asking the reader", below;
+the options page shows it, and keeps beside it where each entry came from
+(`allowedHostsMeta`: `asked` or `hand`, and when).
+
+#### Asking the reader
+
+A refusal is only met by a reader who keeps something on their own network,
+and for that reader the way in is two presses and no typing (c1156, handoff
+`fetcher-options` revision 1; the first design, a page to type hosts into, was
+too much for the reader the owner had in mind). tsundoku's page may **ask**;
+only the reader **answers**, in a window the fetcher opens itself, which
+nothing on the page can press (`src/lib/fetcher/asks.ts`):
+
+1. The page calls `fetcher.allow(host, port)` from a press. The content
+   script forwards it only while the page has the reader's activation
+   (`navigator.userActivation.isActive`), so a page can't raise the window
+   on its own (`no-press`).
+2. The background opens `confirm.html` as a small popup window (a tab on
+   Firefox for Android, which has no `windows`). It shows only what the
+   background knows itself: the origin of the tab that asked, the host and
+   port, and, for an address, how many sites it refused answers from there
+   and since when (how a proxy shows itself). Nothing the page sent beyond
+   the host and port. CANCEL holds the focus, so Enter never allows; Escape
+   cancels; closing the window is cancelling.
+3. ALLOW adds exactly what was asked (`nas.lan:8080`, or an address on every
+   port for a proxy) to the list, stores it, and installs its rule, all
+   before the page hears `allowed`, so the page's retry is not refused by a
+   rule not yet in place. The window closes.
+
+One ask at a time: a second, while the window is open, brings it forward and
+is answered `busy`. A host the reader cancelled in a tab isn't asked again in
+that tab until it loads a new page (`declined`; `tabs.onUpdated` with
+`status: 'loading'`, which a client-side navigation doesn't fire). A host on
+the internet has nothing to allow (`not-local`); one already allowed is
+answered yes without a window. A fetcher older than protocol 3 is reported
+`too-old` by the handshake, so there is no fetcher that can refuse but not
+ask; the design's board for one ("a fetcher too old to confirm") is not built.
+
+#### The options page
+
+`options.html` (the manifest's `options_ui`, opened in a tab): the list,
+newest first, each entry with what it covers (EVERY PORT, or PORT 8080 ONLY;
+an address adds that a proxy at it is covered; an asked one says when), and
+REMOVE, at once, with UNDO in a band until the page is left. **ADD BY HAND** is
+folded away: a host, or a whole address cut down to its host and port, with
+EVERY PORT INSTEAD; it refuses two words, another scheme, an address holding a
+name and password (nothing of it kept), a host on the internet, one the list
+covers already, and a port outside 1 to 65535 (`checkHandEntry`,
+`src/lib/fetcher/options.ts`). The page writes the same storage key the
+background reads, so a change is in force at once. Its words, and the
+window's, are in `src/lib/fetcher/words.ts`, in English and Brazilian
+Portuguese by the browser's language; the pages use the app's own tokens and
+Plex fonts (`fetcher/pages.css`), bundled by Vite with the scripts.
+
+Tests: `tests/fetcher-asks.spec.ts` (every rule above),
+`tests/fetcher-options.spec.ts` (ADD BY HAND's refusals, coverage),
+`tests/fetcher-service.spec.ts` and `tests/fetcher-client.spec.ts` (the
+refusal's data end to end, an ask answered through the service, the window's
+messages taken from it alone, no press), and the browser test's "asking the
+reader" in Chromium: an ask with no press, a real press, the window's
+contents and focus, Enter cancelling, `declined` until a reload, ALLOW and
+the retry reaching `127.0.0.2`, and the options page's REMOVE, UNDO and ADD
+BY HAND against the browser's rules. Firefox's window can't be driven by
+Playwright (its add-on runs under web-ext), so there the flow is the unit
+specs'.
 
 Tests: `tests/fetcher-reach.spec.ts` (the definitions, the regexes against
 `isPublicIp`, the allow list), `tests/fetcher-service.spec.ts` ("the reader's

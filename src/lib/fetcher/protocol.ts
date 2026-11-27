@@ -8,7 +8,9 @@
  * page refuses a fetcher whose number differs from its own
  * (fetcher-client.ts), so a stale extension is reported, never half-used.
  */
-export const FETCHER_PROTOCOL = 2;
+export const FETCHER_PROTOCOL = 3;
+// 3 (2026-11-27, c1156): an error says what it refused (`Refusal`), and the
+// page may ask the reader, through the fetcher, to allow a host (`allow`).
 
 /** Every window message of the protocol carries this, so others are ignored. */
 export const FETCHER_CHANNEL = 'tsundoku-fetcher';
@@ -139,7 +141,7 @@ export interface MessageSenderLike {
 	origin?: string;
 	url?: string;
 	frameId?: number;
-	tab?: unknown;
+	tab?: { id?: number };
 }
 
 /**
@@ -198,6 +200,35 @@ export interface FetcherResponse {
 	body: Uint8Array;
 }
 
+/**
+ * What the fetcher refused, on the reader's own network (reach.ts), as data:
+ * a page shows the host in its own case, offers ALLOW for it, and tells a
+ * proxy apart, none of which it should read out of a sentence.
+ */
+export interface Refusal {
+	/** The host refused, as a URL writes it (IPv6 in brackets). */
+	host: string;
+	/** The port it would have connected to, the scheme's own when none was written. */
+	port: string;
+	/**
+	 * Whether it is the host the page asked for. A redirect's or an answer's
+	 * landing on the reader's network is not: the page then says where the
+	 * request was sent, and offers nothing to allow.
+	 */
+	asked: boolean;
+	/** Where the answer came from, when a name led to the reader's network (check 3). */
+	answeredFrom?: string;
+}
+
+/**
+ * Why an ask to allow a host was not granted. `cancelled`: the reader said
+ * no, or closed the window. `busy`: another ask is open. `declined`: the
+ * reader cancelled this host in this tab already. `no-press`: the page asked
+ * without a press of the reader's behind it. `not-local`: the host is on the
+ * internet, so there is nothing to allow.
+ */
+export type AllowRefusal = 'cancelled' | 'busy' | 'declined' | 'no-press' | 'not-local';
+
 /** Page and content script, over window.postMessage on the page itself. */
 export type PageMessage =
 	/** `nonce` is echoed by the hello that answers it, so a client takes only its own answer. */
@@ -208,6 +239,18 @@ export type PageMessage =
 			kind: 'request';
 			id: string;
 			request: FetcherRequest;
+	  }
+	| {
+			channel: typeof FETCHER_CHANNEL;
+			from: 'page';
+			/**
+			 * Asks the reader, in the fetcher's own window, to allow this host:
+			 * on [port], or on every port when it is absent (a proxy's address).
+			 */
+			kind: 'allow';
+			id: string;
+			host: string;
+			port?: string;
 	  };
 
 export type FetcherMessage =
@@ -237,6 +280,17 @@ export type FetcherMessage =
 			kind: 'error';
 			id: string;
 			message: string;
+			/** Set when the error is a refusal of the reader's own network. */
+			refused?: Refusal;
+	  }
+	| {
+			channel: typeof FETCHER_CHANNEL;
+			from: 'fetcher';
+			/** The answer to an `allow`: what the reader chose, never the list itself. */
+			kind: 'allowed';
+			id: string;
+			allowed: boolean;
+			why?: AllowRefusal;
 	  };
 
 export function isPageMessage(data: unknown): data is PageMessage {

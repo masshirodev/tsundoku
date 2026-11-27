@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>tsundoku fetcher</title>
+		<link rel="stylesheet" href="./pages.css" />
+		<script type="module" src="./confirm.ts"></script>
+	</head>
+	<body>
+		<div class="confirm" role="dialog" aria-labelledby="target">
+			<div class="strip"><span id="fetcher"></span><span id="asks-you"></span></div>
+			<div class="ask" id="ask" hidden>
+				<div class="who"><b id="origin"></b> <span id="asks-to-reach"></span></div>
+				<h1 class="target" id="target"></h1>
+				<div class="what" id="what"></div>
+				<div class="seen" id="seen" hidden></div>
+				<p class="prose" id="may-reach"></p>
+			</div>
+			<p class="prose ask" id="over" hidden></p>
+			<div class="choose" id="choose" hidden>
+				<button class="cell" type="button" id="cancel"></button>
+				<button class="cell primary" type="button" id="allow"></button>
+			</div>
+		</div>
+	</body>
+</html>
