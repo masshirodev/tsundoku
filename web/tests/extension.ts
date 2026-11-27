@@ -13,7 +13,7 @@ import { createServer, type Server } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 
@@ -155,6 +155,11 @@ export async function fetcherBrowser(
 	report: () => string;
 	close: () => Promise<void>;
 }> {
+	// Without the build, the browser starts with no fetcher and the test waits a
+	// minute for an answer that cannot come: say what is missing instead.
+	const build = browserName === 'firefox' ? FETCHER_FIREFOX : FETCHER;
+	if (!existsSync(join(build, 'manifest.json')))
+		throw new Error(`No fetcher build in ${build}: run \`yarn run build:fetcher --dev\` first.`);
 	const profile = mkdtempSync(join(process.cwd(), 'test-results', `${name}-profile-`));
 	const common = { headless: true, baseURL, viewport: { width: 1440, height: 900 } };
 	let context: BrowserContext;

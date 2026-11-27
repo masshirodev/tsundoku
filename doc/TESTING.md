@@ -68,7 +68,12 @@ the same red as here. The main Playwright suite stays local.
 engine: a repository on `127.0.0.2`, which the development fetcher refuses, is
 added under REPOSITORIES, refused, allowed in the fetcher's own window, and
 found. Chromium only, since Firefox's add-on window can't be driven ("Asking
-the reader", under "The fetcher extension").
+the reader", under "The fetcher extension"). It runs in `browsers.yml`'s
+`web` job, which builds the development fetcher for it (`yarn run
+build:fetcher --dev`) before `yarn run test:web`; by hand, build it first too.
+Any test that calls `fetcherBrowser` without that build fails at once, naming
+the command, rather than waiting a minute for a fetcher that isn't there (PR
+#18's first CI run did the waiting).
 
 **With the engine.** `web/tests/install.e2e.ts`, `web/tests/browse.e2e.ts` and
 `web/tests/read.e2e.ts` need the real engine and the fetcher, so they are skipped unless the web build
