@@ -36,6 +36,8 @@ test('every section in the design’s order, each row saying where it’s kept',
 	// The web edition's KEPT and CLEARED BY (doc/WEB-EDITION.md, "Keeping the
 	// library") are not the self-hosted app's: its library is a file on the computer.
 	await expect(page.locator('[data-row="kept"], [data-row="cleared"]')).toHaveCount(0);
+	// Nor its CheerpJ credit (c1135): here the engine is a JVM on the computer.
+	await expect(page.getByText('BUILT WITH CHEERPJ')).toHaveCount(0);
 });
 
 test('a device value: the rule and RESET, kept in this browser, and RESET SECTION with UNDO', async ({

@@ -791,8 +791,13 @@ the leading tab (web/engine-start.js) → the fetcher extension → the site
   new build brings a new jar) and cuts each range from it. A missing jar is
   never kept: a static host may answer it with the app's page.
 - **CheerpJ** is loaded from its CDN (`cjrtnc.leaningtech.com/5.0`), as its
-  free licence for a one-person company requires, together with a visible
-  "Built with CheerpJ" credit.
+  free Community licence (one-person companies) requires: serving the runtime
+  from anywhere else counts as self-hosting, which Community does not include
+  (cheerpj.com/docs/licensing, read 2026-11-26). The same licence asks for "a
+  'Built with CheerpJ' credit in your application", naming no place, link or
+  logo. It is a row in SETTINGS › 07 — BROWSE, under EXTENSIONS: ENGINE ·
+  BUILT WITH CHEERPJ, linking to cheerpj.com (`cheerpjRow`, web edition only,
+  c1135). The self-hosted app runs the engine as a JVM and shows none.
 - **What the app adds to the contract** (tsundoku-engine's `doc/FORK.md`,
   "The browser target"):
   - **An extension's JavaScript runs in the browser.** Some extensions run a
@@ -896,9 +901,8 @@ What the web build does not do yet, each with its card:
 - **Speed.** About 5 s of Java for each page of a site an extension parses
   ("Measuring"); covers and pages one at a time through the engine (c1139).
 - **A new build under an open tab** breaks it until the tab is reopened
-  (c1138), which must be settled before the first deploy, as must the
-  "Built with CheerpJ" credit (c1135) and what the fetcher may reach on the
-  reader's own network (c1140).
+  (c1138), which must be settled before the first deploy, as must what the
+  fetcher may reach on the reader's own network (c1140).
 - **Accounts and sync:** the library lives in one browser only.
 
 ## Measuring

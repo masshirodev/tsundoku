@@ -971,6 +971,9 @@
 		}
 	],
 	"settings_extensions_where": "IN {browse} › {extensions}",
+	"settings_engine": "ENGINE",
+	"settings_cheerpj": "BUILT WITH CHEERPJ",
+	"settings_cheerpj_meta": "THE EXTENSION ENGINE RUNS IN THIS TAB, ON LEANING TECHNOLOGIES' CHEERPJ",
 	"library_search_to_tick": "SEARCH TO TICK",
 	"library_search_to_tick_label": "Search to tick",
 	"library_select_all_short": "ALL",

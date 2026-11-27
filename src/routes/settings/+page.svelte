@@ -867,6 +867,7 @@
 						{/if}
 						{#if s.id === 'browse' && data.browse}
 							{@render extensionsRow(data.browse.extensions)}
+							{#if __WEB_EDITION__}{@render cheerpjRow()}{/if}
 							{#if wv}
 								{@render webviewRow(wv)}
 							{/if}
@@ -1365,6 +1366,27 @@
 					</span>
 				</span>
 				<span class="cell acc">{m.name_extensions()} →</span>
+			</a>
+		</div>
+		{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
+	</div>
+{/snippet}
+
+{#snippet cheerpjRow()}
+	<!-- The web edition's engine runs on CheerpJ, whose free Community licence
+	     asks for a "Built with CheerpJ" credit in the application
+	     (doc/WEB-EDITION.md, "The CheerpJ licence"; c1135). Beside
+	     EXTENSIONS, the engine they run in. The self-hosted app runs the engine
+	     as a JVM on the computer and draws none of this. -->
+	<div class="row acct extensions cheerpj">
+		<div class="label">{m.settings_engine()}</div>
+		<div class="ctl">
+			<a class="acct-body ext-go" href="https://cheerpj.com/" target="_blank" rel="noopener">
+				<span class="who">
+					<span class="name">{m.settings_cheerpj()}</span>
+					<span class="meta">{m.settings_cheerpj_meta()}</span>
+				</span>
+				<span class="cell acc">CHEERPJ ↗</span>
 			</a>
 		</div>
 		{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
