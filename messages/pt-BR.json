@@ -971,6 +971,9 @@
 		}
 	],
 	"settings_extensions_where": "EM {browse} › {extensions}",
+	"settings_engine": "MOTOR",
+	"settings_cheerpj": "FEITO COM CHEERPJ",
+	"settings_cheerpj_meta": "O MOTOR DAS EXTENSÕES RODA NESTA ABA, NO CHEERPJ DA LEANING TECHNOLOGIES",
 	"library_search_to_tick": "BUSCAR PARA MARCAR",
 	"library_search_to_tick_label": "Buscar para marcar",
 	"library_select_all_short": "TODAS",
