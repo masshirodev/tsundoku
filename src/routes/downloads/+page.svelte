@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { engineDownLine } from '$lib/waiting';
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
@@ -93,7 +94,7 @@
 		<!-- Not answering: one of the few places that names the engine. -->
 		<Banner
 			kind="info"
-			title="○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION"
+			title={engineDownLine(__WEB_EDITION__)}
 			detail="SINCE {clock(data.down.since)}"
 		/>
 	{:else if v && v.downloading && !paused}

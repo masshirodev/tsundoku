@@ -1,4 +1,5 @@
 <script module lang="ts">
+	import { engineDownLine } from '$lib/waiting';
 	/**
 	 * Whether this document has navigated since it loaded. SvelteKit restores a
 	 * history entry's snapshot on a popstate **and** while a fresh document boots
@@ -638,7 +639,7 @@
 			{@render webviewBand(webviewFailed)}
 		{:else if shown.error === 'down'}
 			<Band
-				title="○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION"
+				title={engineDownLine(__WEB_EDITION__)}
 				detail="THE LIBRARY AND CACHED CHAPTERS STILL OPEN"
 			/>
 		{:else if shown.error === 'rate-limited'}

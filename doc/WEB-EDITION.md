@@ -950,7 +950,9 @@ What the web build does not do yet, each with its card:
 - **Novels, anime and the text reader** reach Node-only code (a child process,
   ffmpeg) and should say so politely (c1151).
 - **The engine-starting states** and recent answers shown while it starts
-  (c1150); **wording** that names a workstation (c1152).
+  (c1150). The engine not answering says where it runs, `IN THIS TAB`
+  (`engineDownLine`, `src/lib/waiting.ts`; c1152); about 50 other strings
+  that name the workstation still need a sentence each (c1155).
 - **Speed.** About 5 s of Java for each page of a site an extension parses
   ("Measuring"); covers and pages one at a time through the engine (c1139).
 - **Before the first deploy:** what the fetcher may reach on the reader's

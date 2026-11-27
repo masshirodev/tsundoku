@@ -372,7 +372,8 @@
 					downloads?.kind === 'ok' ? downloads.follow : null,
 					(at) => ago(at, Date.now()),
 					anime ? EPISODES : undefined,
-					downloads?.kind === 'ok' && downloads.refreshable
+					downloads?.kind === 'ok' && downloads.refreshable,
+					__WEB_EDITION__
 				)
 			: downloads?.kind === 'down'
 				? downloadRow(
@@ -382,7 +383,9 @@
 						clock,
 						null,
 						clock,
-						anime ? EPISODES : undefined
+						anime ? EPISODES : undefined,
+						false,
+						__WEB_EDITION__
 					)
 				: null
 	);

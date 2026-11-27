@@ -1,4 +1,5 @@
 import { formatBytes, formatNumber, type SeriesEntry } from './series.ts';
+import { engineDownLine } from '../waiting.ts';
 import { m } from '../paraglide/messages.js';
 import {
 	KEY_PREFIX,
@@ -550,7 +551,9 @@ export function downloadRow(
 	ago: (at: number) => string = clock,
 	noun: RowNoun = CHAPTERS,
 	/** The series has a source to ask now (REFRESH), and is in the library. */
-	refreshable = false
+	refreshable = false,
+	/** The web edition: its engine is in the tab, not on a workstation (c1152). */
+	web = false
 ): DownloadRow {
 	const chapters = (n: number) => `${count(n)} ${n === 1 ? noun.one : noun.many} not downloaded`;
 	const followCell = (dim: boolean): DownloadCell[] =>
@@ -571,7 +574,7 @@ export function downloadRow(
 			a: missing ? chapters(missing) : `${noun.every} downloaded`,
 			b: !online
 				? '○ OFFLINE · DOWNLOADING NEEDS THE WORKSTATION'
-				: `○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION · SINCE ${clock((facts as { since: number }).since)}`,
+				: `${engineDownLine(web)} · SINCE ${clock((facts as { since: number }).since)}`,
 			cells: [
 				...(missing
 					? [
