@@ -340,6 +340,20 @@ rather than search it, BROWSE ([`BROWSE.md`](BROWSE.md)).
   `/search?kind=<kind>`, which keeps it as the typing replaces the address,
   counts that kind's sources on SEARCH THE SOURCES →, and opens it with the
   kind. A TV draws the band as one more row of links above the sources'.
+- **One search, asked once** (c1141, 2026-11-26). Each kind tab is its own
+  load, and each used to ask its sources again, though ALL had just had their
+  answers; in the web edition that is seconds of Java a source, one call at a
+  time. Now a source's answer to a query is kept for ten minutes
+  (`keptSearch`, `src/lib/server/search-kept.ts`, used by
+  `engine.searchSource` and `novelSearch`), the promise itself, so a kind
+  picked while ALL is still asking waits on ALL's call. What is kept is the
+  source's own answer, not the hits: IN LIBRARY and SAME TITLE are worked out
+  again on every load. A failure is not kept, so the next load asks again;
+  TRY AGAIN (`/downloads/search/ask`) asks afresh and keeps that answer. A
+  reload within the ten minutes is answered from what is kept. Nothing is
+  written to the library, and a restart forgets it all.
+  `tests/browse-search-kinds.e2e.ts` counts the engine's calls: ALL, ANIME, a
+  reload and ALL again ask each source once in all.
 - **Results fill in source by source.** Each source is asked at once, as a
   promise of its own that the page streams in, and the list is in MOVE's order
   ([`MOVE.md`](MOVE.md), "The candidates, and picking one"): the sources with

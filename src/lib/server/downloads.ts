@@ -191,10 +191,16 @@ export const searchSources = async (reveal: boolean) => [
 	...engine.searchSources(reveal),
 	...novels.novelSearchSources(reveal)
 ];
-export const searchSource = async (sourceId: string, query: string, reveal: boolean) =>
+/** One source's answer to a query, kept for the search's other kinds; [fresh] asks again (c1141). */
+export const searchSource = async (
+	sourceId: string,
+	query: string,
+	reveal: boolean,
+	fresh = false
+) =>
 	novels.isNovelSource(sourceId)
-		? novels.novelSearch(sourceId, query, reveal)
-		: engine.searchSource(sourceId, query, reveal);
+		? novels.novelSearch(sourceId, query, reveal, fresh)
+		: engine.searchSource(sourceId, query, reveal, fresh);
 
 /** The source a result is from, by BROWSE's id for it; null for an id that isn't a result's. */
 export function sourceOfMangaId(id: string): string | null {
