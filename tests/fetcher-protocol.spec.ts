@@ -14,6 +14,7 @@ import {
 	isFetcherMessage,
 	contentScriptMatches,
 	isPageMessage,
+	FIREFOX_PERMISSIONS,
 	manifestFor,
 	mayAnswer,
 	senderOrigin,
@@ -152,6 +153,23 @@ describe('the manifest', () => {
 		expect(template.content_scripts[0].matches).toBeUndefined();
 	});
 
+	it('asks Firefox alone for the lookup before sending, and both for watching requests', () => {
+		const chromium = manifestFor(template, 'store');
+		const firefox = manifestFor(template, 'store', 'firefox');
+		for (const m of [chromium, firefox]) {
+			expect(m.permissions).toEqual(expect.arrayContaining(['webRequest', 'storage', 'cookies']));
+		}
+		for (const p of FIREFOX_PERMISSIONS) {
+			expect(chromium.permissions).not.toContain(p);
+			expect(firefox.permissions).toContain(p);
+		}
+		expect(firefox.content_scripts).toEqual(chromium.content_scripts);
+		// Each browser's background, and not the other's, which it ignores with a warning.
+		expect(chromium.background).toEqual({ service_worker: 'background.js' });
+		expect(firefox.background).toEqual({ scripts: ['background.js'] });
+		expect(template.permissions).not.toContain('dns');
+	});
+
 	it('runs the content script in top frames at document start', () => {
 		const [script] = template.content_scripts;
 		expect(script.all_frames ?? false).toBe(false);
@@ -160,9 +178,13 @@ describe('the manifest', () => {
 
 	it('asks for what fetching needs and nothing more', () => {
 		expect(template.manifest_version).toBe(3);
+		// webRequest watches the fetcher's own requests, and storage keeps the
+		// hosts the reader allowed (src/lib/fetcher/reach.ts, c1140).
 		expect([...template.permissions].sort()).toEqual([
 			'cookies',
-			'declarativeNetRequestWithHostAccess'
+			'declarativeNetRequestWithHostAccess',
+			'storage',
+			'webRequest'
 		]);
 		expect(template.host_permissions).toEqual(['<all_urls>']);
 		expect(template.externally_connectable).toBeUndefined();

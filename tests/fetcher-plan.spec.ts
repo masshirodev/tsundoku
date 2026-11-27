@@ -163,7 +163,7 @@ describe('buildRule', () => {
 	it('scopes the rule to this URL, this method, and requests outside every tab', () => {
 		expect(buildRule(7, plan)).toEqual({
 			id: 7,
-			priority: 1,
+			priority: 4,
 			action: { type: 'modifyHeaders', requestHeaders: plan.ruleHeaders },
 			condition: {
 				urlFilter: '|https://source.example/a?b=1|',

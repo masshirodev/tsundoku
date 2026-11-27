@@ -14,7 +14,9 @@ import {
 	type MessageSenderLike
 } from './protocol.ts';
 import { siteOf, type SuffixRules } from './psl.ts';
+import { builtInAllowed, guardRules, lookupRefusal, parseAllowEntry, refusal } from './reach.ts';
 import { KeyedQueue, RuleIds } from './schedule.ts';
+import { RequestWatch, type RequestEvent } from './watch.ts';
 
 /** A request as it crosses from the content script: the body in the probed form. */
 export interface WireRequest {
@@ -52,6 +54,18 @@ export interface FetcherDeps {
 	removeRule(id: number): Promise<void>;
 	/** Removes every session rule: run once, before the first is added. */
 	clearRules(): Promise<void>;
+	/**
+	 * Replaces the guard's session rules (reach.ts, check 2): removes the ids
+	 * given, adds the rules given, in one update.
+	 */
+	replaceRules(removeIds: number[], add: ReturnType<typeof guardRules>): Promise<void>;
+	/** The hosts the reader allowed in the fetcher's options, as stored. */
+	allowedHosts(): Promise<string[]>;
+	/**
+	 * The addresses a name resolves to, where the browser lets an extension
+	 * ask before a request is sent (Firefox's `dns`); absent in Chromium.
+	 */
+	resolve?(host: string): Promise<string[]>;
 	fetch(url: string, init: RequestInit): Promise<Response>;
 }
 
@@ -62,7 +76,25 @@ export function createFetcherService(deps: FetcherDeps) {
 	// Firefox event page that was stopped mid-request leaves its rules behind,
 	// and a fresh start would hand out their ids again. Requests never survive
 	// the background, so every rule present at start is a leftover.
-	const ready = deps.clearRules().catch(() => undefined);
+	const cleared = deps.clearRules().catch(() => undefined);
+
+	// What the fetcher may reach on the reader's own network (reach.ts). The
+	// guard's rules go in before the first request is sent; a fetcher that
+	// could not install them sends nothing, rather than sending unguarded.
+	let allowed: string[] = builtInAllowed(deps.edition);
+	let guardIds: number[] = [];
+	const watch = new RequestWatch(() => allowed);
+	async function installGuard(reader: readonly string[]) {
+		const entries = reader.map(parseAllowEntry).filter((e): e is string => e !== null);
+		const next = [...new Set([...builtInAllowed(deps.edition), ...entries])];
+		const rules = guardRules(next);
+		await deps.replaceRules(guardIds, rules);
+		guardIds = rules.map((r) => r.id);
+		allowed = next;
+	}
+	const ready = cleared.then(async () => installGuard(await deps.allowedHosts()));
+	// Each later change waits for the one before, so two never interleave.
+	let guarding: Promise<unknown> = ready;
 
 	async function readCookies(url: string) {
 		const partitionKey = { topLevelSite: siteOf(url, deps.suffixes()) };
@@ -95,7 +127,13 @@ export function createFetcherService(deps: FetcherDeps) {
 		const body = wire.body ? decodeBody(wire.body) : null;
 		const request = { url: wire.url, method: wire.method, headers: wire.headers, body };
 		const target = normaliseTarget(request);
-		await ready;
+		try {
+			await ready;
+		} catch (error) {
+			throw new FetcherError(`the fetcher's guard could not be set up: ${describe(error)}`);
+		}
+		const refused = refusal(target.url, allowed);
+		if (refused) throw new FetcherError(refused);
 		return queue.run(`${target.method} ${target.url}`, async () => {
 			// Read in turn, not before queueing: the request ahead may have been
 			// answered with cookies this one must carry.
@@ -107,20 +145,33 @@ export function createFetcherService(deps: FetcherDeps) {
 				ids.release(id);
 				throw error;
 			}
+			const watching = watch.expect(plan.method, plan.url);
 			try {
-				const { response, bytes } = await send(plan.url, {
-					method: plan.method,
-					headers: plan.headers,
-					body: body?.length ? body : undefined,
-					// Cookies the site sets in reply are kept by the browser; the
-					// Cookie header sent is the rule's (cookies.ts).
-					credentials: 'include',
-					// The page's Referer, if any, is the rule's; never the extension's.
-					referrerPolicy: 'no-referrer',
-					// The engine keeps its own cache, by the headers it reads.
-					cache: 'no-store',
-					redirect: 'follow'
-				});
+				let sent;
+				try {
+					sent = await send(plan.url, {
+						method: plan.method,
+						headers: plan.headers,
+						body: body?.length ? body : undefined,
+						// Cookies the site sets in reply are kept by the browser; the
+						// Cookie header sent is the rule's (cookies.ts).
+						credentials: 'include',
+						// The page's Referer, if any, is the rule's; never the extension's.
+						referrerPolicy: 'no-referrer',
+						// The engine keeps its own cache, by the headers it reads.
+						cache: 'no-store',
+						redirect: 'follow'
+					});
+				} catch (error) {
+					// A hop the guard's rules blocked fails as a bare network
+					// error: what the watch saw is the reason to give.
+					const why = await watching.done();
+					throw why ? new FetcherError(why) : error;
+				}
+				// An answer from the reader's own network arrives as any other.
+				const why = await watching.done();
+				if (why) throw new FetcherError(why);
+				const { response, bytes } = sent;
 				const headers: HeaderList = [];
 				response.headers.forEach((value, name) => headers.push([name, value]));
 				return {
@@ -171,9 +222,47 @@ export function createFetcherService(deps: FetcherDeps) {
 				})
 			);
 		},
+		/**
+		 * A webRequest event before a request is sent (fetcher/background.ts).
+		 * Where the browser can resolve names first (Firefox), a public name
+		 * that resolves to the reader's own network is refused here, before
+		 * anything is sent: `cancel` is the listener's answer.
+		 */
+		async requestStarted(event: RequestEvent): Promise<{ cancel: boolean }> {
+			const watched = watch.started(event);
+			if (!watched || watched.refused || !deps.resolve) return { cancel: false };
+			const why = await lookupRefusal(event.url, allowed, deps.resolve).catch(() => null);
+			if (!why) return { cancel: false };
+			watch.refuse(event, why);
+			return { cancel: true };
+		},
+		/** A webRequest event that names the address connected to: a redirect, or the answer. */
+		requestConnected(event: RequestEvent): void {
+			watch.connected(event);
+		},
+		/** A webRequest event that ends a request: it completed, or failed. */
+		requestFinished(event: RequestEvent): void {
+			watch.finished(event);
+		},
+		/** The reader changed the allowed hosts in the fetcher's options. */
+		setAllowedHosts(hosts: string[]): Promise<void> {
+			guarding = guarding.then(
+				() => installGuard(hosts),
+				() => installGuard(hosts)
+			);
+			return guarding as Promise<void>;
+		},
+		/** For specs: the hosts allowed now, built-in ones included. */
+		get allowed(): readonly string[] {
+			return allowed;
+		},
 		/** For specs: how many rule ids are held now. */
 		get rulesInUse() {
 			return ids.inUse;
+		},
+		/** For specs: how many requests are being watched. */
+		get watching() {
+			return watch.size;
 		}
 	};
 }

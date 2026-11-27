@@ -372,10 +372,11 @@ TypeScript. Each part is checked against the real thing in
   `isIPv6`), held to Node's own answers in `tests/web-edition.spec.ts`; every
   other name stays a stub. `net-guard.ts`'s `checkPublic` asks `isIP`, then
   resolves a name with `node:dns`, which a tab does not have: in the web
-  edition it still refuses an address written as a private one and a
-  `localhost` name, and leaves every other name to the browser. Installing
-  from a real repository failed on this until 2026-11-26. What the fetcher may
-  reach on the reader's own network is c1140.
+  edition it still refuses an address written as a private one and a name
+  that can only be local (`isLocalName`, `src/lib/server/public-ip.ts`), and
+  leaves every other name to the browser. Installing from a real repository
+  failed on this until 2026-11-26. Where such a name leads is checked by the
+  fetcher ("The reader's own network", below).
 - **`sharp` → `web/sharp.js`.** Native code cannot load in a tab. The one
   chain the thumbnails use (`rotate().resize().webp().toBuffer()`: a browse
   cover, a page thumbnail, an episode still) is drawn with `createImageBitmap`
@@ -410,14 +411,14 @@ source, so it rarely needs updating and holds nothing worth reviewing beyond
 "it makes requests" (the design's reasons are in the private design
 repository's `plans/WEB-EDITION.md`, "The fetcher extension").
 
-| Where                           | What                                                                                                                                         |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib/fetcher/`              | Everything the extension decides: the protocol, the origin check, headers, cookies, rules, bytes, the suffix list. Pure, with no `chrome.*`. |
-| `src/lib/web/fetcher-client.ts` | The page's side: the handshake, and `fetch()` through the extension.                                                                         |
-| `fetcher/background.ts`         | The background (a service worker in Chromium, an event page in Firefox): hands the browser's APIs to `src/lib/fetcher/service.ts`.           |
-| `fetcher/content.ts`            | The content script: hands the page's window to `src/lib/fetcher/relay.ts`.                                                                   |
-| `fetcher/manifest.json`         | The manifest's template: the build fills in the content script's matches. `fetcher/webext.d.ts` types the few WebExtension calls made.       |
-| `fetcher/build.ts`              | Bundles each script into one unminified classic file, in `build-fetcher/store/` or `build-fetcher/development/` (below).                     |
+| Where                           | What                                                                                                                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/lib/fetcher/`              | Everything the extension decides: the protocol, the origin check, headers, cookies, rules, bytes, the suffix list, and what it may reach on the reader's own network (`reach.ts`, `watch.ts`). Pure, with no `chrome.*`. |
+| `src/lib/web/fetcher-client.ts` | The page's side: the handshake, and `fetch()` through the extension.                                                                                                                                                     |
+| `fetcher/background.ts`         | The background (a service worker in Chromium, an event page in Firefox): hands the browser's APIs to `src/lib/fetcher/service.ts`.                                                                                       |
+| `fetcher/content.ts`            | The content script: hands the page's window to `src/lib/fetcher/relay.ts`.                                                                                                                                               |
+| `fetcher/manifest.json`         | The manifest's template: the build fills in the content script's matches. `fetcher/webext.d.ts` types the few WebExtension calls made.                                                                                   |
+| `fetcher/build.ts`              | Bundles each script into one unminified classic file, in `build-fetcher/store/` or `build-fetcher/development/` for Chromium, with a copy under Firefox's manifest beside each (`…-firefox/`; below).                    |
 
 The logic lives in `src/lib/fetcher/` rather than beside the manifest because
 the page and the extension share its protocol (one `FETCHER_PROTOCOL`, one set
@@ -437,9 +438,18 @@ local tool, something an npm package started) would get a fetcher that sends
 the visitor's cookies for every site.
 
 ```sh
-yarn run build:fetcher         # the store build:       build-fetcher/store/
-yarn run build:fetcher --dev   # the development build: build-fetcher/development/
+yarn run build:fetcher         # the store build:       build-fetcher/store/ and build-fetcher/store-firefox/
+yarn run build:fetcher --dev   # the development build: build-fetcher/development/ and build-fetcher/development-firefox/
 ```
+
+**Each edition comes in two folders**, the same scripts under two manifests
+(`manifestFor(template, edition, browser)`): Firefox's adds `dns` and
+`webRequestBlocking`, which its lookup before sending needs ("The reader's own
+network", below) and which Chromium would flag as unknown, and each keeps its
+own browser's background (`scripts` for Firefox's event page,
+`service_worker` for Chromium), since each warns about the other's. Until
+2026-11-27 one folder served both, and `web-ext lint` warned that Firefox
+ignores `service_worker`.
 
 The decision lives in one place, `src/lib/fetcher/protocol.ts`: the two origin
 lists, `isAllowedOrigin(origin, edition)`, `contentScriptMatches(edition)` and
@@ -630,6 +640,96 @@ Every request gets its own `declarativeNetRequest` session rule
   would each match the other's rule, and which rule's headers win is not
   defined. So those queue (`KeyedQueue`), and each reads the cookies in turn,
   after the one before it was answered. Requests to anything else run at once.
+- **Ranked above the guard's** (`RULE_PRIORITY`, `plan.ts`): a request's rule
+  is priority 4, above the guard's allow (3) and block (2) below. A
+  modifyHeaders rule ranked below a matching allow is not applied, so a host
+  the reader allowed would otherwise go out with no cookies; a block blocks
+  whatever a header rule's rank.
+
+### The reader's own network
+
+The self-hosted server never fetches a private address on a source's,
+an extension's or a repository's say-so (`src/lib/server/net-guard.ts`;
+doc/EXTENSION-ENGINE.md, "Repositories on your own network"). In the web
+edition every one of those fetches is the fetcher's, made by the reader's own
+browser from inside their home network, so an index, an extension or a
+redirect could aim it at the router, a NAS or a printer, with the browser's
+cookies for that host. **The fetcher refuses the reader's own network as the
+server does** (c1140, decided by the owner on 2026-11-27), with one way back:
+hosts the reader allows one at a time. What counts as the reader's own network
+is one definition for both editions, `src/lib/server/public-ip.ts`:
+
+- **An address that is not public**: loopback, private, link-local,
+  carrier-grade NAT (a tailnet), unique-local and the rest of the IANA
+  special-purpose space (`isPublicIp`, moved there from `net-guard.ts`).
+- **A name that can only be local** (`isLocalName`): `localhost`, `.local`,
+  `.lan`, `.internal`, `.home.arpa`, and a name with no dot at all (`router`).
+
+No single place sees every request, so there are three checks
+(`src/lib/fetcher/reach.ts`):
+
+1. **Before fetching**, the URL the page asked for (`refusal`). Nothing is
+   sent, and the page is told `refused: 192.168.1.1 is on your own network;
+allow it in the fetcher's options to reach it`.
+2. **Every redirect hop**, by the browser. `fetch()` follows redirects itself
+   and an extension can't read a redirect's Location (`redirect: 'manual'`
+   gives an opaque answer), so the guard is a set of declarativeNetRequest
+   session rules (`guardRules`): a block for each range and for the local
+   names, as `regexFilter`s over the URL the browser writes, scoped like the
+   per-request rules to `tabIds: [-1]`, so the reader's own browsing is
+   untouched. The browser applies them to every hop, so the hop is never sent.
+   They are installed before the first request; a fetcher that cannot install
+   them sends nothing (`the fetcher's guard could not be set up: …`). Ids from
+   `GUARD_FIRST_ID` (1,000,000) up, far from the per-request ones. The rules
+   are wider than `isPublicIp` in three places, on purpose: every IPv4-mapped
+   IPv6 address, all of 6to4 (`2002::/16`) and all of NAT64 (`64:ff9b::/96`),
+   whose public uses are rare and whose IPv4 address inside a regex would
+   match badly. `tests/fetcher-reach.spec.ts` holds the regexes to
+   `isPublicIp` over 20,000 sampled addresses and every range's edges.
+3. **Where a public name led** (`refusedAddress`, `lookupRefusal`): a name can
+   resolve to a private address (DNS rebinding). **Firefox** lets an
+   extension resolve a name first (`dns.resolve`, in a blocking
+   `webRequest.onBeforeRequest`), so there such a request is cancelled before
+   anything is sent. **Chromium** has no such call, and its `webRequest`
+   cannot block in Manifest V3: it reports the address connected to
+   (`onResponseStarted`, `onBeforeRedirect`), the answer is thrown away and
+   the page told `refused: rebind.test led to 127.0.0.2, which is on your own
+network; …`, **but the one request has reached the device.** That gap is
+   Chromium's alone, and it takes a hostile name pointed at a private address;
+   the store listing is to say so when it is written (c1156).
+
+The background passes the browser's `webRequest` events for its own requests
+(those outside every tab, made from its own origin) to `RequestWatch`
+(`src/lib/fetcher/watch.ts`), which links them to the fetch the service made
+by method and URL (one at a time, as above), judges each hop and each address,
+and hands the verdict back when the fetch settles. The events come from the
+browser's other process and may land after `fetch()` has answered, a
+redirect's among them: Firefox failed the hop case one run in two that way. So
+a fetch whose request the browser reported waits for that request's
+`onCompleted` or `onErrorOccurred` before answering, at most `SETTLE_MS` (1 s).
+
+**The allow list.** Hosts the reader allows, kept in the extension's own
+`storage.local` (`allowedHosts`), never set from the page: the page runs the
+very extensions the guard protects the reader from. An entry is a host
+(`nas.lan`, every port) or a host and port (`192.168.1.20:8080`, that port
+only), made canonical by `parseAllowEntry`; each becomes an allow rule above
+the blocks, and a change in storage replaces the rules at once. An entry that
+is an address also covers any name that led there, which is how a proxy on the
+reader's own network is allowed in Chromium (it reports the proxy's address as
+the one connected to; Firefox says when a request was proxied, and its address
+is then not judged). The development build always allows `localhost`,
+`127.0.0.1` and `[::1]` (`builtInAllowed`), since its tests' sites are on
+loopback; `127.0.0.2` is loopback too and refused, which is what the browser
+test aims at. The options page where the reader edits the list is not built
+yet (c1156); until it is, the list is empty.
+
+Tests: `tests/fetcher-reach.spec.ts` (the definitions, the regexes against
+`isPublicIp`, the allow list), `tests/fetcher-service.spec.ts` ("the reader's
+own network": the guard first, each check, the late report, the proxy, the
+lookup), and the browser test, which in both browsers is refused `127.0.0.2`
+asked for and redirected to, with nothing sent there, and in Chromium a name
+mapped to `127.0.0.2` (`--host-resolver-rules`), its one request received and
+its answer refused.
 
 ### Bytes
 
@@ -648,17 +748,19 @@ Chromium caps one runtime message at 64 MiB, far above a page image.
 ### Loading it by hand
 
 For a development server, build the development edition first:
-`yarn run build:fetcher --dev` writes `build-fetcher/development/`. (The store
-build in `build-fetcher/store/` answers `https://tsundoku.lt` only.)
+`yarn run build:fetcher --dev` writes `build-fetcher/development/` for
+Chromium and `build-fetcher/development-firefox/` for Firefox. (The store
+builds in `build-fetcher/store/` and `build-fetcher/store-firefox/` answer
+`https://tsundoku.lt` only.)
 
 - **Chrome, Edge**: `chrome://extensions`, turn on Developer mode, **Load
   unpacked**, pick `build-fetcher/development/`. After a rebuild, press its
   reload button.
 - **Firefox**: `about:debugging#/runtime/this-firefox`, **Load Temporary
-  Add-on…**, pick `build-fetcher/development/manifest.json`. If the page says
+  Add-on…**, pick `build-fetcher/development-firefox/manifest.json`. If the page says
   `no-access`, the fetcher's **Permissions** tab in `about:addons` allows it
   to access data for all websites. A temporary add-on lasts until Firefox
-  closes. `npx web-ext run --source-dir build-fetcher/development` does the
+  closes. `npx web-ext run --source-dir build-fetcher/development-firefox` does the
   same in a fresh profile.
 
 Then open tsundoku on `http://localhost:<port>` or `http://127.0.0.1:<port>`;
@@ -955,9 +1057,10 @@ What the web build does not do yet, each with its card:
   that name the workstation still need a sentence each (c1155).
 - **Speed.** About 5 s of Java for each page of a site an extension parses
   ("Measuring"); covers and pages one at a time through the engine (c1139).
-- **Before the first deploy:** what the fetcher may reach on the reader's
-  own network (c1140). The "Built with CheerpJ" credit (c1135) and a new build
-  under an open tab ("A new build", c1138) are settled.
+- **Before the first deploy:** the fetcher's options page, where the reader
+  allows hosts on their own network (c1156). What the fetcher may reach there
+  ("The reader's own network", c1140), the "Built with CheerpJ" credit (c1135)
+  and a new build under an open tab ("A new build", c1138) are settled.
 - **Accounts and sync:** the library lives in one browser only.
 
 ## Measuring

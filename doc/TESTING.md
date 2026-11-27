@@ -238,8 +238,10 @@ under its own config (`fetcher/playwright.config.ts`), outside `tests/` so the
 app's e2e suite and its table never collect it. Run it after changing anything
 in `fetcher/` or `src/lib/fetcher/`; nothing else runs it, CI included.
 
-- **Two builds.** The browsers run the development build
-  (`build-fetcher/development/`), since the test page is on loopback. The
+- **Two builds, each in two folders.** The browsers run the development build
+  (`build-fetcher/development/` in Chromium, `build-fetcher/development-firefox/`
+  in Firefox: the same scripts under each browser's manifest), since the test
+  page is on loopback. `web-ext lint` reads `build-fetcher/store-firefox/`. The
   store build (`build-fetcher/store/`) is held to refusing loopback twice: its
   own bundles run in a Node `vm` with a fake browser API, where the content
   script on `http://127.0.0.1` neither listens nor probes and the background
@@ -252,6 +254,17 @@ in `fetcher/` or `src/lib/fetcher/`; nothing else runs it, CI included.
   client (`src/lib/web/fetcher-client.ts`), bundled when the test starts; it
   posts what it saw to the server, and the test asserts against both that and
   what the server received.
+- **The reader's own network** (c1140; [`WEB-EDITION.md`](WEB-EDITION.md),
+  "The reader's own network"). The development build allows `localhost`,
+  `127.0.0.1` and `[::1]`, which is where the test's sites are; `127.0.0.2` is
+  loopback all the same and refused. The server listens on `::`, so a request
+  that got through to `127.0.0.2` would be recorded. In both browsers the page
+  asks for it, and is redirected to it by `/redirect-private`: both are
+  refused, and nothing reaches it. Chromium also maps `rebind.test` to
+  `127.0.0.2` (`--host-resolver-rules`): its one request does arrive, which
+  is what Chromium can't prevent, and its answer is refused. Firefox's lookup
+  before sending is the unit spec's (`tests/fetcher-service.spec.ts`): its
+  `network.dns.localDomains` maps only to `127.0.0.1`, which is allowed.
 - **The partitioned cookie** is set as a source would set Cloudflare's: a tab
   visits `http://localhost/set-cookies`, which answers `cf_clearance=…; Secure;
 SameSite=None; Partitioned`. Partitioned needs Secure, and both browsers

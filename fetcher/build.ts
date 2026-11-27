@@ -3,15 +3,21 @@
 // content script cannot be a module, and left unminified, so the extension a
 // store reviews reads as written.
 //
-//   yarn run build:fetcher          the store build, build-fetcher/store/:
+//   yarn run build:fetcher          the store build, build-fetcher/store/ (Chromium)
+//                                   and build-fetcher/store-firefox/:
 //                                   answers https://tsundoku.lt only
-//   yarn run build:fetcher --dev    the development build, build-fetcher/development/:
+//   yarn run build:fetcher --dev    the development build, build-fetcher/development/
+//                                   and build-fetcher/development-firefox/:
 //                                   also loopback http, never to be published
+//
+// The two folders hold the same scripts; only the manifest differs, since
+// Firefox alone is asked for the permissions its lookup before sending needs
+// (FIREFOX_PERMISSIONS in src/lib/fetcher/protocol.ts).
 //
 // The edition reaches the code as __FETCHER_EDITION__ and the manifest through
 // manifestFor(); which origins each answers is decided in
 // src/lib/fetcher/protocol.ts alone.
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { manifestFor, type FetcherEdition } from '../src/lib/fetcher/protocol.ts';
@@ -48,4 +54,11 @@ writeFileSync(
 	`${outDir}manifest.json`,
 	`${JSON.stringify(manifestFor(template, edition), null, '\t')}\n`
 );
-console.log(`fetcher (${edition}) built into ${outDir}`);
+const firefoxDir = fileURLToPath(new URL(`../build-fetcher/${edition}-firefox/`, import.meta.url));
+rmSync(firefoxDir, { recursive: true, force: true });
+cpSync(outDir, firefoxDir, { recursive: true });
+writeFileSync(
+	`${firefoxDir}manifest.json`,
+	`${JSON.stringify(manifestFor(template, edition, 'firefox'), null, '\t')}\n`
+);
+console.log(`fetcher (${edition}) built into ${outDir} and ${firefoxDir}`);

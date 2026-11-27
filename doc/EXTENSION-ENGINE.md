@@ -495,6 +495,13 @@ and any redirect away from the typed origin, is checked as any other address
 and refused when it is local. Repositories are only ever added from that
 form, so the trusted origin is always one the reader chose.
 
+**In the web edition** the same fetches go through the fetcher extension in
+the reader's browser, which refuses the reader's own network by the same
+definition (`src/lib/server/public-ip.ts`), redirects and DNS rebinding
+included. Its one way back is hosts the reader allows in the fetcher's own
+options, so a repository on the reader's NAS is allowed there, by its host
+([`WEB-EDITION.md`](WEB-EDITION.md), "The reader's own network").
+
 Tests: `tests/net-guard.spec.ts` ("a repository on the reader's own
 network"), and, through the real fetch, `tests/engine-extensions-db.spec.ts`
 (a loopback repository installs the APK it serves itself, and its index's

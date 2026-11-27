@@ -20,6 +20,8 @@ import type { AddressInfo } from 'node:net';
 export const KEIYOUSHI = '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2';
 export const PKG = 'eu.kanade.tachiyomi.extension.all.webtoons';
 export const FETCHER = join(process.cwd(), 'build-fetcher', 'development');
+/** The same scripts with Firefox's manifest (fetcher/build.ts). */
+export const FETCHER_FIREFOX = join(process.cwd(), 'build-fetcher', 'development-firefox');
 
 /** The test's repository, as Mihon's index v2 shapes one. */
 function repoAnswer(path: string): { type: string; body: Buffer | string } | null {
@@ -170,7 +172,7 @@ export async function fetcherBrowser(
 				...site?.firefoxPrefs
 			}
 		});
-		await installInFirefox(port, FETCHER);
+		await installInFirefox(port, FETCHER_FIREFOX);
 	} else {
 		context = await chromium.launchPersistentContext(profile, {
 			...common,

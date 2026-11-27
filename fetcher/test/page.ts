@@ -113,6 +113,19 @@ async function main() {
 		)
 	);
 	cases.unreachable = await attempt(() => fetcher.fetch({ url: 'http://127.0.0.1:1/' }));
+	// The reader's own network (c1140). The development build allows
+	// 127.0.0.1, localhost and [::1] for this test; 127.0.0.2 is loopback all
+	// the same, and refused: asked for, redirected to, and (in Chromium, whose
+	// test maps the name there) where a public-looking name led.
+	cases.privateLiteral = await attempt(() =>
+		fetcher.fetch({ url: `http://127.0.0.2:${port}/echo?case=literal` })
+	);
+	cases.privateHop = await attempt(() =>
+		fetcher.fetch({ url: `${clearanceSite}/redirect-private` })
+	);
+	cases.rebind = await attempt(() =>
+		fetcher.fetch({ url: `http://rebind.test:${port}/echo?case=rebind` })
+	);
 	cases.notHttp = await attempt(() => fetcher.fetch({ url: 'file:///etc/hostname' }));
 
 	return report({

@@ -14,6 +14,8 @@ import {
 	type RuntimeReply,
 	type WireRequest
 } from '../src/lib/fetcher/service.ts';
+import { guardRules } from '../src/lib/fetcher/reach.ts';
+import { SETTLE_MS, type RequestEvent } from '../src/lib/fetcher/watch.ts';
 
 const SENDER = { id: 'ext', tab: {}, frameId: 0, origin: 'https://tsundoku.lt' };
 const suffixes = parseSuffixList('uk\nco.uk\nexample');
@@ -34,6 +36,10 @@ function fakeBrowser(
 	const partitions = new Map<string, CookieLike[]>();
 	const queries: CookieQuery[] = [];
 	const sent: { url: string; init: RequestInit; rules: Rule[] }[] = [];
+	// The guard's rules (reach.ts) are kept apart, so the per-request rules
+	// the older cases count are only those.
+	const guard = new Map<number, unknown>();
+	const allowed: string[] = [];
 	const deps: FetcherDeps = {
 		extensionId: 'ext',
 		edition: 'store',
@@ -53,14 +59,23 @@ function fakeBrowser(
 		},
 		async clearRules() {
 			rules.clear();
+			guard.clear();
 		},
+		async replaceRules(removeIds, add) {
+			for (const id of removeIds) guard.delete(id);
+			for (const rule of add) {
+				if (guard.has(rule.id)) throw new Error(`rule ${rule.id} already exists`);
+				guard.set(rule.id, rule);
+			}
+		},
+		allowedHosts: async () => [...allowed],
 		async fetch(url, init) {
 			const live = [...rules.values()];
 			sent.push({ url, init, rules: live });
 			return network(url, init, live);
 		}
 	};
-	return { deps, rules, jar, partitions, queries, sent };
+	return { deps, rules, guard, allowed, jar, partitions, queries, sent };
 }
 
 function ask(
@@ -223,6 +238,8 @@ describe('one request', () => {
 
 	it('reads loopback cookies under both schemes', async () => {
 		const browser = fakeBrowser();
+		// Loopback is the reader's own machine: only an allowed host is fetched.
+		browser.allowed.push('localhost:4000');
 		await ask(createFetcherService(browser.deps), { url: 'http://localhost:4000/x' });
 		expect(browser.queries.map((q) => q.url)).toEqual([
 			'http://localhost:4000/x',
@@ -389,5 +406,217 @@ describe('rules under concurrency', () => {
 		expect(idsSeen.size).toBe(browser.sent.at(-1)!.rules.length);
 		expect(Math.max(...browser.sent.flatMap((s) => s.rules.map((r) => r.id)))).toBe(5);
 		expect(browser.rules.size).toBe(0);
+	});
+});
+
+describe('the reader’s own network (c1140)', () => {
+	const event = (url: string, extra: Partial<RequestEvent> = {}): RequestEvent => ({
+		requestId: 'r1',
+		url,
+		method: 'GET',
+		tabId: -1,
+		fromExtension: true,
+		...extra
+	});
+
+	it('installs the guard’s rules before the first request is sent', async () => {
+		const browser = fakeBrowser();
+		let guardAtSend = 0;
+		browser.deps.fetch = async () => {
+			guardAtSend = browser.guard.size;
+			return new Response('ok');
+		};
+		await ask(createFetcherService(browser.deps), { url: 'https://source.example/' });
+		expect(guardAtSend).toBe(guardRules([]).length);
+	});
+
+	it('sends nothing at all when the guard cannot be installed', async () => {
+		const browser = fakeBrowser();
+		browser.deps.replaceRules = async () => {
+			throw new Error('quota');
+		};
+		const reply = await ask(createFetcherService(browser.deps), { url: 'https://source.example/' });
+		expect(reply).toMatchObject({
+			ok: false,
+			message: "the fetcher's guard could not be set up: quota"
+		});
+		expect(browser.sent).toHaveLength(0);
+	});
+
+	it('refuses an address or name on the reader’s own network before fetching', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		for (const url of [
+			'http://192.168.1.1/',
+			'http://router.lan/login',
+			'http://[fd00::1]/',
+			'http://localhost:4000/'
+		]) {
+			const reply = await ask(service, { url });
+			expect(reply.ok, url).toBe(false);
+			expect((reply as { message: string }).message, url).toMatch(
+				/^refused: .* is on your own network/
+			);
+		}
+		expect(browser.sent).toHaveLength(0);
+	});
+
+	it('fetches a host the reader allowed, and opens it in the rules too', async () => {
+		const browser = fakeBrowser();
+		browser.allowed.push('nas.lan:8080', 'not a host');
+		const service = createFetcherService(browser.deps);
+		expect((await ask(service, { url: 'http://nas.lan:8080/index.min.json' })).ok).toBe(true);
+		expect((await ask(service, { url: 'http://nas.lan:9000/' })).ok).toBe(false);
+		// The entry that names no host is dropped, not kept as a broken rule.
+		expect(service.allowed).toEqual(['nas.lan:8080']);
+		const allows = [...browser.guard.values()].filter(
+			(r) => (r as { action: { type: string } }).action.type === 'allow'
+		);
+		expect(allows).toHaveLength(1);
+	});
+
+	it('a change to the allowed hosts replaces the rules it installed, not adds to them', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		await ask(service, { url: 'https://source.example/' });
+		const before = browser.guard.size;
+		await service.setAllowedHosts(['nas.lan', '192.168.1.20']);
+		expect(browser.guard.size).toBe(before + 2);
+		await service.setAllowedHosts([]);
+		expect(browser.guard.size).toBe(before);
+		expect((await ask(service, { url: 'http://nas.lan/' })).ok).toBe(false);
+	});
+
+	it('names the redirect hop the browser’s rules blocked', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		browser.deps.fetch = async (url) => {
+			await service.requestStarted(event(url));
+			await service.requestStarted(event('http://192.168.1.1/admin'));
+			service.requestFinished(event(url));
+			throw new TypeError('Failed to fetch');
+		};
+		const reply = await ask(service, { url: 'https://source.example/go' });
+		expect(reply).toMatchObject({
+			ok: false,
+			message: expect.stringMatching(/^refused: 192\.168\.1\.1 /)
+		});
+		expect(service.watching).toBe(0);
+	});
+
+	it('names a redirect’s private target even when the browser never reports the hop starting', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		browser.deps.fetch = async (url) => {
+			await service.requestStarted(event(url));
+			service.requestConnected(
+				event(url, { ip: '93.184.216.34', redirectUrl: 'http://10.1.2.3/' })
+			);
+			service.requestFinished(event(url));
+			throw new TypeError('NetworkError when attempting to fetch resource.');
+		};
+		const reply = await ask(service, { url: 'https://source.example/go' });
+		expect(reply).toMatchObject({
+			ok: false,
+			message: expect.stringMatching(/^refused: 10\.1\.2\.3 /)
+		});
+	});
+
+	it('throws away an answer that came from a private address a public name led to', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		browser.deps.fetch = async (url) => {
+			await service.requestStarted(event(url));
+			service.requestConnected(event(url, { ip: '10.0.0.7' }));
+			service.requestFinished(event(url));
+			return new Response('the router’s page');
+		};
+		const reply = await ask(service, { url: 'https://rebind.example/' });
+		expect(reply).toMatchObject({
+			ok: false,
+			message: expect.stringMatching(/^refused: rebind\.example /)
+		});
+		expect(service.watching).toBe(0);
+	});
+
+	it('keeps an answer from a public address, and ignores requests that are not its own', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		browser.deps.fetch = async (url) => {
+			// Another extension's, or the browser's own, at the same URL.
+			await service.requestStarted(event(url, { requestId: 'x', fromExtension: false }));
+			service.requestConnected(event(url, { requestId: 'x', ip: '10.0.0.7' }));
+			await service.requestStarted(event(url));
+			service.requestConnected(event(url, { ip: '93.184.216.34' }));
+			service.requestFinished(event(url));
+			return new Response('ok');
+		};
+		expect((await ask(service, { url: 'https://source.example/' })).ok).toBe(true);
+	});
+
+	it('takes a proxied answer’s address for the proxy’s, not where the name led', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		browser.deps.fetch = async (url) => {
+			await service.requestStarted(event(url));
+			service.requestConnected(event(url, { ip: '10.0.0.3', proxied: true }));
+			service.requestFinished(event(url));
+			return new Response('ok');
+		};
+		expect((await ask(service, { url: 'https://source.example/' })).ok).toBe(true);
+	});
+
+	it('waits for the browser’s own report when it lands after fetch() has answered', async () => {
+		const browser = fakeBrowser();
+		const service = createFetcherService(browser.deps);
+		browser.deps.fetch = async (url) => {
+			await service.requestStarted(event(url));
+			// The redirect's report and the end arrive from the browser's other
+			// process, after the fetch has already failed.
+			setTimeout(() => {
+				service.requestConnected(
+					event(url, { ip: '93.184.216.34', redirectUrl: 'http://10.1.2.3/' })
+				);
+				service.requestFinished(event(url));
+			}, 20);
+			throw new TypeError('NetworkError when attempting to fetch resource.');
+		};
+		const started = Date.now();
+		const reply = await ask(service, { url: 'https://source.example/late' });
+		expect(reply).toMatchObject({
+			ok: false,
+			message: expect.stringMatching(/^refused: 10\.1\.2\.3 /)
+		});
+		expect(Date.now() - started).toBeLessThan(SETTLE_MS);
+	});
+
+	it('where the browser resolves names first, refuses before anything is sent', async () => {
+		const browser = fakeBrowser();
+		const lookups: string[] = [];
+		browser.deps.resolve = async (host) => {
+			lookups.push(host);
+			return host === 'rebind.example' ? ['93.184.216.34', '127.0.0.1'] : ['93.184.216.34'];
+		};
+		const service = createFetcherService(browser.deps);
+		const answers: boolean[] = [];
+		browser.deps.fetch = async (url) => {
+			const { cancel } = await service.requestStarted(event(url));
+			answers.push(cancel);
+			if (cancel) throw new TypeError('NetworkError when attempting to fetch resource.');
+			service.requestFinished(event(url));
+			return new Response('ok');
+		};
+		const refused = await ask(service, { url: 'https://rebind.example/' });
+		expect(refused).toMatchObject({
+			ok: false,
+			message: expect.stringMatching(/^refused: rebind\.example /)
+		});
+		expect((await ask(service, { url: 'https://source.example/' })).ok).toBe(true);
+		expect(answers).toEqual([true, false]);
+		// An allowed host and a request it doesn't watch need no lookup.
+		expect(
+			await service.requestStarted(event('https://other.example/', { requestId: 'z' }))
+		).toEqual({ cancel: false });
+		expect(lookups).toEqual(['rebind.example', 'source.example']);
 	});
 });

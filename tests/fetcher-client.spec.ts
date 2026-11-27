@@ -77,6 +77,8 @@ function extension(
 		addRule: async () => undefined,
 		removeRule: async () => undefined,
 		clearRules: async () => undefined,
+		replaceRules: async () => undefined,
+		allowedHosts: async () => [],
 		async fetch(url, init) {
 			if (url.includes('down'))
 				throw new TypeError('NetworkError when attempting to fetch resource.');
