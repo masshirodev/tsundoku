@@ -59,6 +59,12 @@ export async function startServer(pageScript: string) {
 			case '/results':
 				results.set(url.searchParams.get('label') ?? '', JSON.parse(body.toString('utf8')));
 				return send(204, 'text/plain', '');
+			case '/redirect-private':
+				// A source that sends the fetcher on to the reader's own network
+				// (c1140): the browser's rules must stop the hop before it goes.
+				received.push(record());
+				res.writeHead(302, { location: `http://127.0.0.2:${url.port}/echo?case=hop` });
+				return res.end();
 			case '/redirect':
 				received.push(record());
 				res.writeHead(302, { location: '/echo?case=redirected' });

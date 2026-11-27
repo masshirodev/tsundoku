@@ -70,19 +70,25 @@ type Pending = {
 
 const root = () => process.env.TSUNDOKU_ROOT ?? process.cwd();
 export const hostFile = () => join(root(), 'src/lib/server/novels/plugin-host.cjs');
-/** The address guard the host requires: the server's own (net-guard.ts), one rule for both. */
-export const guardFile = () => join(root(), 'src/lib/server/net-guard.ts');
+/**
+ * The address guard the host requires: the server's own (net-guard.ts), one
+ * rule for both, and the file it imports which addresses are public from.
+ */
+export const guardFiles = () => [
+	join(root(), 'src/lib/server/net-guard.ts'),
+	join(root(), 'src/lib/server/public-ip.ts')
+];
 
 /**
  * Node's flags for the host: the permission model, reading only the host, the
- * guard, node_modules and the plugin store. Exported so a spec can hold a
+ * guard's files, node_modules and the plugin store. Exported so a spec can hold a
  * process with exactly these flags to what it promises.
  */
 export function hostExecArgv(store: string): string[] {
 	return [
 		'--permission',
 		`--allow-fs-read=${hostFile()}`,
-		`--allow-fs-read=${guardFile()}`,
+		...guardFiles().map((file) => `--allow-fs-read=${file}`),
 		`--allow-fs-read=${join(root(), 'node_modules')}`,
 		`--allow-fs-read=${resolve(store)}`
 	];

@@ -65,21 +65,47 @@ export function contentScriptMatches(edition: FetcherEdition): string[] {
 	return [...production, ...DEVELOPMENT_HOSTS.map((host) => `http://${host}/*`)];
 }
 
+/** The two browsers the fetcher is built for; each gets its own manifest (fetcher/build.ts). */
+export type FetcherBrowser = 'chromium' | 'firefox';
+
 /**
- * The manifest an edition ships: the template (fetcher/manifest.json) with
- * the content script's matches filled in, and the development build named as
- * one so the two are never confused in a browser's list.
+ * What Firefox alone is asked for: resolving a name before a request is sent,
+ * and waiting on that answer, so a public name that leads to the reader's own
+ * network is refused before anything is sent (reach.ts, check 3). Chromium
+ * has neither for an extension like this one, and would flag them as unknown.
  */
-export function manifestFor<T extends { name: string; content_scripts: object[] }>(
-	template: T,
-	edition: FetcherEdition
-): T {
+export const FIREFOX_PERMISSIONS = ['dns', 'webRequestBlocking'];
+
+/**
+ * The manifest an edition ships in a browser: the template
+ * (fetcher/manifest.json) with the content script's matches filled in, the
+ * development build named as one so the two are never confused in a
+ * browser's list, each browser's own background, and Firefox's own
+ * permissions in Firefox's.
+ */
+export function manifestFor<
+	T extends {
+		name: string;
+		content_scripts: object[];
+		permissions: string[];
+		background: { service_worker?: string; scripts?: string[] };
+	}
+>(template: T, edition: FetcherEdition, browser: FetcherBrowser = 'chromium'): T {
 	const manifest = structuredClone(template);
 	manifest.content_scripts = manifest.content_scripts.map((script) => ({
 		...script,
 		matches: contentScriptMatches(edition)
 	}));
 	if (edition === 'development') manifest.name = `${manifest.name} (development)`;
+	// The template names both backgrounds; each browser keeps its own, since
+	// each warns about the other's (Firefox runs an event page, Chromium a
+	// service worker).
+	if (browser === 'firefox') {
+		manifest.permissions = [...manifest.permissions, ...FIREFOX_PERMISSIONS];
+		delete manifest.background.service_worker;
+	} else {
+		delete manifest.background.scripts;
+	}
 	return manifest;
 }
 

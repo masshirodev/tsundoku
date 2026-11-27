@@ -143,6 +143,15 @@ export function planRequest(request: FetcherRequest, cookies: CookieFacts): Requ
 export const NO_TAB = -1;
 
 /**
+ * The session rules' priorities. The guard's block (reach.ts) is overruled
+ * by an allow for a host the reader allowed, and the per-request header rule
+ * sits above both: a modifyHeaders rule ranked below a matching allow is not
+ * applied, and the allowed host would get no cookies. A block still blocks
+ * whatever the header rule's rank, since a header rule decides nothing.
+ */
+export const RULE_PRIORITY = { block: 2, allow: 3, headers: 4 } as const;
+
+/**
  * The session rule for one planned request: this URL, this method, and only
  * requests outside every tab, so nothing a tab loads is ever touched. A URL
  * with `*` or `^` in it is matched by a regular expression instead, because a
@@ -154,7 +163,7 @@ export function buildRule(id: number, plan: RequestPlan) {
 		: { urlFilter: `|${plan.url}|` };
 	return {
 		id,
-		priority: 1,
+		priority: RULE_PRIORITY.headers,
 		action: { type: 'modifyHeaders' as const, requestHeaders: plan.ruleHeaders },
 		condition: {
 			...exact,

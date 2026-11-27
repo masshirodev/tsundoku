@@ -6,8 +6,8 @@ how to load it by hand and how it is tested are in `doc/WEB-EDITION.md`, "The
 fetcher"; its browser test in `doc/TESTING.md`, "The fetcher extension".
 
 ```sh
-yarn run build:fetcher         # the store build, build-fetcher/store/: https://tsundoku.lt only
-yarn run build:fetcher --dev   # the development build, build-fetcher/development/: loopback too, never publish it
+yarn run build:fetcher         # the store build, build-fetcher/store/ (+ store-firefox/): https://tsundoku.lt only
+yarn run build:fetcher --dev   # the development build, build-fetcher/development/ (+ development-firefox/): loopback too, never publish it
 yarn run test:fetcher          # build both, lint for Firefox, test in Chromium and Firefox
 yarn run fetcher:psl     # refresh the Public Suffix List, then commit it
 ```

@@ -9,7 +9,7 @@
 		"scripts": ["background.js"]
 	},
 	"host_permissions": ["<all_urls>"],
-	"permissions": ["declarativeNetRequestWithHostAccess", "cookies"],
+	"permissions": ["declarativeNetRequestWithHostAccess", "cookies", "webRequest", "storage"],
 	"content_scripts": [
 		{
 			"js": ["content.js"],

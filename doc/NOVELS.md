@@ -42,8 +42,9 @@ never runs in the app (`src/lib/server/novels/`):
 
 - **A child process of its own** (`plugin-host.cjs`, started by `host.ts` on
   the first call and again after it dies), **under Node's permission model**:
-  it may read only itself, the address guard (`src/lib/server/net-guard.ts`),
-  the project's `node_modules` and the plugin store, and may not write, spawn
+  it may read only itself, the address guard (`src/lib/server/net-guard.ts`,
+  and `public-ip.ts`, which it imports which addresses are public from), the
+  project's `node_modules` and the plugin store, and may not write, spawn
   processes, start workers or load addons. Its **environment is empty**, so
   nothing in `.env` is there to read.
 - **A vm context per plugin**, whose `require` gives only LNReader's shims
@@ -64,7 +65,8 @@ never runs in the app (`src/lib/server/novels/`):
   unique-local, multicast, documentation and reserved space are all refused,
   and an IPv6 address carrying an IPv4 one (`::ffff:127.0.0.1`, NAT64, 6to4)
   is judged by the IPv4 address inside. The rule is the app's own
-  (`net-guard.ts`), which the host requires rather than copies. The check
+  (`net-guard.ts`, from `public-ip.ts`, which the web edition's fetcher shares
+  too), which the host requires rather than copies. The check
   runs twice: on the URL first, and again in the connection pool's lookup,
   on the addresses the socket actually connects to, so a name can't answer
   a public address to the check and a private one to the connection. The

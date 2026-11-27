@@ -10,13 +10,18 @@ import vm from 'node:vm';
 import { build } from 'vite';
 import { startServer, type Received } from './server.ts';
 import { BINARY_ANSWER, ENGINE_AGENT } from './shared.ts';
+import { builtInAllowed, GUARD_FIRST_ID, guardRules } from '../../src/lib/fetcher/reach.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 // The development build answers the test server's loopback page; the store
 // build must not.
 const extension = `${root}build-fetcher/development`;
+// The same scripts with Firefox's manifest (fetcher/build.ts).
+const firefoxExtension = `${root}build-fetcher/development-firefox`;
 const store = `${root}build-fetcher/store`;
-const built = existsSync(`${extension}/manifest.json`) && existsSync(`${store}/manifest.json`);
+const built = [extension, firefoxExtension, store].every((dir) =>
+	existsSync(`${dir}/manifest.json`)
+);
 const manifest = built ? JSON.parse(readFileSync(`${extension}/manifest.json`, 'utf8')) : {};
 // The system Firefox: Playwright's own build cannot install add-ons, and
 // web-ext drives a release one.
@@ -185,6 +190,23 @@ function assertRun(
 	expect(cases.unreachable.ok).toBe(false);
 	expect(cases.unreachable.error).toMatch(/^network error/);
 	expect(cases.notHttp).toEqual({ ok: false, error: 'only http and https are fetched, not file:' });
+
+	// The reader's own network (c1140). Asked for: refused before anything
+	// is sent. Redirected to: the browser's rules stop the hop, and the page
+	// is told which address it was.
+	expect(cases.privateLiteral.ok).toBe(false);
+	expect(cases.privateLiteral.error).toMatch(/^refused: 127\.0\.0\.2 is on your own network/);
+	expect(
+		received.some((r) => r.url === '/echo?case=literal'),
+		'nothing sent to 127.0.0.2'
+	).toBe(false);
+	expect(cases.privateHop.ok).toBe(false);
+	expect(cases.privateHop.error).toMatch(/^refused: 127\.0\.0\.2 is on your own network/);
+	only(received, '/redirect-private');
+	expect(
+		received.some((r) => r.url === '/echo?case=hop'),
+		'the hop was never sent'
+	).toBe(false);
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright needs the object pattern
@@ -195,7 +217,12 @@ test('the fetcher in Chromium', async ({}, testInfo) => {
 	const context = await chromium.launchPersistentContext(profile, {
 		channel: 'chromium',
 		headless: true,
-		args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`]
+		args: [
+			`--disable-extensions-except=${extension}`,
+			`--load-extension=${extension}`,
+			// A public-looking name that leads to the reader's own machine.
+			'--host-resolver-rules=MAP rebind.test 127.0.0.2'
+		]
 	});
 	try {
 		const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
@@ -222,8 +249,20 @@ test('the fetcher in Chromium', async ({}, testInfo) => {
 			`chromium: transport ${run.page.transport}, access ${run.page.access}, ${run.page.userAgent}`
 		);
 		assertRun(server.port, server.received, run, 'base64');
-		// Every request's rule was removed once it was answered.
-		expect(await worker.evaluate(() => chrome.declarativeNetRequest.getSessionRules())).toEqual([]);
+		// Where a public-looking name led to the reader's own network,
+		// Chromium can only tell afterwards: the request reached 127.0.0.2, and
+		// its answer was thrown away (doc/WEB-EDITION.md, "The reader's own
+		// network"). Firefox looks the name up first; its spec is the unit's.
+		expect(run.page.cases.rebind.ok).toBe(false);
+		expect(run.page.cases.rebind.error).toMatch(
+			/^refused: rebind\.test led to 127\.0\.0\.2, which is on your own network/
+		);
+		only(server.received, '/echo?case=rebind');
+		// Every request's rule was removed once it was answered; the guard's
+		// (src/lib/fetcher/reach.ts) stay, numbered from GUARD_FIRST_ID.
+		const left = await worker.evaluate(() => chrome.declarativeNetRequest.getSessionRules());
+		expect(left.filter((r) => r.id < GUARD_FIRST_ID)).toEqual([]);
+		expect(left.length).toBe(guardRules(builtInAllowed('development')).length);
 	} finally {
 		await context.close();
 		await server.close();
@@ -244,7 +283,7 @@ function firefox(profile: string, startUrls: string[]) {
 		[
 			'run',
 			'--source-dir',
-			extension,
+			firefoxExtension,
 			'--firefox',
 			firefoxBinary,
 			'--firefox-profile',
@@ -337,6 +376,7 @@ function runBundle(file: string, origin: string) {
 		runtime: {
 			id: 'ext',
 			getManifest: () => ({ version: '0.0.0' }),
+			getURL: (path: string) => `chrome-extension://ext/${path}`,
 			sendMessage: async (message: unknown) => {
 				sent.push(message);
 				return undefined;
@@ -345,7 +385,15 @@ function runBundle(file: string, origin: string) {
 		},
 		cookies: { getAll: async () => [] },
 		permissions: { contains: async () => true, getAll: async () => ({ origins: [] }) },
-		declarativeNetRequest: { getSessionRules: async () => [], updateSessionRules: async () => {} }
+		declarativeNetRequest: { getSessionRules: async () => [], updateSessionRules: async () => {} },
+		webRequest: {
+			onBeforeRequest: { addListener: () => {} },
+			onBeforeRedirect: { addListener: () => {} },
+			onResponseStarted: { addListener: () => {} },
+			onCompleted: { addListener: () => {} },
+			onErrorOccurred: { addListener: () => {} }
+		},
+		storage: { local: { get: async () => ({}) }, onChanged: { addListener: () => {} } }
 	};
 	const window = {
 		location: { origin },
