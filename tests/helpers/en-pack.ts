@@ -37,6 +37,10 @@ export function writeEnglishPack(file: string): void {
 		extra: { pt?: string; tags?: string; formOf?: string } = {}
 	) => sense.run(entryId, ord, gloss, extra.pt ?? null, extra.tags ?? '', extra.formOf ?? null);
 
+	// One transaction, so one sync to disk, not one per row: a row at a time
+	// took the pack past Vitest's timeouts when the whole suite shared a busy
+	// disk (the pre-push run, 2026-11-27).
+	db.exec('BEGIN');
 	entry.run(1, 'give', 'give', 'verb');
 	senseOf(1, 0, 'To transfer the possession of something to someone.');
 	senseOf(1, 1, 'To yield slightly when pressed.');
@@ -73,5 +77,6 @@ export function writeEnglishPack(file: string): void {
 	// A form of another word, so the exact entry for "saw" has to win.
 	form.run('saw', 5, 'past');
 	form.run('asked', 11, 'past');
+	db.exec('COMMIT');
 	db.close();
 }
