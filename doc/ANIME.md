@@ -827,6 +827,26 @@ screen but the video, and the subtitles, until a tap.
   a label of 4.58 Mbps): a link that can't carry it stalls there on every
   try. A fatal error still moves servers, never quality: that's a server
   broken, not a link too thin.
+- **NEVER LOWER** (`keepServer` in `src/lib/library/player.ts`): the
+  device setting beside QUALITY, also a row in the player's sheet, makes a
+  stall keep the quality. It keeps buffering, the panel keeps counting and
+  naming what it waits on and no lower step, and it tries once a window for a
+  server that offers the chosen height or better; with none, it stays and the
+  panel's SERVER n NOW → and the sheet's SERVER and QUALITY rows are the way
+  by hand. The servers this outage has already moved to are left for its
+  length — two slow ones used to take turns, each move throwing away what the
+  other had buffered — and the list is forgotten once the picture really plays
+  again, or a server or quality is chosen by hand. The device's QUALITY is a
+  cap, so what is really playing is the height kept: a 1080 choice on a source
+  that tops out at 720 keeps 720, and an equal 720 server is a move where a 480
+  one is not. With HIGHEST chosen the chosen height is the one playing; a
+  server with no known quality is not a move, since moving to it could be the
+  drop the setting refuses. A fatal error is filtered the same way, and asks
+  the source's list afresh once: it re-attaches only where the kept height
+  plays, and with nowhere it ends on the no-server panel — "NOTHING KEEPS THE
+  QUALITY", the height it waits at, CHOOSE and TRY AGAIN — rather than a dead
+  picture or a lower quality. With the setting off, `stallStep` is exactly as
+  above.
 - **What counts as a stall** (`stallClock` in `src/lib/library/player.ts`).
   The 15 s clock runs only while the player is trying to play from a settled
   position. A seek isn't a stall, however it is made (a held ← or →, the

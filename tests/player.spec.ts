@@ -14,6 +14,8 @@ import {
 	leftLabel,
 	movedEnough,
 	nextServer,
+	keepServer,
+	keptHeight,
 	offerNextAt,
 	openAt,
 	parseVtt,
@@ -140,6 +142,38 @@ describe('servers', () => {
 		expect(stallStep([1], 1, new Set(), [720, 720, 480], 0)).toEqual({ quality: 2 });
 		expect(stallStep([1], 1, new Set(), [null, 480], 0)).toEqual({ quality: 1 });
 		expect(stallStep([1], 1, new Set(), [720, null], 0)).toBeNull();
+	});
+
+	it('keep the quality a stall would drop', () => {
+		const servers = [
+			{ n: 1, heights: [1080, 720, 360] },
+			{ n: 2, heights: [720, 360] },
+			{ n: 3, heights: [1080, 720] },
+			{ n: 4, heights: [] },
+			{ n: 5, heights: [480] }
+		];
+		// The next server that has 1080 or better; a 720-only one is not a move.
+		expect(keepServer([1, 2, 3], 1, new Set(), servers, 1080)).toBe(3);
+		expect(keepServer([1, 2], 1, new Set([1]), servers, 1080)).toBeNull();
+		// It wraps in the source's order, as nextServer does, and never the current one.
+		expect(keepServer([1, 2, 3], 3, new Set([3]), servers, 720)).toBe(1);
+		// A failed server is skipped even when it would keep the height.
+		expect(keepServer([1, 2, 3], 1, new Set([3]), servers, 1080)).toBeNull();
+		// Nothing resolved (no qualities) is not a move: it could be the lower one.
+		expect(keepServer([1, 4], 1, new Set(), servers, 360)).toBeNull();
+		// No height known at all is not a move either.
+		expect(keepServer([1, 3], 1, new Set(), servers, null)).toBeNull();
+		// The height is a cap, so what is really playing is what to keep: 1080
+		// wanted on a source that tops out at 720 keeps 720, and the equal 720
+		// server is a move where a 480 one is not.
+		expect(keptHeight(1080, 720)).toBe(720);
+		expect(keptHeight(1080, 1080)).toBe(1080);
+		expect(keptHeight(720, 1080)).toBe(720);
+		expect(keptHeight(1080, null)).toBe(1080);
+		expect(keptHeight(null, 720)).toBe(720);
+		expect(keptHeight(null, null)).toBeNull();
+		expect(keepServer([1, 2], 1, new Set(), servers, keptHeight(1080, 720))).toBe(2);
+		expect(keepServer([1, 5], 1, new Set(), servers, keptHeight(1080, 720))).toBeNull();
 	});
 
 	it('draw the challenge’s known range, never a fill toward an end', () => {

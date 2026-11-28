@@ -109,6 +109,22 @@ NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
   - **N SERIES DIFFER →** lists each series, what it keeps, and when it was
     chosen in the player.
 - **QUALITY** is the device's: what a stream starts at.
+- **NEVER LOWER** (`tsundoku:anime:keep`, off) is the device's too, and
+  the player's sheet has the same row. On, a stall never drops the quality: it
+  keeps buffering and says so, and a move to another server only counts if
+  that server has the chosen quality or better — with QUALITY on HIGHEST, the
+  one playing is the chosen one, and since QUALITY is a cap, what is really
+  playing is the height kept. Servers this outage already moved to are left
+  until the picture plays again or a choice is made by hand, so two slow ones
+  cannot take turns. A server whose qualities are not known yet (nothing
+  resolved) is not a move, since the promise is about a known height. The
+  BUFFERING panel names no lower step and the manual SERVER n NOW → and the
+  sheet's own rows are still the way by hand. A fatal error asks the source's
+  list afresh once and re-attaches only where the kept height plays; with
+  none, the no-server panel says "NOTHING KEEPS THE QUALITY" with CHOOSE and
+  TRY AGAIN, and never attaches a lower quality. Off, a stall is as it was:
+  the next server, then one quality down ([`ANIME.md`](ANIME.md), "Servers
+  fail all the time").
 - **SPEED**, **DIM** and **VOLUME** are listed with no control. VOLUME
   (`tsundoku:anime:volume`, the device's) is where the next episode
   starts, set by the player's VOL slider, wheel and ↑ ↓; mute is never kept,

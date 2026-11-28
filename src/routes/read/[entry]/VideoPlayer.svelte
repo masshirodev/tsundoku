@@ -57,6 +57,9 @@
 		type StallClock,
 		type StallEvent,
 		stallStep,
+		keepServer,
+		keptHeight,
+		type StallStep,
 		SUB_SIZES,
 		cleanVolume,
 		verticalFraction,
@@ -225,6 +228,18 @@
 	const failed = new SvelteSet<number>();
 	let failedAt = $state<Record<number, number>>({});
 	let freshTried = false;
+	/**
+	 * The servers this outage has already moved to. NEVER LOWER's keep branch
+	 * records the server it leaves here, and a later move in the same outage
+	 * skips them all: without it two slow servers took turns for ever, each
+	 * move throwing away what the other had buffered (and `switchServer`'s
+	 * stall reset meant nothing bounded it). It lives as long as the outage:
+	 * cleared when the picture really plays again (`onTime`), by a manual
+	 * server or quality choice, and by a fresh list from `start`.
+	 */
+	const holdTried = new SvelteSet<number>();
+	/** What a stall or a fatal error may move to now: not failed, not already left. */
+	const triedNow = () => new Set([...failed, ...holdTried]);
 
 	let video = $state<HTMLVideoElement | null>(null);
 	let hls: Hls | null = null;
@@ -244,6 +259,27 @@
 	const server = $derived(streams?.servers.find((s) => s.n === serverN) ?? null);
 	const quality = $derived(server?.qualities[qualityIndex] ?? null);
 	const order = $derived(streams?.servers.map((s) => s.n) ?? []);
+	/**
+	 * NEVER LOWER: a stall waits rather than drop the quality, and moves only
+	 * to a server with the chosen one or better. This device's, as quality is;
+	 * read once, and the sheet writes it back.
+	 */
+	let keepQuality = $state(false);
+	/** The device's chosen quality (a cap; null is HIGHEST), as `startIndex` reads it. */
+	let wantedQuality = $state<number | null>(null);
+	/** The height NEVER LOWER keeps: what the device asked for, or what plays now. */
+	const chosenHeight = $derived(keptHeight(wantedQuality, quality?.height ?? null));
+	/**
+	 * The height a fresh list was asked to keep, until it plays: the list it
+	 * comes back with can be lower, which would leave `chosenHeight` reading the
+	 * lower one while the panel is still saying what it waits for.
+	 */
+	let keptAt = $state<number | null>(null);
+	/** The height the words name: the one being kept, or the one playing. */
+	const keeping = $derived(keptAt ?? chosenHeight);
+	const serverSizes = $derived(
+		(streams?.servers ?? []).map((s) => ({ n: s.n, heights: s.qualities.map((q) => q.height) }))
+	);
 
 	// ---- settings: audio and subtitles per series, kept on the workstation ---------
 	// The series' choice, else SETTINGS' default, else the last on any anime;
@@ -641,17 +677,41 @@
 		setTimeout(() => (resumedAt = null), RESUME_MS);
 	}
 
-	async function start(fresh = false, at?: number) {
+	async function start(fresh = false, at?: number, keepAtLeast: number | null = null) {
 		const got = await resolveVideos(fresh);
 		// Offline, whatever didn't come is an episode the device doesn't keep.
 		if (typeof got === 'string' && !offline.online) return void (phase = 'offline');
 		if (got === 'down') return void (phase = 'engine');
 		if (got === 'none') return void (phase = 'noServer');
+		// A fresh list asked to keep a height says so until it plays.
+		keptAt = keepAtLeast;
 		streams = got;
 		failed.clear();
 		failedAt = {};
-		serverN = got.servers[0].n;
-		qualityIndex = startIndex(got.servers[0]);
+		holdTried.clear();
+		// NEVER LOWER's fresh ask after a fatal error: re-attach only to a height
+		// that keeps what was playing. A fresh list that offers less is said out
+		// loud below, never attached behind the setting's back.
+		let pick = { n: got.servers[0].n, i: startIndex(got.servers[0]) };
+		if (keepAtLeast !== null) {
+			const keeps = got.servers
+				.map((s) => ({
+					n: s.n,
+					i: s.qualities.findIndex((q) => q.height !== null && q.height >= keepAtLeast)
+				}))
+				.find((x) => x.i >= 0);
+			if (!keeps) {
+				serverN = pick.n;
+				qualityIndex = pick.i;
+				phase = 'noServer';
+				return;
+			}
+			pick = keeps;
+		}
+		// It plays at the kept height (or a higher one): the wait is over.
+		keptAt = null;
+		serverN = pick.n;
+		qualityIndex = pick.i;
 		phase = 'playing';
 		keepNext();
 		await tick();
@@ -748,11 +808,29 @@
 		const at = position();
 		failed.add(serverN);
 		failedAt = { ...failedAt, [serverN]: at };
-		const to = nextServer(order, serverN, failed);
+		// NEVER LOWER: only a server that can keep the quality is a move; a lower
+		// one would be the fall-back the setting refuses.
+		const to = keepQuality
+			? keepServer(order, serverN, triedNow(), serverSizes, chosenHeight)
+			: nextServer(order, serverN, failed);
 		if (to !== null) {
 			serverNotice = { from: serverN, at };
 			setTimeout(() => (serverNotice = null), 4000);
 			switchServer(to, at);
+			return;
+		}
+		if (keepQuality) {
+			// Its address may simply have gone stale, and a fresh list can offer
+			// the same height again: ask once, and re-attach only where the kept
+			// height plays. A dead hls.js or `<video>` must not be left under a
+			// notice that clears in 4 s.
+			detach();
+			if (!freshTried) {
+				freshTried = true;
+				await start(true, at, chosenHeight);
+				return;
+			}
+			phase = 'noServer';
 			return;
 		}
 		// Its address may simply have gone stale: the list is asked for afresh once.
@@ -776,6 +854,12 @@
 		void tick().then(() => attach(at));
 	}
 
+	/** A server picked by hand: the outage it was in is over, so the tried list is too. */
+	function chooseServer(n: number) {
+		holdTried.clear();
+		switchServer(n);
+	}
+
 	/**
 	 * A stall with no server left to move to: one quality down on this server,
 	 * at the same second. This episode's only: the next starts on the
@@ -785,6 +869,9 @@
 		const s = server;
 		if (!s?.qualities[i]) return;
 		const at = position();
+		// A quality picked, by the panel or by hand: the outage's tried list is
+		// over with it.
+		holdTried.clear();
 		qualityNotice = {
 			from: quality ? qualityName(quality) : '',
 			to: qualityName(s.qualities[i]),
@@ -796,26 +883,51 @@
 		void tick().then(() => attach(at));
 	}
 
+	/** The height NEVER LOWER is waiting at, as the no-server panel names it. */
+	const keptName = $derived(keeping !== null ? `${keeping}P` : 'THE QUALITY IT HAD');
+
 	/** What a stall on what's playing now would move to (the BUFFERING panel names it). */
-	const stallNext = () =>
-		stallStep(
-			order,
-			serverN,
-			failed,
-			(server?.qualities ?? []).map((q) => q.height),
-			qualityIndex
-		);
+	const stallNext = (): StallStep => {
+		if (!keepQuality)
+			return stallStep(
+				order,
+				serverN,
+				failed,
+				(server?.qualities ?? []).map((q) => q.height),
+				qualityIndex
+			);
+		const to = keepServer(order, serverN, triedNow(), serverSizes, chosenHeight);
+		return to === null ? null : { server: to };
+	};
 
 	function setQuality(i: number) {
 		qualityIndex = i;
-		save('tsundoku:anime:quality', server?.qualities[i]?.height ?? null);
+		// What the sheet picked is this device's choice now, as `startIndex` reads
+		// it; NEVER LOWER keeps that height. A choice by hand ends the outage.
+		holdTried.clear();
+		wantedQuality = server?.qualities[i]?.height ?? null;
+		save('tsundoku:anime:quality', wantedQuality);
 		void tick().then(() => attach(position()));
+	}
+
+	function setKeepQuality(on: boolean) {
+		keepQuality = on;
+		holdTried.clear();
+		save('tsundoku:anime:keep', on);
 	}
 
 	// The stall clock: a buffer that doesn't fill for 15 s moves to the next
 	// server. The rule of when it runs is stallClock's; this is its timer.
 	let stallTimer: ReturnType<typeof setInterval> | undefined;
 	let stallState: StallClock = NO_STALL;
+	/**
+	 * When this stall last tried to move (a wall clock, ms). With NEVER LOWER
+	 * on, a window that finds no server it may move to leaves the stream where
+	 * it is and the panel counting; this is what keeps the 500 ms tick from
+	 * trying (and failing) twenty times a second. It lives as long as the stall
+	 * and starts over with each new clock (onStall's reset below).
+	 */
+	let stallTried = 0;
 	/** HAVE_FUTURE_DATA: enough at the position to play on from it. */
 	const HAVE_FUTURE_DATA = 3;
 	function onStall(event: StallEvent) {
@@ -829,17 +941,32 @@
 		// so the panel (from 2 s) can't paint until the key is let go.
 		stalled = stallState.since;
 		stallSeconds = 0;
+		stallTried = 0;
 		clearInterval(stallTimer);
 		if (stalled === null) return;
 		stallTimer = setInterval(() => {
 			if (stalled === null) return clearInterval(stallTimer);
 			stallSeconds = stallElapsed(stalled, Date.now());
-			if (stallSeconds >= STALL_S) {
-				onStall('reset');
-				const step = stallNext();
-				if (step && 'quality' in step) stepDown(step.quality);
-				else void fail();
+			if (stallSeconds < STALL_S) return;
+			if (keepQuality) {
+				// A move that keeps the quality, or a wait. Never `fail()`: it marks
+				// this server failed and asks the list afresh, and a fresh list
+				// re-attaches whatever it offers. One try a window, so it cannot loop;
+				// and the servers already left in this outage are gone for good, so
+				// two slow ones cannot take turns.
+				if (Date.now() - stallTried < STALL_S * 1000) return;
+				stallTried = Date.now();
+				const to = keepServer(order, serverN, triedNow(), serverSizes, chosenHeight);
+				if (to !== null) {
+					holdTried.add(serverN);
+					switchServer(to, position());
+				}
+				return;
 			}
+			onStall('reset');
+			const step = stallNext();
+			if (step && 'quality' in step) stepDown(step.quality);
+			else void fail();
 		}, 500);
 	}
 
@@ -921,6 +1048,10 @@
 			reloadingTo = null;
 		}
 		time = video.currentTime;
+		// The picture really plays again: this outage is over, and a later
+		// stall may move to a server this one had already left.
+		if (holdTried.size && !video.paused && !video.seeking && video.readyState >= HAVE_FUTURE_DATA)
+			holdTried.clear();
 		if (quietStart && !video.paused) {
 			quietFrom ??= time;
 			if (time - quietFrom >= QUIET_START_S) quietStart = false;
@@ -1646,6 +1777,8 @@
 	onMount(() => {
 		subSize = startTracks({ audio: [], subs: [], ...data.player }).subsize;
 		dim = load<number>('tsundoku:anime:dim', 0);
+		keepQuality = load<boolean>('tsundoku:anime:keep', false);
+		wantedQuality = load<number | null>('tsundoku:anime:quality', null);
 		// Read once, before the stream starts, so the first frame is already at it.
 		volume = cleanVolume(load<unknown>(VOLUME_KEY, 1));
 		if (video) video.volume = volume;
@@ -1991,6 +2124,10 @@
 			{@const step = stallNext()}
 			{@const to = step && 'server' in step ? step.server : null}
 			{@const down = step && 'quality' in step ? server?.qualities[step.quality] : undefined}
+			<!-- NEVER LOWER names no lower step, but the next server is still a
+			     press away (the existing choice by hand). -->
+			{@const manual =
+				to ?? (keepQuality ? nextServer(order, serverN, new Set([...failed, serverN])) : null)}
 			<div class="panel buffer" role="status">
 				<div class="body">
 					<div class="head">
@@ -2009,8 +2146,8 @@
 								: ''}
 					</div>
 				</div>
-				{#if to !== null}
-					<button type="button" onclick={() => switchServer(to)}>SERVER {to} NOW →</button>
+				{#if manual !== null}
+					<button type="button" onclick={() => chooseServer(manual)}>SERVER {manual} NOW →</button>
 				{:else if down && step && 'quality' in step}
 					{@const i = step.quality}
 					<button type="button" onclick={() => stepDown(i)}>{qualityName(down)} NOW →</button>
@@ -2417,6 +2554,22 @@
 					</div>
 				</div>
 				<div class="srow2">
+					<div class="lab">NEVER LOWER</div>
+					<div class="val">
+						<div class="seg">
+							<button type="button" class:on={!keepQuality} onclick={() => setKeepQuality(false)}
+								>OFF</button
+							>
+							<button type="button" class:on={keepQuality} onclick={() => setKeepQuality(true)}
+								>ON</button
+							>
+						</div>
+						<div class="note">
+							A STALL WAITS · ON MOVES ONLY TO A SERVER WITH THIS QUALITY OR BETTER
+						</div>
+					</div>
+				</div>
+				<div class="srow2">
 					<div class="lab">SERVER</div>
 					<div class="val">
 						{#each streams.servers as s (s.n)}
@@ -2425,7 +2578,7 @@
 								class="li"
 								class:on={s.n === serverN}
 								class:off={failed.has(s.n)}
-								onclick={() => switchServer(s.n)}
+								onclick={() => chooseServer(s.n)}
 							>
 								<span>{(s.name || `SERVER ${s.n}`).toUpperCase()}</span>
 								<span class="r"
@@ -2437,7 +2590,9 @@
 								>
 							</button>
 						{/each}
-						<div class="note">STALLS FOR {STALL_S} S → THE NEXT, BY ITSELF</div>
+						<div class="note">
+							STALLS FOR {STALL_S} S → THE NEXT{keepQuality ? ' THAT KEEPS IT' : ''}, BY ITSELF
+						</div>
 					</div>
 				</div>
 				{#if quality && quality.audio.length > 1}
@@ -2496,8 +2651,8 @@
 				</div>
 			</div>
 			<div class="sfoot">
-				AUDIO AND SUBTITLES CARRY TO EVERY EPISODE OF THE SERIES · SPEED TO THIS ONE · QUALITY TO
-				THIS DEVICE
+				AUDIO AND SUBTITLES CARRY TO EVERY EPISODE OF THE SERIES · SPEED TO THIS ONE · QUALITY AND
+				NEVER LOWER TO THIS DEVICE
 			</div>
 			<!-- ALL SETTINGS →: the page, at WATCHING (readerSheet). -->
 			<a class="all-settings" href="{resolve('/settings')}?section=watching"
@@ -2570,7 +2725,9 @@
 							: phase === 'resolving' || phase === 'challenge'
 								? waitLabel
 								: phase === 'noServer'
-									? 'NO SERVER ANSWERED'
+									? keepQuality
+										? 'NOTHING KEEPS THE QUALITY'
+										: 'NO SERVER ANSWERED'
 									: phase === 'engine'
 										? 'SOURCES NOT ANSWERING'
 										: next
@@ -2643,9 +2800,15 @@
 				{/if}
 				{#if phase === 'noServer'}
 					<div class="prose">
-						The source listed {order.length || 'no'} server{order.length === 1 ? '' : 's'} for this episode
-						and none of them sent video. TRY AGAIN asks the source for its list afresh. Servers often
-						come back within the hour.
+						{#if keepQuality}
+							NEVER LOWER is on, so it waits at {keptName} rather than drop to what the source offers.
+							CHOOSE picks one of its servers or a lower quality by hand; TRY AGAIN asks the source for
+							its list afresh.
+						{:else}
+							The source listed {order.length || 'no'} server{order.length === 1 ? '' : 's'} for this
+							episode and none of them sent video. TRY AGAIN asks the source for its list afresh. Servers
+							often come back within the hour.
+						{/if}
 					</div>
 					{#if failureLine}
 						<!-- Not just this episode (doc/MOVE.md; Migrate Calls, PLAYER). -->
@@ -2673,10 +2836,16 @@
 					{:else}
 						{@render addCell('icell bl')}
 					{/if}
+					{#if streams && keepQuality}
+						<button type="button" class="icell" onclick={() => (sheet = true)}>CHOOSE</button>
+					{/if}
 					<button
 						type="button"
 						class="icell acc"
-						onclick={() => ((freshTried = false), start(true))}>TRY AGAIN</button
+						onclick={() => (
+							(freshTried = false),
+							start(true, undefined, keepQuality ? chosenHeight : null)
+						)}>TRY AGAIN</button
 					>
 				{:else if phase === 'engine'}
 					<button

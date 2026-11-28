@@ -169,6 +169,52 @@ export function stallStep(
 	return i >= 0 ? { quality: i } : null;
 }
 
+/** A server's sizes, as the kept-quality rule compares them. */
+export type ServerSizes = { n: number; heights: (number | null)[] };
+
+/**
+ * Where a stall may go with NEVER LOWER on: the next server in the source's
+ * order that hasn't failed this time and offers the chosen height or better.
+ * It never answers a quality: keeping the quality means waiting instead of
+ * stepping down.
+ *
+ * [chosen] is the height the device asked for, or the one playing under
+ * HIGHEST. A server with no known height -- nothing resolved yet, or qualities
+ * the source did not size -- is not a move: the promise is about a known
+ * height, and an unverified server could be the lower one. A null [chosen]
+ * (nothing sizes anything) is the same: nothing is provably as good, so it
+ * waits, and the settings sheet's QUALITY and SERVER rows are the way by hand.
+ */
+export function keepServer(
+	order: number[],
+	current: number,
+	failed: Set<number>,
+	servers: ServerSizes[],
+	chosen: number | null
+): number | null {
+	if (chosen === null) return null;
+	const i = order.indexOf(current);
+	const rest = [...order.slice(i + 1), ...order.slice(0, Math.max(0, i))];
+	return (
+		rest.find((n) => {
+			if (failed.has(n)) return false;
+			const s = servers.find((x) => x.n === n);
+			return !!s && s.heights.some((h) => h !== null && h >= chosen);
+		}) ?? null
+	);
+}
+
+/**
+ * The height NEVER LOWER keeps: the device's own choice when it made one,
+ * else the height playing now -- with HIGHEST chosen, what is on screen is the
+ * defensible reading of "the chosen quality". The device's choice is a cap,
+ * not a floor (`startIndex` takes the first height at or below it), so a source
+ * that tops out below it plays the lower one; what is *really* playing is then
+ * the height to keep, or an equal 720 server could never be a move.
+ */
+export const keptHeight = (wanted: number | null, playing: number | null) =>
+	wanted !== null && playing !== null ? Math.min(wanted, playing) : (wanted ?? playing);
+
 /**
  * A double-tap on a side third seeks 10 s, and each further tap within the
  * burst adds 10: [taps] is the count in the burst, from 2.
