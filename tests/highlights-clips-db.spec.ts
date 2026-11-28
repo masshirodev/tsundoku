@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The clip lane (c704; doc/HIGHLIGHTS.md, "Clips"), with real ffmpeg on real
+ * The clip lane (doc/HIGHLIGHTS.md, "Clips"), with real ffmpeg on real
  * bytes. Only the two seams an engine stands behind are replaced: what a stream
  * resolves to, and the loopback proxy, which here is a stand-in HLS server wrong
  * the way a real one is (a segment that 404s halfway, a slow answer, a playlist

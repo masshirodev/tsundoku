@@ -154,7 +154,7 @@ const clip = (o: Partial<Highlight> = {}) =>
 		...o
 	});
 
-describe('a clip’s range (c704)', () => {
+describe('a clip’s range', () => {
 	it('follows the playhead until MARK OUT, and stops at 3:00', () => {
 		expect(clipRange({ in: 724, out: null }, 816)).toEqual({
 			from: 724,

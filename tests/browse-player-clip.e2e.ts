@@ -5,7 +5,7 @@ import { devices, type Locator, type Page, type Route } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * MARK IN, MARK OUT and KEEP in the player (c704; doc/HIGHLIGHTS.md, "Clips";
+ * MARK IN, MARK OUT and KEEP in the player (doc/HIGHLIGHTS.md, "Clips";
  * Anime.dc.html). Runs in `browse`, where a real 8 s clip is served through the
  * engine's proxy, so KEEP drives real ffmpeg end to end; the lane's own failure
  * shapes are `highlights-clips-db.spec.ts`'s, on a stand-in HLS server. Its own

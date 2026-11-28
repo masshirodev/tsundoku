@@ -4,7 +4,7 @@ import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { ClipError, clipJobs, keepClip } from '$lib/server/highlights/clips';
 
 /**
- * KEEP in the player (card c704; doc/HIGHLIGHTS.md, "Clips"): starts the job and
+ * KEEP in the player (doc/HIGHLIGHTS.md, "Clips"): starts the job and
  * answers at once, since the episode plays on while it is cut. Incognito makes
  * none, refused here as well as dimmed in the player. GET is the player's poll,
  * and the highlights page's KEEPING.

@@ -8,9 +8,8 @@ import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * The clip marks' measurements on the desktop (c704;
- * doc/handoffs/highlights/Anime.dc.html and hl.css's `.scrub` and `.band`
- * rules). Written by hand and not generated: design-tools/gen-conformance.mjs's
+ * The clip marks' measurements on the desktop (the design repository's
+ * handoffs/highlights/Anime.dc.html and hl.css's `.scrub` and `.band` rules). Written by hand and not generated: design-tools/gen-conformance.mjs's
  * regions are the board's own layout (the whole board is one `screen`), so its
  * output would assert the mock's page, not the player. These numbers are hand-set
  * in the mock and do not round to a spacing ladder, so a later pass that tidies

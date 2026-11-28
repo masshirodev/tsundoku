@@ -1023,7 +1023,7 @@ export function barPlace(
 	return { left, top: Math.round(Math.min(top, view.h - BAR_H - BAR_EDGE)) };
 }
 
-// ---- a clip's range (c704; Anime.dc.html 01) ----------------------------------------
+// ---- a clip's range (Anime.dc.html 01) ----------------------------------------------
 
 /** A clip is three minutes at most (Main 02, MARK IN, MARK OUT, KEEP). */
 export const MAX_CLIP_S = 180;

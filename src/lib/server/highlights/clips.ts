@@ -18,7 +18,7 @@ import { clipAsk, cutCues, toVtt } from '../../library/highlights.ts';
 import { snapshot } from './pages.ts';
 
 /**
- * The clip job (card c704; doc/HIGHLIGHTS.md, "Clips"; Main 05, "The clip's job"):
+ * The clip job (doc/HIGHLIGHTS.md, "Clips"; Main 05, "The clip's job"):
  * one lane of its own beside the anime lane, in memory, so a clip never waits
  * behind a 400 MB episode and a restart forgets a clip half-made (no rung: the
  * row is written once the clip exists). ffmpeg fetches nothing itself, as for

@@ -2,7 +2,7 @@ import { clipRange, type ClipMark, type ClipRange } from '$lib/library/highlight
 import type { ClipJob } from '$lib/server/highlights/clips';
 
 /**
- * The player's side of a clip (card c704; Anime.dc.html 01, 02): the marks, the
+ * The player's side of a clip (Anime.dc.html 01, 02): the marks, the
  * job's band, and the kept ranges on the scrubber. The range arithmetic is
  * `clipRange`; what the workstation is doing is its answer, polled while a job
  * is on the way. Leaving the page does not stop one (A6).

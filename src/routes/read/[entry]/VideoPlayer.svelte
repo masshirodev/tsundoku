@@ -668,7 +668,7 @@
 	 * the ending doesn't mark the episode watched.
 	 */
 	let heldAt: number | null = null;
-	/** MARK IN, MARK OUT, KEEP (c704): the marks, the job's band, and the kept boxes. */
+	/** MARK IN, MARK OUT, KEEP: the marks, the job's band, and the kept boxes. */
 	// The player remounts per episode ({#key} in +page.svelte).
 	// svelte-ignore state_referenced_locally
 	const clips = new ClipMarks(ep.id, data.clips ?? []);
@@ -2058,7 +2058,7 @@
 	{/if}
 {/snippet}
 
-<!-- MARK IN, MARK OUT, KEEP and ✕ (c704, Anime A1-A3, A9). -->
+<!-- MARK IN, MARK OUT, KEEP and ✕ (Anime A1-A3). -->
 {#snippet clipCells()}
 	{#if clips.mark}
 		<button
@@ -4577,7 +4577,7 @@
 	.track .seen {
 		background: var(--accent);
 	}
-	/* The clip's marks (c704; Anime.dc.html, the hl.css `.scrub` rules). Above the
+	/* The clip's marks (Anime.dc.html, the hl.css `.scrub` rules). Above the
 	   track, so the opening and ending ticks below it never overlap them. */
 	.track {
 		--mk-y: oklch(0.5 0.09 95);
