@@ -321,9 +321,12 @@ argument, and the writer files a series by the file, a hidden root's
 count, not titles. With reveal off, the entry's own counts and lines leave out
 what belongs to hidden series, and a section of its own,
 `src/routes/import/HiddenFold.svelte`, closed until opened, says how many
-(`3 IN HIDDEN SERIES`), new, merged and without a source, and the WORKS lines
-kept off the list, and names no hidden series or Work. It sits at the end of a
-log entry and under the result page's WHAT CAME IN. The titles appear only
+(`3 HIDDEN ITEMS`, or `1 HIDDEN ITEM`), new, merged and without a source, and
+the WORKS lines kept off the list, and names no hidden series or Work. The
+headline counts the hidden series and those WORKS lines together, so a hidden
+series with one dropped Work counts 2; the opened section says which is
+which. It sits at the end of a log entry and under the result page's WHAT
+CAME IN. The titles appear only
 with reveal on, where the section is absent and the lines are in their places;
 with nothing hidden in the job it is absent too. A line about a survivor and a
 Work that are both gone, with no record, can't be said to be hidden and is

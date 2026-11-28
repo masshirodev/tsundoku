@@ -130,7 +130,7 @@ An import takes everything in the file or folder whatever the reveal mode,
 hidden series and a hidden root's (Hentoid) included, because a friend can't
 be expected to know to turn hidden mode on first. The screen that says what it
 brought keeps the rule even so: with reveal off, what belongs to hidden series
-is a **count in a section closed by default** (`3 IN HIDDEN SERIES`), never a
+is a **count in a section closed by default** (`3 HIDDEN ITEMS`), never a
 title or a Work's name, and those appear only with reveal on.
 [`IMPORT-BACKUP.md`](IMPORT-BACKUP.md), "The log", has the rule and where it is enforced.
 

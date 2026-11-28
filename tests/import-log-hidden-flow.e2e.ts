@@ -39,7 +39,13 @@ let server: ChildProcess | null = null;
 test.describe.configure({ mode: 'serial', timeout: 60_000 });
 test.use({ baseURL: BASE });
 
-const SECRETS = ['Secret Series Title', 'Second Secret', 'Hentoid Secret', 'Secret Work Name'];
+const SECRETS = [
+	'Secret Series Title',
+	'Second Secret',
+	'Hentoid Secret',
+	'Secret Work Name',
+	'Lone Secret'
+];
 const noSecrets = async (page: Page) => {
 	const text = await page.content();
 	for (const s of [...SECRETS, ...SECRETS.map((x) => x.toUpperCase())])
@@ -87,6 +93,8 @@ test.beforeAll(async () => {
 	);
 	job.run(6330, now, now, now, dropped);
 	job.run(6331, now - 1000, now - 1000, now - 1000, '[]');
+	// One hidden series and nothing dropped: the headline's singular.
+	job.run(6338, now - 2000, now - 2000, now - 2000, '[]');
 	const series = db.prepare(
 		`INSERT INTO series (id, root_id, title, kind, hidden, added_at, indexed_at, scan_job_id)
 		VALUES (?, ?, ?, 'manga', ?, ?, ?, ?)`
@@ -97,12 +105,14 @@ test.beforeAll(async () => {
 	series.run(6335, 6330, 'Open Survivor', 0, now, now, null);
 	series.run(6336, 6330, 'Plain Series', 0, now, now, null);
 	series.run(6337, 6330, 'Lone Plain Series', 0, now, now, 6331);
+	series.run(6339, 6330, 'Lone Secret', 1, now, now, 6338);
 	const imp = db.prepare(
 		`INSERT INTO imports (id, created_at, app, file_name, state, job_id, series_total, series_done, started_at, finished_at)
 		VALUES (?, ?, 'mihon', ?, 'done', ?, 4, 4, ?, ?)`
 	);
 	imp.run(6330, now, 'hidden.tachibk', 6330, now, now);
 	imp.run(6331, now - 1000, 'plain.tachibk', 6331, now - 1000, now - 1000);
+	imp.run(6338, now - 2000, 'lone.tachibk', 6338, now - 2000, now - 2000);
 	const put = db.prepare(
 		`INSERT INTO import_series (import_id, series_id, created) VALUES (?, ?, ?)`
 	);
@@ -111,6 +121,7 @@ test.beforeAll(async () => {
 	put.run(6330, 6334, 1);
 	put.run(6330, 6336, 1);
 	put.run(6331, 6337, 1);
+	put.run(6338, 6339, 1);
 	db.close();
 	// `vite` itself rather than `npx vite`, so the pid is the server's.
 	server = spawn(
@@ -152,7 +163,8 @@ test('with reveal off, the log counts what is hidden, folded, and names none of 
 	await expect(fold).toHaveCount(1);
 	// Closed until asked.
 	await expect(fold).not.toHaveAttribute('open', /.*/);
-	await expect(fold.locator('summary')).toHaveText(/4 IN HIDDEN SERIES/);
+	// The whole headline: series and WORKS lines together (3 + 1), as items.
+	await expect(fold.locator('summary')).toHaveText(/^4 HIDDEN ITEMS\s*↓$/);
 	await expect(
 		fold.getByText('2 NEW · 1 MERGED · 3 WITHOUT A SOURCE · 1 WORK DROPPED')
 	).toBeHidden();
@@ -171,8 +183,20 @@ test('with reveal off, the log counts what is hidden, folded, and names none of 
 test('the result page says the same, closed, and names none of it', async ({ page }) => {
 	await page.goto('/import/6330');
 	const fold = page.locator('details.fold');
-	await expect(fold.locator('summary')).toHaveText(/4 IN HIDDEN SERIES/);
+	await expect(fold.locator('summary')).toHaveText(/^4 HIDDEN ITEMS\s*↓$/);
 	await expect(fold).not.toHaveAttribute('open', /.*/);
+	await noSecrets(page);
+});
+
+test('one hidden series and nothing dropped is one item, in the singular', async ({ page }) => {
+	await page.goto('/import/log?open=backup:6338');
+	const fold = page.locator('details.fold');
+	await expect(fold.locator('summary')).toHaveText(/^1 HIDDEN ITEM\s*↓$/);
+	await fold.locator('summary').click();
+	await expect(fold.getByText('1 NEW', { exact: false })).toBeVisible();
+	await expect(fold).not.toContainText('DROPPED');
+	await page.goto('/import/6338');
+	await expect(page.locator('details.fold summary')).toHaveText(/^1 HIDDEN ITEM\s*↓$/);
 	await noSecrets(page);
 });
 
@@ -180,7 +204,7 @@ test('an import with nothing hidden has no section at all', async ({ page }) => 
 	await page.goto('/import/log?open=backup:6331');
 	await expect(page.locator('.detail')).toContainText('plain.tachibk');
 	await expect(page.locator('details.fold')).toHaveCount(0);
-	await expect(page.getByText('IN HIDDEN SERIES')).toHaveCount(0);
+	await expect(page.getByText(/HIDDEN ITEMS?/)).toHaveCount(0);
 	await page.goto('/import/6331');
 	await expect(page.getByRole('heading', { name: '1 series came in.' })).toBeVisible();
 	await expect(page.locator('details.fold')).toHaveCount(0);
