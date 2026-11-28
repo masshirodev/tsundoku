@@ -3,7 +3,13 @@ import type { Actions, PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseSource, forgetSource } from '$lib/server/engine/browse';
-import { isSourceFlag, setSourceFlag, sourceFlags } from '$lib/server/engine/source-flags';
+import {
+	isSourceFlag,
+	pinnedSources,
+	setPinned,
+	setSourceFlag,
+	sourceFlags
+} from '$lib/server/engine/source-flags';
 import { setSourceKind, sourceKind } from '$lib/server/engine/source-kind';
 import { sourceKindChoices, type Kind } from '$lib/library/kinds';
 import { callSource } from '$lib/server/engine/backend';
@@ -58,10 +64,14 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 			down = e instanceof EngineError && e.failure === 'down' ? 'down' : (e as Error).message;
 		}
 	}
+	const pins = pinnedSources();
 	return {
 		source: s,
 		// tsundoku's own switches for it, above the extension's.
 		flags: sourceFlags(s.id),
+		// PINNED, the first of them (c1142): a search asks it by default.
+		pinned: pins.has(s.id),
+		pins: pins.size,
 		// The kind it serves: what new series from it start as, and
 		// the kinds its family can be set to. No row is AUTO, the planner's own
 		// inference; a family with one kind (LNReader's, Aniyomi's today) draws
@@ -119,6 +129,14 @@ export const actions: Actions = {
 		// found, this page included, so the switch lands on BROWSE.
 		if (flag === 'hidden' && on && !isRevealed(cookies)) redirect(303, '/browse');
 		return { saved: `flag:${flag}` };
+	},
+	/** PINNED (c1142): a search of the sources asks it by default. */
+	pin: async ({ params, cookies, request }) => {
+		const s = source(params.source, isRevealed(cookies));
+		const value = String((await request.formData()).get('value') ?? '');
+		if (value !== 'true' && value !== 'false') return fail(400, { message: 'Not on or off' });
+		setPinned([s.id], value === 'true');
+		return { saved: 'pin' };
 	},
 	/**
 	 * The kind this source serves: the default for every series

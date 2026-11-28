@@ -5,6 +5,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import type { APIRequestContext } from '@playwright/test';
 
 /**
  * A port nothing listens on now, from the OS (`listen(0)`). Asked of a child
@@ -96,3 +97,28 @@ export const REPO = (name: 'good' | 'bad' | 'notrepo') =>
 export const NOVEL_REPO = `https://127.0.0.1:${REPO_PORT}/novels/plugins.min.json`;
 export const engineCalls = async () =>
 	(await (await fetch(`${ENGINE}/__calls`)).json()) as EngineCall[];
+
+/**
+ * Pins or unpins sources (c1142) as BROWSE's PIN cell does, by its action, so
+ * a case that searches knows what a search asks first: the pinned of the
+ * kind, rather than whatever the cases before it happened to browse. Through
+ * the page's own request context, which carries its sign-in: a bare fetch is
+ * sent to /login, and a followed redirect reads as success. A case that pins
+ * unpins after itself, so the next one starts at none.
+ */
+export async function setPins(request: APIRequestContext, ids: readonly string[], on: boolean) {
+	const origin = `http://localhost:${BROWSE_PORT}`;
+	for (const source of ids) {
+		const r = await request.post(`${origin}/browse?/pin`, {
+			form: { source, to: on ? '1' : '0' },
+			headers: { origin, 'x-sveltekit-action': 'true' },
+			maxRedirects: 0
+		});
+		const body = r.ok() ? ((await r.json()) as { type?: string }) : null;
+		if (body?.type !== 'success') throw new Error(`PIN ${source}: ${r.status()} ${body?.type}`);
+	}
+}
+
+/** Every source a case may pin, unpinned: an afterEach's put-back. */
+export const unpinAll = (request: APIRequestContext) =>
+	setPins(request, [SOURCES.open.id, ANIME_SOURCE.id], false);

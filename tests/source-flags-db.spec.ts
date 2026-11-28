@@ -1146,3 +1146,33 @@ describe('a refused UNDO’s landing and words', () => {
 		expect(standingRefusal(null, band(true))).toBeNull();
 	});
 });
+
+describe('PIN: the sources a search asks first (c1142)', () => {
+	beforeEach(() => {
+		getDb().prepare(`DELETE FROM settings WHERE key LIKE 'source.pinned:%'`).run();
+	});
+
+	it('pins and unpins in the settings table, one row per pinned source', () => {
+		expect(flags.pinnedSources()).toEqual(new Set());
+		flags.setPinned(['2001', 'ln:royal', '2001'], true);
+		expect(flags.pinnedSources()).toEqual(new Set(['2001', 'ln:royal']));
+		expect(
+			getDb()
+				.prepare(`SELECT key FROM settings WHERE key LIKE 'source.pinned:%' ORDER BY key`)
+				.all()
+		).toEqual([{ key: 'source.pinned:2001' }, { key: 'source.pinned:ln:royal' }]);
+		flags.setPinned(['2001'], false);
+		expect(flags.pinnedSources()).toEqual(new Set(['ln:royal']));
+	});
+
+	it('is none of a source’s own switches, so EXTENSIONS’ SELECT never offers it', () => {
+		flags.setPinned(['2002'], true);
+		expect(flags.SOURCE_FLAGS).not.toContain('pinned');
+		expect(flags.sourceFlags('2002')).toEqual({
+			hidden: false,
+			addedHidden: false,
+			offHistory: false,
+			neverTracked: false
+		});
+	});
+});

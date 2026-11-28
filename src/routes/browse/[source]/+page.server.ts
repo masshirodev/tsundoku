@@ -15,7 +15,8 @@ import {
 import { changedCount, readFilters, type FilterField } from '$lib/library/browse-filters';
 import { backOrigin } from '$lib/library/tag-search';
 import { forgetSiteCheck } from '$lib/server/novels/source';
-import { sourceFlags } from '$lib/server/engine/source-flags';
+import { pinnedSources, setPinned, sourceFlags } from '$lib/server/engine/source-flags';
+import { kindOfSource } from '../../downloads/search/kinds.server';
 import type { Settled } from '$lib/library/settled';
 import { mark } from '$lib/server/engine/webview';
 import { webviewError } from '$lib/webview';
@@ -133,6 +134,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		addedShelves: bandShelves(addedHidden),
 		// SELECT's ticks note it, so the bulk bar can say "ADDS ITS 3 HIDDEN".
 		addsHidden: sourceFlags(source.id).addedHidden,
+		// PIN in the bar, and its band (c1142): how many are pinned, and of
+		// them how many ask what this source serves.
+		pin: pinFacts(source.id),
 		// Arrived from a tag: ← returns to where it was tapped, never anywhere else.
 		back: backOrigin(url.searchParams.get('from')),
 		// Without script a streamed promise never resolves, so the page waits for it instead.
@@ -140,7 +144,25 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	};
 };
 
+/** PIN's facts for one source: pinned or not, and the pinned in all and of its kind. */
+function pinFacts(id: string) {
+	const pins = pinnedSources();
+	const kind = kindOfSource(id);
+	return {
+		on: pins.has(id),
+		total: pins.size,
+		ofKind: kind === null ? 0 : [...pins].filter((p) => kindOfSource(p) === kind).length,
+		kind
+	};
+}
+
 export const actions: Actions = {
+	/** PIN in the bar (c1142): a search of the sources asks it by default, or no longer does. */
+	pin: async ({ params, cookies, request }) => {
+		if (!browseSource(params.source, isRevealed(cookies))) error(404, 'not found');
+		setPinned([params.source], (await request.formData()).get('to') === '1');
+		return { pinned: params.source };
+	},
 	/**
 	 * UNDO on the ADDED band (`undoAdded`, shared with BROWSE's band):
 	 * the series added hidden from this source's preview leaves the library

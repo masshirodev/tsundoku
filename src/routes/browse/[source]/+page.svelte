@@ -15,6 +15,7 @@
 	import { resolve } from '$app/paths';
 	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { enhance } from '$app/forms';
 	import { onMount, tick, untrack } from 'svelte';
 	import type { Snapshot } from './$types';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
@@ -492,6 +493,23 @@
 	);
 </script>
 
+{#snippet pinCell(cls: string)}
+	<form
+		method="POST"
+		action="{page.url.search ? `${page.url.search}&` : '?'}/pin"
+		use:enhance={() =>
+			({ update }) =>
+				update({ reset: false })}
+		class="pin-form {cls}"
+		class:pinned={data.pin.on}
+	>
+		<input type="hidden" name="to" value={data.pin.on ? '0' : '1'} />
+		<button aria-pressed={data.pin.on} aria-label={data.pin.on ? `Pinned: ${name}` : `Pin ${name}`}
+			><span class="sq" aria-hidden="true"></span>{data.pin.on ? 'PINNED' : 'PIN'}</button
+		>
+	</form>
+{/snippet}
+
 <svelte:head><title>{name.toLowerCase()} · browse · tsundoku</title></svelte:head>
 <svelte:window onkeydown={onKey} />
 
@@ -542,6 +560,8 @@
 							>SELECT</button
 						>
 					{/if}
+					<!-- PIN (c1142): before SETTINGS; a phone has it in the lists row. -->
+					{@render pinCell('cell pin-bar')}
 					<!-- Every family's, since tsundoku's own switches are every source's. -->
 					<a class="cell settings" href={withFrom(`${base}/settings`)} aria-label="SETTINGS"
 						><span class="long">SETTINGS</span><span class="short">SET.</span></a
@@ -561,6 +581,15 @@
 	<StartTrail start={data.start} />
 	<!-- A press's band: while it runs and its one result, on every browse screen. -->
 	<PressBand reveal={data.reveal} />
+	{#if data.pin.on && !selecting}
+		<!-- What a pin means, where it was set (c1142). Not on a phone: its PIN says it. -->
+		<div class="pin-band" role="status">
+			<span>PINNED · A SEARCH OF THE SOURCES ASKS IT</span>
+			<span class="dim"
+				>{`${data.pin.total} PINNED${data.pin.kind ? ` · ${data.pin.ofKind} OF THEM ${data.pin.kind.toUpperCase()}` : ''}`}</span
+			>
+		</div>
+	{/if}
 	{#if commandNote}<Band title={commandNote} ondismiss={() => (commandNote = '')} />{/if}
 	{#if data.addedHidden}
 		<!-- What the series page's band would have said: what ADD AND
@@ -600,6 +629,7 @@
 				<span class="tab on">{data.q ? 'SEARCH' : 'FILTERED'}</span>
 			{/if}
 		</div>
+		{#if !selecting}{@render pinCell('pin-lists')}{/if}
 		{#if value && value.schema.length > 0}
 			<a
 				class="filter"
@@ -870,6 +900,72 @@
 	.slash {
 		display: none;
 		font: 500 16px/1 var(--font-mono);
+	}
+	/* PIN (c1142): a filled accent square and PINNED in ink, or an outlined
+	   square and PIN. In the bar before SETTINGS; a phone has it in the lists row. */
+	.pin-form {
+		display: flex;
+	}
+	.pin-form button {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 0 var(--pad);
+		border: 0;
+		border-left: var(--hairline);
+		background: none;
+		color: var(--text-2);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.pin-form.pinned button {
+		color: var(--text-1);
+	}
+	.sq {
+		width: 9px;
+		height: 9px;
+		box-sizing: border-box;
+		border: 1px solid currentColor;
+	}
+	.pinned .sq {
+		border-color: var(--accent);
+		background: var(--accent);
+	}
+	/* In the bar the form is the cell, with one hairline whether SELECT is
+	   drawn before it or not; its button draws none of its own. */
+	.pin-form.pin-bar {
+		padding: 0;
+		border-left: var(--hairline);
+	}
+	.pin-form.pin-bar button {
+		border-left: 0;
+	}
+	.pin-form.pin-lists {
+		display: none;
+	}
+	.pin-band {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 14px var(--pad);
+		border-bottom: var(--hairline);
+		background: var(--surface-panel);
+		font: 500 13px/1.3 var(--font-mono);
+		letter-spacing: var(--tracking-label);
+	}
+	.pin-band .dim {
+		color: var(--text-2);
+	}
+	@media (max-width: 599px) {
+		.pin-form.pin-bar,
+		.pin-band {
+			display: none;
+		}
+		.pin-form.pin-lists {
+			display: flex;
+		}
 	}
 	/* SELECT: a cell like SETTINGS, a button. */
 	button.cell {

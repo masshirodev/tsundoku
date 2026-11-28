@@ -8,7 +8,7 @@
  */
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { ANIME_SOURCE, engineCalls, SOURCES } from './browse-world';
+import { ANIME_SOURCE, engineCalls, setPins, SOURCES, unpinAll } from './browse-world';
 
 // The browse project's files share the fake engine and its call log, so this
 // file's searches carry a word no other file searches for, and its calls are
@@ -20,6 +20,16 @@ const kinds = (page: Page) => page.getByRole('navigation', { name: 'Kinds' });
 const sources = (page: Page) => page.getByRole('navigation', { name: 'Sources' });
 const searchCalls = async () =>
 	(await engineCalls()).filter((c) => c.method.startsWith('getSearch') && c.search === Q);
+
+// A search asks the pinned of its kind first (c1142): the manga and the anime
+// source are pinned, so what each case asks is theirs, not whatever the cases
+// before it browsed. The novel plugin is left unpinned: ALL SOURCES' business.
+test.beforeEach(async ({ page }) => {
+	await setPins(page.request, [SOURCES.open.id, ANIME_SOURCE.id], true);
+});
+test.afterEach(async ({ page }) => {
+	await unpinAll(page.request);
+});
 
 test('ALL asks every kind’s sources once; a kind, a reload and ALL again ask none again', async ({
 	page
@@ -49,7 +59,7 @@ test('ALL asks every kind’s sources once; a kind, a reload and ALL again ask n
 	await expect(page.locator('a.hit', { hasText: 'Filtered One' })).toHaveCount(0);
 	await expect(page.locator('a.hit', { hasText: ANIME_HIT })).toHaveCount(1);
 	await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
-	await expect(page.locator('.label').first()).toContainText('1 OF 1 SOURCE ANSWERED');
+	await expect(page.locator('.label').first()).toContainText('01 — ASKED 1 PINNED · 1 ANSWERED');
 	const underAnime = (await searchCalls()).slice(before);
 	expect(underAnime.map((c) => c.sourceId)).toEqual([]);
 
@@ -113,7 +123,7 @@ test('the library’s search hands its kind to SEARCH THE SOURCES', async ({ pag
 	await page.waitForURL(new RegExp(`q=${Q}&kind=anime`));
 	const to = page.locator('a.to-sources');
 	await expect(to).toHaveAttribute('href', `/downloads/search?q=${Q}&kind=anime`);
-	await expect(to).toContainText('1 SOURCE ·');
+	await expect(to).toContainText('1 PINNED ANIME SOURCE ·');
 	await to.click();
 	await page.waitForURL(/\/downloads\/search\?q=kindband&kind=anime/);
 	await expect(kinds(page).getByRole('link', { name: /^ANIME/ })).toHaveClass(/\bon\b/);
@@ -140,7 +150,7 @@ for (const [word, query] of [
 		// /search's strip counts the manga sources alone, and hands over the kind it asks.
 		const to = page.locator('a.to-sources');
 		await expect(to).toHaveAttribute('href', `/downloads/search?q=${query}&kind=manga`);
-		await expect(to).toContainText('1 SOURCE ·');
+		await expect(to).toContainText('1 PINNED MANGA SOURCE ·');
 		// Only what this visit asks: the log outlives a case, a repeated run's too.
 		const before = (await asked()).length;
 		await to.click();
@@ -155,7 +165,7 @@ for (const [word, query] of [
 		]);
 		await expect(page.locator('a.hit', { hasText: 'Filtered One' }).first()).toBeVisible();
 		await expect(page.getByText(/STILL ASKING/)).toHaveCount(0);
-		await expect(page.locator('.label').first()).toContainText('OF 1 SOURCE ANSWERED');
+		await expect(page.locator('.label').first()).toContainText('ASKED 1 PINNED · 1 ANSWERED');
 		expect((await asked()).slice(before).map((c) => c.sourceId)).toEqual([SOURCES.open.id]);
 	});
 }

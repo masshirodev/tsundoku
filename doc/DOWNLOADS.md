@@ -321,6 +321,48 @@ rather than search it, BROWSE ([`BROWSE.md`](BROWSE.md)).
   put adult covers on a screen that promised none. Novel plugins are asked the
   same way ([`NOVELS.md`](NOVELS.md), "Browsing and adding"). `?source=<id>`
   asks just one, and lists all it found.
+- **Which of them a search asks first** (c1142, 2026-11-27; handoff
+  `pinned-sources` in tsundoku-design). Asking every source of the kind was
+  dozens of sites per search, and in the web edition seconds of Java each, one
+  call at a time. So a search asks the **pinned** sources of its kind (PIN on
+  BROWSE's rows and a source's page, below and [`BROWSE.md`](BROWSE.md)), and
+  the rest only when asked to. `planAsks` (`src/lib/library/search-asks.ts`)
+  decides, and `tests/search-asks.spec.ts` holds its cases:
+  - **Pinned of the kind:** those, in their usual order. ASKS at the KIND
+    band's end says `PINNED n · ALL SOURCES N`.
+  - **None of the kind pinned:** its last browsed, up to four (BROWSE's
+    RECENT, `browse_recent`), and with none browsed either, every one of its
+    kind. The pair's first cell then says `LAST BROWSED n`, or `PINNED 0` with
+    ALL SOURCES lit.
+  - **A band says why** under the KIND band, with one press to pin:
+    - _NOTHING PINNED · ASKED THE 4 LAST BROWSED_, offering PIN THE N YOU READ
+      FROM (the sources the library holds series from, never pinned on their
+      own: the owner's call), else the ones that found it.
+    - _NO ANIME SOURCE PINNED · ASKED …_ when other kinds have pins.
+    - _NOTHING PINNED OR BROWSED YET · ASKED ALL N_, offering PIN THE N THAT
+      FOUND IT once their answers land. The web edition adds SLOW IN THE WEB
+      EDITION.
+
+    One source is named instead (PIN ANIMEPAHE). The press posts `?/pin` and
+    the search asks those from then on.
+
+  - **ASK THEM** (`?all=1`): one ruled row under 01's results, _38 MORE MANGA
+    SOURCES NOT ASKED · WHAT IS HERE STAYS_, and ALL SOURCES in the pair, the
+    same link. Asked, 01's results stay as they were (their answers are kept,
+    c1141, so nothing is asked again), and **02 — THE OTHER 38** fills under
+    them. It holds for that search's address, so back and reload keep it, and
+    the next search starts at pinned. `?source=` still asks just the one named.
+  - The library's own SEARCH THE SOURCES row says what it will ask: _4 PINNED
+    MANGA SOURCES_, _THE 4 LAST BROWSED_, or the count of all.
+
+  A pin is kept as a source's switches are, `source.pinned:<id>` = `1` in
+  `settings` (`pinnedSources`, `setPinned` in
+  `src/lib/server/engine/source-flags.ts`), so every device that reads the
+  library agrees. It is not one of `SOURCE_FLAGS`, since EXTENSIONS' SELECT
+  offers those in bulk and the design draws no PIN there. There is no limit:
+  BROWSE's 01 — PINNED always counts them, and past 12 adds A SEARCH ASKS
+  THEM ALL. `tests/browse-pinned.e2e.ts` holds the screens.
+
 - **A KIND band over the sources' tabs**, in their idiom: `ALL`, the default
   and every source as above, then one tab per kind an installed source serves,
   in the registry's order (`MANGA`, `NOVELS`, `ANIME`; English, as

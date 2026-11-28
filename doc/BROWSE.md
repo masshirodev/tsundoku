@@ -9,16 +9,32 @@ repositories that supply the sources, and each source's settings.
 ## BROWSE
 
 `/browse`. The bar is ← (the library), BROWSE, a hint that opens SEARCH THE
-SOURCES ("/ search every source"), and EXTENSIONS over its count of updates
+SOURCES ("/ search every source", or "/ search the 6 pinned sources" once any
+are pinned), and EXTENSIONS over its count of updates
 waiting (MANAGE when there are none, rather than "0 UPDATES"), as QUEUE counts
 chapters. Then the sources, one list with the kinds as sections: **01 —
-RECENT** (the last four browsed, any kind, "MANGA · EN · BROWSED 2 H AGO";
-nothing to pin or manage), then **MANGA**, **ANIME** and **NOVELS**, a section
-only where it has a source. Read from tsundoku's own tables, so it draws while
+PINNED** when anything is (what a search of the sources asks by default,
+c1142; _A SEARCH ASKS THESE · 6_), then **RECENT** (the last four browsed, any
+kind, "MANGA · EN · BROWSED 2 H AGO"), then **MANGA**, **ANIME** and
+**NOVELS**, a section only where it has a source. A pinned source stays in its
+kind's section too, marked, so a kind's list is whole. Read from tsundoku's own tables, so it draws while
 the engine is down. The sections are the source families (Mihon's, Aniyomi's,
 LNReader's), each the kind its family names a row by (`SOURCE_KINDS` in
 `src/lib/library/kinds.ts`), not a list of kind names. NOVELS is numbered after
 the others like any section.
+
+**PIN.** Every row but a failed one has a PIN cell right of its link, behind
+its own hairline, so a tap on the name still opens the source: 104 px wide on a
+tablet, 76 on a phone, two stops on a TV (→ reaches PIN, OK toggles it, and
+the focus stays on PIN as BROWSE draws again, `tests/tv-browse-focus.e2e.ts`).
+Pinned is a filled accent square and PINNED in ink; unpinned an outlined square
+and PIN in `--text-2`. It posts `?/pin` and BROWSE draws again where it was. A
+source's page has the same PIN in its bar before SETTINGS (in the POPULAR ·
+LATEST row on a phone), and a pinned one says _PINNED · A SEARCH OF THE SOURCES
+ASKS IT · 5 PINNED · 4 OF THEM MANGA_ under the bar. Its settings have it as the
+first row of 01 — IN TSUNDOKU. What a pin changes is the search
+([`DOWNLOADS.md`](DOWNLOADS.md), "Which of them a search asks first"). While
+SELECT is on, no row has a PIN cell.
 
 **The KIND band.** Under the bar, the library's band over the sources: **KIND
 · ALL n · MANGA n · ANIME n · …**, `?kind=<kind>` in the URL, sticky under the

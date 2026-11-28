@@ -17,6 +17,7 @@
 	import { isSearchCommand, runSearchCommand } from '$lib/library/commands';
 	import { KIND_TAB } from './source-kinds';
 	import type { Kind } from '$lib/library/kinds';
+	import { enhance } from '$app/forms';
 
 	/**
 	 * Searching the sources. Results fill in source by source under their
@@ -38,8 +39,14 @@
 	 * when there is one. A source tab keeps the kind it was picked under, so
 	 * ALL beside it is that kind's ALL.
 	 */
-	const href = (source?: string, kind: Kind | null = data.kind) =>
-		`${base}?q=${encodeURIComponent(data.q)}${kind ? `&kind=${kind}` : ''}${source ? `&source=${source}` : ''}`;
+	const href = (
+		source?: string,
+		kind: Kind | null = data.kind,
+		all: boolean = data.asks?.askRest ?? false
+	) =>
+		`${base}?q=${encodeURIComponent(data.q)}${kind ? `&kind=${kind}` : ''}${source ? `&source=${source}` : ''}${all ? '&all=1' : ''}`;
+	/** Both sections' sources: 01's, then 02's once ASK THEM was pressed. */
+	const everyGroup = $derived([...data.groups, ...data.restGroups]);
 
 	/**
 	 * What each source answered, keyed by source, in the order the answers
@@ -48,13 +55,14 @@
 	 */
 	const answers = new SvelteMap<string, Settled<SearchHit[]>>();
 	// Without script the answers arrive as values: set at once, on the server too.
-	for (const g of untrack(() => data.groups)) if (isSettled(g.hits)) answers.set(g.id, g.hits);
+	for (const g of untrack(() => [...data.groups, ...data.restGroups]))
+		if (isSettled(g.hits)) answers.set(g.id, g.hits);
 	/** Bumped by every fresh load, so an answer for an earlier search is dropped. */
 	let generation = 0;
 	$effect(() => {
 		const gen = ++generation;
 		answers.clear();
-		for (const g of data.groups) {
+		for (const g of everyGroup) {
 			const h = g.hits;
 			if (isSettled(h)) answers.set(g.id, h);
 			else void h.then((s) => gen === generation && answers.set(g.id, s));
@@ -91,7 +99,7 @@
 	const checks = new SvelteMap<string, SiteCheck>();
 	$effect(() => {
 		if (!data.engine) return;
-		for (const g of data.groups) {
+		for (const g of everyGroup) {
 			if (answers.has(g.id)) {
 				checks.get(g.id)?.stop();
 				checks.delete(g.id);
@@ -111,16 +119,48 @@
 	 * Whether each fold is open, kept here: a fold whose sources are all being
 	 * asked again leaves the list, and comes back as the user left it.
 	 */
-	const foldOpen = $state({ nothing: false, failed: false });
-	/** The sources this search asked, as the list names them. */
-	const asked = $derived(data.groups.map((g) => ({ id: g.id, name: g.name, lang: g.lang })));
-	const arranged = $derived(arrangeAnswers(asked, answers));
+	const foldOpen = $state({
+		first: { nothing: false, failed: false },
+		rest: { nothing: false, failed: false }
+	});
+	const named = (gs: { id: string; name: string; lang: string }[]) =>
+		gs.map((g) => ({ id: g.id, name: g.name, lang: g.lang }));
+	/** 01's sources, then 02's, as the list names them, each arranged on its own. */
+	const arranged = $derived(arrangeAnswers(named(data.groups), answers));
+	const arrangedRest = $derived(arrangeAnswers(named(data.restGroups), answers));
+	/** One section's answered and found, of its own sources' answers. */
+	const countsOf = (gs: { id: string }[]) =>
+		answerCounts(
+			new Map(gs.flatMap((g) => (answers.has(g.id) ? [[g.id, answers.get(g.id)!]] : [])))
+		);
+	const firstCounts = $derived(countsOf(data.groups));
+	const restCounts = $derived(countsOf(data.restGroups));
+	/**
+	 * What the band's button pins: the sources the library reads from, known
+	 * now, or the ones whose answers found the title, known as they land.
+	 */
+	const toPin = $derived(
+		data.asks?.offer === 'read-from'
+			? data.asks.offered
+			: data.groups.filter((g) => {
+					const a = answers.get(g.id);
+					return a?.ok && a.value.length > 0;
+				})
+	);
+	/** The band's button: one source by name, several by how many and why. */
+	const pinLabel = $derived(
+		toPin.length === 1
+			? `PIN ${toPin[0].name.toUpperCase()}`
+			: `PIN THE ${toPin.length} ${data.asks?.offer === 'read-from' ? 'YOU READ FROM' : 'THAT FOUND IT'}`
+	);
+	/** The kind's word in the band and ASK THEM's row: "MANGA SOURCES", or plain "SOURCES". */
+	const ofKindWord = $derived(data.kind ? `${KIND_TAB[data.kind]} ` : '');
 	/**
 	 * A kind cell's count: the hits its sources found so far. A kind this
 	 * search did not ask (another one is picked) has none to say: `—`.
 	 */
 	const kindCount = (kind: Kind | null) => {
-		const ids = data.groups
+		const ids = everyGroup
 			.map((g) => g.id)
 			.filter((id) => kind === null || data.kindOf?.[id] === kind);
 		if (ids.length === 0) return '—';
@@ -194,20 +234,73 @@
 	<div class="note">
 		{engineDownLine(__WEB_EDITION__)} · NOTHING CAN BE SEARCHED
 	</div>
-{:else if data.q && data.all}
-	{#if data.kinds.length > 1}
-		<!-- The KIND band, the sources' tabs' idiom above them: ALL is every
-		     source, as before; a kind asks only its own sources. One row on a TV. -->
-		<nav class="tabs kinds" aria-label="Kinds">
-			<a class="tab" class:on={!data.kind} href={href(undefined, null)}
-				><span>ALL</span><span class="n">{data.kind ? '—' : count(counts.found)}</span></a
-			>
-			{#each data.kinds as k (k.kind)}
-				<a class="tab" class:on={data.kind === k.kind} href={href(undefined, k.kind)}
-					><span>{KIND_TAB[k.kind]}</span><span class="n">{kindCount(k.kind)}</span></a
+{:else if data.q && data.asks}
+	{@const a = data.asks}
+	<!-- The KIND band, the sources' tabs' idiom above them: ALL is every
+	     source; a kind asks only its own. It ends in ASKS (c1142): what the
+	     search asked first, and ALL SOURCES. One row on a TV. -->
+	<div class="tabs kinds-row">
+		{#if data.kinds.length > 1}
+			<nav class="kinds" aria-label="Kinds">
+				<span class="tab lead-cell">KIND</span>
+				<a class="tab" class:on={!data.kind} href={href(undefined, null)}
+					><span>ALL</span><span class="n">{data.kind ? '—' : count(counts.found)}</span></a
 				>
-			{/each}
+				{#each data.kinds as k (k.kind)}
+					<a class="tab" class:on={data.kind === k.kind} href={href(undefined, k.kind)}
+						><span>{KIND_TAB[k.kind]}</span><span class="n">{kindCount(k.kind)}</span></a
+					>
+				{/each}
+			</nav>
+		{/if}
+		<nav class="asks" aria-label="Asks">
+			<a
+				class="tab"
+				class:on={!a.askRest && a.mode !== 'all'}
+				class:quiet={a.mode === 'all'}
+				href={href(undefined, data.kind, false)}
+				><span>{a.mode === 'recent' ? 'LAST BROWSED' : 'PINNED'}</span><span class="n"
+					>{a.mode === 'all' ? 0 : a.first}</span
+				></a
+			>
+			<a
+				class="tab"
+				class:on={a.askRest || a.mode === 'all'}
+				href={href(undefined, data.kind, true)}
+				data-sveltekit-preload-data="off"
+				><span>ALL SOURCES</span><span class="n">{a.total}</span></a
+			>
 		</nav>
+	</div>
+	{#if a.band && !data.only}
+		<!-- Why this search asked what it did, and one press to pin. -->
+		<div class="band" role="status">
+			<div class="band-text">
+				<span>
+					{#if a.band === 'nothing-pinned'}NOTHING PINNED · ASKED THE {a.first} LAST BROWSED
+					{:else if a.band === 'kind-none-pinned'}NO {ofKindWord}SOURCE PINNED · {a.mode ===
+						'recent'
+							? `ASKED THE ${a.first} LAST BROWSED`
+							: `ASKED ALL ${a.first}`}
+					{:else}NOTHING PINNED OR BROWSED YET · ASKED ALL {a.first}{/if}
+				</span>
+				<span class="dim">
+					{#if a.band === 'nothing-pinned'}PIN A SOURCE IN BROWSE, OR HERE, AND A SEARCH ASKS THE
+						PINNED
+					{:else if a.band === 'kind-none-pinned'}A KIND WITH NONE PINNED ASKS ITS LAST BROWSED,
+						ELSE EVERY ONE OF IT
+					{:else}UNTIL A SOURCE IS PINNED OR BROWSED, A SEARCH ASKS THEM ALL{__WEB_EDITION__
+							? ' · SLOW IN THE WEB EDITION'
+							: ''}{/if}
+				</span>
+			</div>
+			{#if toPin.length}
+				<form method="POST" action="{href()}&/pin" use:enhance class="band-pin">
+					{#each toPin as s (s.id)}<input type="hidden" name="source" value={s.id} />{/each}
+					<button class:accent={a.band !== 'kind-none-pinned'}>{pinLabel}</button>
+				</form>
+			{/if}
+		</div>
 	{/if}
 	<nav class="tabs" aria-label="Sources">
 		<a class="tab" class:on={!data.only} href={href()}
@@ -222,16 +315,49 @@
 
 	<div class="label">
 		<div>
-			01 — {counts.answered} OF {data.groups.length} SOURCE{data.groups.length === 1 ? '' : 'S'} ANSWERED
+			01 — {#if data.only || a.mode === 'all'}{firstCounts.answered} OF {data.groups.length} SOURCE{data
+					.groups.length === 1
+					? ''
+					: 'S'} ANSWERED{:else if a.mode === 'recent'}ASKED THE {data.groups.length} LAST BROWSED · {firstCounts.answered}
+				ANSWERED{:else}ASKED {data.groups.length} PINNED · {firstCounts.answered}
+				ANSWERED{/if}
 		</div>
-		<div>{count(counts.found)} FOUND</div>
+		<div>{count(firstCounts.found)} FOUND</div>
 	</div>
+	{@render results(arranged, foldOpen.first)}
 
+	{#if !data.only && a.rest > 0}
+		{#if a.askRest}
+			<div class="label rest-label">
+				<div>02 — THE OTHER {a.rest} · {restCounts.answered} ANSWERED</div>
+				<div>{count(restCounts.found)} FOUND</div>
+			</div>
+			{@render results(arrangedRest, foldOpen.rest)}
+		{:else}
+			<!-- ALL SOURCES in the band and this row do the same thing (c1142). -->
+			<div class="ask-rest">
+				<span class="ask-text">
+					<span>{a.rest} MORE {ofKindWord}SOURCE{a.rest === 1 ? '' : 'S'} NOT ASKED</span>
+					<span class="dim">WHAT IS HERE STAYS · THEIR RESULTS FILL IN BELOW</span>
+				</span>
+				<a href={href(undefined, data.kind, true)} data-sveltekit-preload-data="off">ASK THEM →</a>
+			</div>
+		{/if}
+	{/if}
+{:else if !data.q}
+	<div class="note">
+		TYPE A TITLE · {#if data.asks?.mode === 'pinned'}THE {data.asks.first} PINNED ARE ASKED{:else if data.asks?.mode === 'recent'}THE
+			{data.asks.first} LAST BROWSED ARE ASKED{:else}{data.asks?.total ?? 0}
+			SOURCES ARE ASKED{/if}
+	</div>
+{/if}
+
+{#snippet results(ar: typeof arranged, fold: { nothing: boolean; failed: boolean })}
 	<!-- The order MOVE's candidates share (doc/READING-ONLINE.md, the search
 	     page): the sources with results first, in the order they answered;
 	     the ones still asking as one line; then, folded at the end, the ones
 	     that found nothing and the ones that did not answer. -->
-	{#each arranged.matches as m (m.source.id)}
+	{#each ar.matches as m (m.source.id)}
 		<div class="g-head">
 			<span>{sourceTitle(m.source)}</span>
 			<span class="dim">{m.hits.length}</span>
@@ -268,17 +394,17 @@
 			>
 		{/if}
 	{/each}
-	{#if arranged.asking.length}
-		{@const checking = arranged.asking.find((s) => checks.get(s.id)?.since != null)}
+	{#if ar.asking.length}
+		{@const checking = ar.asking.find((s) => checks.get(s.id)?.since != null)}
 		<div class="asking" role="status">
-			<span>{arranged.asking.length} STILL ASKING</span>
+			<span>{ar.asking.length} STILL ASKING</span>
 			<span class="dim">
 				{#if checking}{sourceTitle(checking)} · BROWSER CHECK · ASKED {Math.floor(
 						(checks.get(checking.id)?.elapsed ?? 0) / 1000
 					)} S AGO{/if}
 			</span>
 		</div>
-		{#if !arranged.matches.length}
+		{#if !ar.matches.length}
 			{#each [62, 48] as w (w)}
 				<div class="hit ghost" aria-hidden="true">
 					<span class="cov-ghost"></span>
@@ -287,21 +413,17 @@
 			{/each}
 		{/if}
 	{/if}
-	{#if arranged.nothing.length}
-		<details class="fold nothing" bind:open={foldOpen.nothing}>
-			<summary
-				><span>{arranged.nothing.length} FOUND NOTHING</span><span class="ink">↓</span></summary
-			>
-			{#each arranged.nothing as s (s.id)}
+	{#if ar.nothing.length}
+		<details class="fold nothing" bind:open={fold.nothing}>
+			<summary><span>{ar.nothing.length} FOUND NOTHING</span><span class="ink">↓</span></summary>
+			{#each ar.nothing as s (s.id)}
 				<div class="g-head quiet"><span>{sourceTitle(s)}</span><span class="dim">0</span></div>
 			{/each}
 		</details>
 	{/if}
-	{#if arranged.failed.length}
-		<details class="fold unanswered" bind:open={foldOpen.failed}>
-			<summary
-				><span>{arranged.failed.length} DID NOT ANSWER</span><span class="ink">↓</span></summary
-			>
+	{#if ar.failed.length}
+		<details class="fold unanswered" bind:open={fold.failed}>
+			<summary><span>{ar.failed.length} DID NOT ANSWER</span><span class="ink">↓</span></summary>
 			<div class="failed all">
 				<span>NOTHING FROM THESE · ASKED ALONE, NOT THE REST</span>
 				<!-- The href is the way without script. With it, a hover must not
@@ -309,10 +431,10 @@
 				<a
 					href={href()}
 					data-sveltekit-preload-data="off"
-					onclick={again(arranged.failed.map((f) => f.source.id))}>TRY ALL AGAIN</a
+					onclick={again(ar.failed.map((f) => f.source.id))}>TRY ALL AGAIN</a
 				>
 			</div>
-			{#each arranged.failed as f (f.source.id)}
+			{#each ar.failed as f (f.source.id)}
 				<div class="failed">
 					<span>{sourceTitle(f.source)} · DID NOT ANSWER IN 20 S</span>
 					<a
@@ -324,9 +446,7 @@
 			{/each}
 		</details>
 	{/if}
-{:else if !data.q}
-	<div class="note">TYPE A TITLE · {data.all?.length ?? 0} SOURCES ARE ASKED</div>
-{/if}
+{/snippet}
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 
@@ -520,6 +640,113 @@
 	}
 	.fold[open] summary .ink {
 		transform: rotate(180deg);
+	}
+	/* KIND's own label, and the ASKS pair pushed to the band's end (c1142). */
+	.tab.lead-cell {
+		color: var(--text-2);
+	}
+	.kinds {
+		display: flex;
+	}
+	.asks {
+		display: flex;
+		margin-left: auto;
+		border-left: var(--hairline);
+	}
+	.asks .tab:last-child {
+		border-right: 0;
+	}
+	.tab.quiet {
+		color: var(--text-2);
+	}
+	/* Why the search asked what it did, and one press to pin. */
+	.band {
+		display: flex;
+		align-items: stretch;
+		border-bottom: var(--hairline);
+		background: var(--surface-panel);
+	}
+	.band-text {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 14px var(--pad);
+		font: 500 13px/1.4 var(--font-mono);
+		letter-spacing: var(--tracking-label);
+	}
+	.band-pin {
+		display: flex;
+	}
+	.band-pin button {
+		padding: 0 var(--pad);
+		border: 0;
+		border-left: var(--hairline);
+		background: none;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.band-pin button.accent {
+		border-left: 0;
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	.rest-label {
+		border-top: 1px solid var(--line-2);
+	}
+	/* ASK THEM: one ruled row under 01, as the design draws it. */
+	.ask-rest {
+		display: flex;
+		align-items: stretch;
+		border-top: 1px solid var(--text-1);
+		border-bottom: var(--hairline);
+	}
+	.ask-text {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 14px var(--pad);
+		font: 500 13px/1.3 var(--font-mono);
+		letter-spacing: var(--tracking-label);
+	}
+	.ask-rest a {
+		display: flex;
+		align-items: center;
+		padding: 0 var(--pad);
+		border-left: var(--hairline);
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	@media (max-width: 599px) {
+		/* The phone gives ASKS its own row, and the band its button below. */
+		.kinds-row {
+			flex-wrap: wrap;
+		}
+		.asks {
+			width: 100%;
+			margin-left: 0;
+			border-left: 0;
+			border-top: var(--hairline);
+		}
+		.asks .tab {
+			flex: 1;
+		}
+		.band {
+			flex-direction: column;
+		}
+		.band-pin button {
+			width: 100%;
+			min-height: 52px;
+			border-left: 0;
+			border-top: var(--hairline);
+		}
 	}
 	.note {
 		padding: 24px var(--pad);

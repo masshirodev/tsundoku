@@ -11,7 +11,8 @@ import {
 } from './added.server';
 import { isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
-import { browseList, noteSolvedChecks } from '$lib/server/engine/browse';
+import { browseList, browseSource, noteSolvedChecks } from '$lib/server/engine/browse';
+import { setPinned } from '$lib/server/engine/source-flags';
 import { fillWebViewFlags } from '$lib/server/engine/extensions';
 import { mark } from '$lib/server/engine/webview';
 import { kindOfSource } from '../downloads/search/kinds.server';
@@ -46,6 +47,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		kind === null ? rows : rows.filter((r) => kindOf.get(r.id) === kind);
 	const list = {
 		...all,
+		pinned: ofKind(all.pinned),
 		recent: ofKind(all.recent),
 		manga: ofKind(all.manga),
 		anime: ofKind(all.anime),
@@ -54,6 +56,8 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 	const rows = [...list.recent, ...list.manga, ...list.anime];
 	return {
 		list,
+		// The bar's hint names what a search asks (c1142): every pin, any kind.
+		pins: all.pinned.length,
 		// One kind or none to tell apart draws no band, as SEARCH THE SOURCES'.
 		kindBand:
 			served.length > 1
@@ -86,6 +90,17 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 };
 
 export const actions: Actions = {
+	/**
+	 * A row's PIN cell (c1142): pins or unpins one source, and BROWSE draws it
+	 * again where it was. Only a source this viewer may see is touched.
+	 */
+	pin: async ({ request, cookies }) => {
+		const form = await request.formData();
+		const id = String(form.get('source') ?? '');
+		if (!browseSource(id, isRevealed(cookies))) return fail(404, { pin: 'no such source' });
+		setPinned([id], form.get('to') === '1');
+		return { pinned: id };
+	},
 	/** UNDO on CONCEAL's band, here: the same UNDO as the settings page's (`undoConceal`). */
 	undoConceal: async ({ request }) => {
 		// As the load: off the engine backend this page does not exist, so neither does its action.

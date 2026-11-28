@@ -90,6 +90,8 @@
 	const band = $derived(data.kindBand);
 	const kindHref = (k: Kind | null) => resolve('/browse') + (k ? `?kind=${k}` : '');
 	const pad = (n: number) => String(n).padStart(2, '0');
+	/** The sections before RECENT's number: 01 — PINNED when anything is pinned (c1142). */
+	const lead = $derived(list.pinned.length ? 1 : 0);
 	const extensionsHref = resolve('/browse/extensions');
 
 	/**
@@ -175,7 +177,12 @@
 			{#snippet middle()}
 				<a class="cell back" href={resolve('/')} aria-label="Back to the library">←</a>
 				<span class="cell title">BROWSE</span>
-				<a class="cell hint" href={resolve('/downloads/search')}>/ search every source</a>
+				<!-- What a search will ask (c1142): the pinned when any are. -->
+				<a class="cell hint" href={resolve('/downloads/search')}
+					>/ search {data.pins
+						? `the ${data.pins} pinned source${data.pins === 1 ? '' : 's'}`
+						: 'every source'}</a
+				>
 				<a class="cell ext" href={extensionsHref}>
 					<span class="top">EXTENSIONS</span>
 					<span
@@ -285,6 +292,26 @@
 			appears once its source is installed.
 		</p>
 	{:else}
+		{#if list.pinned.length}
+			<!-- 01 — PINNED (c1142): what a search asks by default. Pinned sources
+			     also stay in their kind's section, marked, so a kind's list is whole. -->
+			<div class="label first">
+				<span>01 — PINNED</span>
+				<span
+					>A SEARCH ASKS THESE · {list.pinned.length}{list.pinned.length > 12
+						? ' · A SEARCH ASKS THEM ALL'
+						: ''}</span
+				>
+			</div>
+			<div class="rows">
+				{#each list.pinned as r (r.id)}<SourceRow
+						{r}
+						meta={meta(r)}
+						ticked={ticked(r)}
+						pin={!selecting}
+					/>{/each}
+			</div>
+		{/if}
 		{#if list.recent.length}
 			<!-- RECENT's label is its fold: one stop on a TV, OK toggles it.
 			     Its name is what it shows (`01 — RECENT 4 RECENT SHOW ↓`), so a
@@ -292,13 +319,14 @@
 			     display: none, and out of the name. -->
 			<button
 				type="button"
-				class="label first fold"
+				class="label fold"
+				class:first={!list.pinned.length}
 				class:shut={recentShut}
 				aria-expanded={!recentShut}
 				aria-controls="browse-recent"
 				onclick={toggleRecent}
 			>
-				<span>01 — RECENT</span>
+				<span>{pad(lead + 1)} — RECENT</span>
 				<span class="right">
 					<span class="when-open">{recentOpen.text}</span><span class="when-shut"
 						>{recentClosed.text}</span
@@ -314,16 +342,22 @@
 						{r}
 						meta={recentMeta(r)}
 						ticked={ticked(r)}
+						pin={!selecting}
 					/>{/each}
 			</div>
 		{/if}
 		{#each sections as s, i (s.title)}
-			<div class="label" class:first={i === 0 && !list.recent.length}>
-				<span>{pad(i + (list.recent.length ? 2 : 1))} — {s.title}</span>
+			<div class="label" class:first={i === 0 && !list.recent.length && !list.pinned.length}>
+				<span>{pad(i + 1 + lead + (list.recent.length ? 1 : 0))} — {s.title}</span>
 				<span>{s.right}</span>
 			</div>
 			<div class="rows">
-				{#each s.rows as r (r.id)}<SourceRow {r} meta={meta(r)} ticked={ticked(r)} />{/each}
+				{#each s.rows as r (r.id)}<SourceRow
+						{r}
+						meta={meta(r)}
+						ticked={ticked(r)}
+						pin={!selecting}
+					/>{/each}
 			</div>
 		{/each}
 	{/if}
