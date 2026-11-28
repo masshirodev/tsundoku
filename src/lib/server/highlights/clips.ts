@@ -379,15 +379,22 @@ export function trimPlaylist(
 	const kept = segs.filter((s) => s.at + s.d > Math.max(0, from - pad) && s.at < to);
 	if (!kept.length) return null;
 	// An encrypted stream's key tag sits on the first segment it applies to,
-	// which may be before the range: carried onto the first kept one.
+	// which may be before the range: carried onto the first kept one. Only the
+	// last KEY and the last MAP before it are in force there; a list whose keys
+	// go A, B, A must not end the carried tags on B.
 	const firstKept = segs.indexOf(kept[0]);
-	const carried = segs
+	const seen = segs
 		.slice(0, firstKept + 1)
 		.flatMap((s) => s.tags.filter((t) => /^#EXT-X-(KEY|MAP)/.test(t)));
+	const lastOf = (tag: string) => seen.findLastIndex((t) => t.startsWith(tag));
+	const carried = [lastOf('#EXT-X-MAP'), lastOf('#EXT-X-KEY')]
+		.filter((i) => i >= 0)
+		.sort((a, b) => a - b)
+		.map((i) => seen[i]);
 	const body = kept
 		.flatMap((s, i) =>
 			i === 0
-				? [...new Set(carried), ...s.tags.filter((t) => !/^#EXT-X-(KEY|MAP)/.test(t)), s.uri]
+				? [...carried, ...s.tags.filter((t) => !/^#EXT-X-(KEY|MAP)/.test(t)), s.uri]
 				: [...s.tags, s.uri]
 		)
 		.map((l) => (l.startsWith('#') ? resolveUris(l, base) : l));
@@ -542,6 +549,10 @@ async function fetchTrack(
 			input = ['-extension_picky', '0', '-f', 'hls', '-i', server.url];
 		} else {
 			// A file a hoster links to has no segments: ffmpeg seeks it by range.
+			// `-t` is an input option here, before `-i`, so it counts from the seek:
+			// after `-i` it is an output option, and under `-copyts` an output's time
+			// is the file's own, so it stopped at second `end - start` of the episode
+			// and a range past the first minute came back empty.
 			start = Math.max(0, job.from - FETCH_PAD_S);
 			end = job.to + FETCH_PAD_S;
 			input = [
@@ -549,10 +560,10 @@ async function fetchTrack(
 				'-start_at_zero',
 				'-ss',
 				String(start),
-				'-i',
-				source.url,
 				'-t',
-				String(end - start)
+				String(end - start),
+				'-i',
+				source.url
 			];
 		}
 		const { stderr } = await ranFfmpeg(
@@ -580,15 +591,21 @@ async function fetchTrack(
 		);
 		if (job.dropped) throw new Failed('stream');
 		const f = await facts(part);
-		const got = (hls ? 0 : f.start) + (f.seconds ?? 0);
-		const stopped = (hls ? start : 0) + got;
-		if (SEGMENT_LOST.test(stderr) || f.seconds === null || f.seconds <= 0)
-			throw new Failed('stream', stopped);
+		// Where the part ends, in episode seconds. An HLS part starts at zero, so
+		// its duration is its length and it ends that far after the first kept
+		// segment. A plain file's part keeps the episode's own timestamps
+		// (`-copyts`), and a Matroska file's probed duration is then its last
+		// timestamp, the absolute end, not a length: adding its start would put
+		// the end a whole fetch window late, and a short fetch would pass for the
+		// whole range.
+		const fileStart = hls ? start : f.start;
+		const fileEnd = hls ? start + (f.seconds ?? 0) : (f.seconds ?? 0);
+		if (SEGMENT_LOST.test(stderr) || f.seconds === null || fileEnd - fileStart <= 0)
+			throw new Failed('stream', hls ? fileEnd : fileStart);
 		// ffmpeg's HLS reader skips a segment it could not get and exits 0, so a
 		// file shorter than its segments add up to is a hole, not a short stream.
-		if (hls && got < end - start - 1) throw new Failed('stream', stopped);
-		const fileStart = hls ? start : f.start;
-		return { start: fileStart, end: fileStart + (f.seconds ?? 0) };
+		if (hls && fileEnd - start < end - start - 1) throw new Failed('stream', fileEnd);
+		return { start: fileStart, end: fileEnd };
 	} finally {
 		server?.close();
 	}

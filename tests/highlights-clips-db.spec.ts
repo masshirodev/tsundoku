@@ -114,13 +114,48 @@ const difference = (a: Buffer, b: Buffer) => {
  * The clip's first frame is the source's at `t`, not one 0.4 s off to either side:
  * how far apart two frames are depends on which they are and on the encoder.
  */
-function expectFrameNearest(file: string, t: number) {
-	const source = join(src, 'plain.mkv');
+function expectFrameNearest(file: string, t: number, source = join(src, 'plain.mkv')) {
 	const first = frameAt(file, 0, false);
 	const at = difference(first, frameAt(source, t));
 	expect(at).toBeLessThan(difference(first, frameAt(source, t - 0.4)));
 	expect(at).toBeLessThan(difference(first, frameAt(source, t + 0.4)));
 }
+
+/** How many video packets a file holds: its pictures, not its container's say-so. */
+const videoPackets = (path: string) =>
+	Number(
+		execFileSync(
+			'ffprobe',
+			[
+				'-v',
+				'error',
+				'-select_streams',
+				'v:0',
+				'-count_packets',
+				'-show_entries',
+				'stream=nb_read_packets',
+				'-of',
+				'csv=p=0',
+				path
+			],
+			{ stdio: ['ignore', 'pipe', 'ignore'] }
+		)
+			.toString()
+			.trim()
+	);
+/**
+ * A plain file long enough to reach past the first minute: a hoster's MP4 is
+ * a whole episode, and a range only fails the absolute `-t` once `from` is past
+ * the range's own length plus the fetch's pads. 25 fps, a tone from
+ * `LONG_TONE_AT`, so a clip from `LONG_TONE_AT - 2` hears it at two seconds.
+ */
+const LONG_S = 90;
+const LONG_TONE_AT = 72;
+/**
+ * Where the stand-in hangs up: on `cutfile` a third of the way in, before a late
+ * range; on `cutinside` at the first picture of second 72, inside 70 to 74.
+ */
+const cuts = new Map<string, number>();
 
 const subs = (lang: string) => {
 	const path = join(src, `${lang}.srt`);
@@ -205,6 +240,60 @@ function withoutLeadingTables(ts: Buffer): Buffer {
 	let at = 0;
 	while (at + PACKET <= ts.length && [0, 0x11, 0x1000].includes(pid(at))) at += PACKET;
 	return ts.subarray(at);
+}
+
+function buildLongFiles() {
+	const tone = `aevalsrc='if(gte(t,${LONG_TONE_AT}),0.8*sin(2*PI*440*t),0)':d=${LONG_S}:s=48000`;
+	const long = join(src, 'long.mkv');
+	ffmpeg([
+		'-f',
+		'lavfi',
+		'-i',
+		`testsrc=size=160x90:rate=25:duration=${LONG_S}`,
+		'-f',
+		'lavfi',
+		'-i',
+		tone,
+		'-c:v',
+		'libx264',
+		'-preset',
+		'ultrafast',
+		'-g',
+		'25',
+		'-c:a',
+		'aac',
+		'-shortest',
+		long
+	]);
+	extra.set(token('longfile'), readFileSync(long));
+	extra.set(token('cutfile'), readFileSync(long));
+	cuts.set(token('cutfile'), Math.floor(readFileSync(long).length / 3));
+	extra.set(token('cutinside'), readFileSync(long));
+	const at72 = execFileSync(
+		'ffprobe',
+		[
+			...['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'packet=pts_time,pos'],
+			...['-of', 'csv=p=0', long]
+		],
+		{ stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 26 }
+	)
+		.toString()
+		.trim()
+		.split('\n')
+		.map((l) => l.split(',').map(Number))
+		.find(([t]) => t >= 72)!;
+	cuts.set(token('cutinside'), at72[1]);
+	// serveMaster's shape over two plain files: the picture, and its audio beside it.
+	const video = join(src, 'longvideo.mkv');
+	ffmpeg(['-i', long, '-an', '-c:v', 'copy', video]);
+	extra.set(token('longvideo'), readFileSync(video));
+	const audio = join(src, 'longaudio.mka');
+	ffmpeg(['-f', 'lavfi', '-i', tone, '-c:a', 'aac', audio]);
+	extra.set(token('longaudio'), readFileSync(audio));
+	extra.set(
+		token('masterlong'),
+		serveMasterText('longvideo', [{ lang: 'EN', token: token('longaudio') }])
+	);
 }
 
 function buildSeparateStreams(video: string) {
@@ -364,6 +453,7 @@ beforeAll(async () => {
 	);
 
 	buildSeparateStreams(video);
+	buildLongFiles();
 
 	server = createServer(async (req, res) => {
 		const url = req.url ?? '';
@@ -400,6 +490,21 @@ beforeAll(async () => {
 			}
 			// As the proxy passes a hoster's file through: Range and all.
 			const from = Number(/^bytes=(\d+)-/.exec(req.headers.range ?? '')?.[1] ?? 0);
+			const cutAt = cuts.get(held);
+			if (cutAt !== undefined) {
+				// A hoster that stops sending a third of the way in: it says the whole
+				// length, sends up to there, and hangs up.
+				res.writeHead(req.headers.range ? 206 : 200, {
+					'content-type': 'application/octet-stream',
+					'accept-ranges': 'bytes',
+					'content-length': String(body.length - from),
+					...(req.headers.range
+						? { 'content-range': `bytes ${from}-${body.length - 1}/${body.length}` }
+						: {})
+				});
+				if (from < cutAt) res.write(body.subarray(from, cutAt));
+				return void res.destroy();
+			}
 			return res
 				.writeHead(req.headers.range ? 206 : 200, {
 					'content-type': 'application/octet-stream',
@@ -868,6 +973,78 @@ describe('a stream with separate audio (serveMaster’s shape)', () => {
 	}, 60_000);
 });
 
+describe('a stream that is a plain file, past the first minute', () => {
+	const plainFile = (token_: string) => ({
+		...oneQuality(media(token_)),
+		servers: [
+			{
+				n: 1,
+				name: 'S1',
+				qualities: [
+					{ label: '90p', height: 90, kind: 'file', src: media(token_), audio: [], subtitles: [] }
+				]
+			}
+		]
+	});
+
+	it('a range late in the file is made, its length in pictures, from the frame at its in point', async () => {
+		stand.streams = plainFile('longfile');
+		const { job: j } = await finished(ask(70, 74, { subtitle: null }).id);
+		expect(j).toMatchObject({ step: 'made', why: null, from: 70, to: 74 });
+		const r = row(j.highlightId!);
+		expect(r).toMatchObject({ clip_in: 70, clip_out: 74 });
+		const file = join(area, String(r.copy_path));
+		expect(Math.abs(videoPackets(file) - 4 * 25)).toBeLessThanOrEqual(1);
+		expectFrameNearest(file, 70, join(src, 'long.mkv'));
+		expectToneAtTwoSeconds(file);
+	}, 60_000);
+
+	it('behind serveMaster with its audio a plain file too, picture and sound are both the range', async () => {
+		stand.streams = oneQuality(media('masterlong'), [{ lang: 'EN', src: media('longaudio') }]);
+		const { job: j } = await finished(ask(70, 74, { subtitle: null }).id);
+		expect(j).toMatchObject({ step: 'made', why: null, from: 70, to: 74 });
+		const file = join(area, String(row(j.highlightId!).copy_path));
+		expect(Math.abs(videoPackets(file) - 4 * 25)).toBeLessThanOrEqual(1);
+		const [audio] = audioStreams(file);
+		const [, min, sec] = /^\d+:(\d+):([\d.]+)/.exec(audio.tags!.DURATION!)!;
+		expect(Number(min) * 60 + Number(sec)).toBeCloseTo(4, 0);
+		expectFrameNearest(file, 70, join(src, 'long.mkv'));
+		expectToneAtTwoSeconds(file);
+	}, 60_000);
+
+	it('a range running past the end is the clip that exists, and the row says where it ended', async () => {
+		stand.streams = plainFile('longfile');
+		const { job: j } = await finished(ask(84, 96, { subtitle: null }).id);
+		expect(j.step).toBe('made');
+		expect(j.to).toBeGreaterThan(LONG_S - 0.5);
+		expect(j.to).toBeLessThan(LONG_S + 0.5);
+		const r = row(j.highlightId!);
+		expect(r.clip_out).toBe(j.to);
+		const file = join(area, String(r.copy_path));
+		// The picture reaches the file's end: six seconds of it, not the twelve asked.
+		expect(Math.abs(videoPackets(file) - (LONG_S - 84) * 25)).toBeLessThanOrEqual(2);
+		expectFrameNearest(file, 84, join(src, 'long.mkv'));
+	}, 60_000);
+
+	it('a file that stops short of the range does not say the range was made', async () => {
+		stand.streams = plainFile('cutfile');
+		const { job: j } = await finished(ask(70, 74, { subtitle: null }).id);
+		expect(j).toMatchObject({ step: 'failed', why: 'stream' });
+		expect(rowCount()).toBe(0);
+		expect(partsLeft()).toEqual([]);
+	}, 60_000);
+
+	it('a file that stops inside the range does not say the whole range was made', async () => {
+		stand.streams = plainFile('cutinside');
+		const { job: j } = await finished(ask(70, 74, { subtitle: null }).id);
+		// ffmpeg's reader fails on the hang-up rather than end the part early.
+		expect(j).toMatchObject({ step: 'failed', why: 'stream' });
+		expect(j.stoppedAt).toBeLessThanOrEqual(72);
+		expect(rowCount()).toBe(0);
+		expect(partsLeft()).toEqual([]);
+	}, 60_000);
+});
+
 describe('a stream whose tags name more files', () => {
 	it('an fMP4 stream is cut exact to the frame, past segment 0, its init segment asked of the proxy', async () => {
 		stand.streams = oneQuality(media('fmp'));
@@ -923,6 +1100,40 @@ describe('a stream whose tags name more files', () => {
 		expect(clips.trimPlaylist(plain, 'http://h/l', 22, 28, 0)!.text).toContain(
 			'#EXT-X-MEDIA-SEQUENCE:2'
 		);
+	});
+
+	it('trimPlaylist carries the key and the map in force at the first kept segment, not the first seen', () => {
+		const text = [
+			'#EXTM3U',
+			'#EXT-X-MAP:URI="/m/initA"',
+			'#EXT-X-KEY:METHOD=AES-128,URI="/m/keyA"',
+			'#EXTINF:10,',
+			'/m/s0',
+			'#EXT-X-MAP:URI="/m/initB"',
+			'#EXT-X-KEY:METHOD=AES-128,URI="/m/keyB"',
+			'#EXTINF:10,',
+			'/m/s1',
+			'#EXT-X-MAP:URI="/m/initA"',
+			'#EXT-X-KEY:METHOD=AES-128,URI="/m/keyA"',
+			'#EXTINF:10,',
+			'/m/s2',
+			'#EXTINF:10,',
+			'/m/s3',
+			'#EXT-X-ENDLIST'
+		].join('\n');
+		// Keys go A, B, A before the range (30 to 38, segment 3): A is in force.
+		const kept = clips.trimPlaylist(text, 'http://h/l', 32, 38, 0)!;
+		const lines = kept.text.split('\n');
+		const first = lines.findIndex((l) => l.endsWith('/m/s3'));
+		const tags = lines.slice(0, first).filter((l) => /^#EXT-X-(KEY|MAP)/.test(l));
+		expect(tags).toEqual([
+			'#EXT-X-MAP:URI="http://h/m/initA"',
+			'#EXT-X-KEY:METHOD=AES-128,URI="http://h/m/keyA"'
+		]);
+		// A key never repeated is still carried from before the range.
+		const once = clips.trimPlaylist(text, 'http://h/l', 12, 18, 0)!.text;
+		expect(once).toContain('URI="http://h/m/keyB"');
+		expect(once).not.toContain('URI="http://h/m/keyA"');
 	});
 });
 
