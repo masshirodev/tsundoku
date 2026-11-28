@@ -647,10 +647,13 @@ made is lost to a restart without a word: the owner marks it again.
 - **Why it wasn't made**: THE STREAM STOPPED ANSWERING AT m:ss, THE WORKSTATION
   ISN'T ANSWERING (the engine down, or a KEEP nobody answered), NO ROOM ON THE
   DISK, and two the handoff doesn't name: THE FILE COULDN'T BE READ (a local file
-  that won't read is not a stream), THE EPISODE IS GONE (deleted mid-cut). TRY AGAIN keeps the range, asks the stream afresh, and **replaces** the
-  failed job on the workstation, so a poll, a reload or a second device can't read
-  the old failure as the newest word on that range; the player also won't take back
-  an id it has let go of, for a poll already in flight.
+  that won't read is not a stream), THE EPISODE IS GONE (deleted mid-cut).
+  TRY AGAIN keeps the range and asks the stream afresh. Any new ask of a
+  range, TRY AGAIN or a plain KEEP, **replaces** that range's failed job on
+  the workstation (a failure of another range stays), so a poll, a reload or
+  a second device can't read the old failure as the newest word on that range;
+  the player also won't take back an id it has let go of, for a poll already in
+  flight.
 - **A KEEP that got no answer, or a refusal**, is drawn over whatever job the band
   holds. No answer (or a 5xx) is THE WORKSTATION ISN'T ANSWERING with a TRY AGAIN
   that asks afresh; a 400 is THAT RANGE CAN'T BE KEPT, a 403 INCOGNITO KEEPS NO

@@ -1056,10 +1056,11 @@ export function keepClip(ask: KeepClip, reveal: boolean, db: Database.Database =
 		j.entryId === ask.entryId &&
 		Math.abs(j.from - range.from) < 0.05 &&
 		Math.abs(j.to - range.to) < 0.05;
-	// A retry replaces the failure, so a poll, a reload or a second device can't
-	// read it as the newest word on this range.
-	if (ask.fresh)
-		for (const [id, j] of jobs) if (sameRange(j) && j.step === 'failed') jobs.delete(id);
+	// A new ask of a range replaces its failure, TRY AGAIN or a plain KEEP alike,
+	// so a poll, a reload or a second device can't read the failure as the newest
+	// word on this range over the clip that follows it. `fresh` only decides
+	// whether the stream is asked afresh.
+	for (const [id, j] of jobs) if (sameRange(j) && j.step === 'failed') jobs.delete(id);
 	const twin = [...jobs.values()].find(
 		(j) => sameRange(j) && !j.dropped && j.step !== 'failed' && j.step !== 'made'
 	);

@@ -469,7 +469,7 @@ test('a poll still in flight when TRY AGAIN was pressed does not bring the failu
 	await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
-test('a plain KEEP again after a real failure, no retry, ends on the new clip', async ({
+test('a plain KEEP again after a real failure, no retry, ends on the new clip, and a reload or a second page says so too', async ({
 	page
 }) => {
 	await open(page);
@@ -486,6 +486,23 @@ test('a plain KEEP again after a real failure, no retry, ends on the new clip', 
 	await page.waitForTimeout(2300);
 	await expect(band(page)).toContainText('CLIP KEPT · 0:02');
 	expect(rows(entry)).toHaveLength(1);
+
+	// Within the lane's ten minutes, a new page asks the server what this range
+	// came to: the clip, its box, and no failure over it.
+	const second = await page.context().newPage();
+	for (const p of [page, second]) {
+		// The player asks the lane once as it mounts: that answer is the one read.
+		const answered = p.waitForResponse(
+			(r) => r.request().method() === 'GET' && /\/api\/highlights\/clips\?entry=/.test(r.url())
+		);
+		await open(p);
+		const jobs = (await (await answered).json()) as { step: string }[];
+		await expect(p.locator('.scrubrow .track .kr:not(.dash)')).toHaveCount(1);
+		await expect(p.locator('.player')).toHaveClass(/chrome/);
+		await expect(p.getByText("THE CLIP WASN'T MADE")).toHaveCount(0);
+		expect(jobs.map((j) => j.step)).toEqual(['made']);
+	}
+	await second.close();
 });
 
 test('a second KEEP nobody answers says so over the first clip, and TRY AGAIN cuts the second range', async ({

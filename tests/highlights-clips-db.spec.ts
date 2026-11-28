@@ -1217,11 +1217,40 @@ describe('TRY AGAIN, on the lane', () => {
 		await finished(again.id);
 	}, 60_000);
 
-	it('a plain KEEP again, no retry, leaves the failure listed before the new job', async () => {
+	it('a plain KEEP of a failed range replaces the failure too, and does not ask the stream afresh', async () => {
 		const failed = await failedOnce(2, 4);
 		const again = ask(2, 4);
-		expect(clips.clipJobs(true).map((j) => j.id)).toEqual([failed.id, again.id]);
+		expect(clips.clipJobs(true).map((j) => j.id)).toEqual([again.id]);
+		expect(failed.id).not.toBe(again.id);
+		const { job: made } = await finished(again.id);
+		expect(made.step).toBe('made');
+		// A reload or a second device asks the lane: only the clip is listed.
+		expect(clips.clipJobs(true).map((j) => j.id)).toEqual([again.id]);
+		expect(stand.fresh).toEqual([false, false]);
+		expect(rowCount()).toBe(1);
+	}, 60_000);
+
+	it('a plain KEEP of another range leaves the other failed job alone', async () => {
+		const other = await failedOnce(6, 8);
+		const failed = await failedOnce(2, 4);
+		const again = ask(2, 4);
+		const ids = clips.clipJobs(true).map((j) => j.id);
+		expect(ids).toContain(other.id);
+		expect(ids).toContain(again.id);
+		expect(ids).not.toContain(failed.id);
 		await finished(again.id);
+	}, 60_000);
+
+	it('a plain KEEP while the failed range’s retry runs is that retry, and the failure stays gone', async () => {
+		const failed = await failedOnce(2, 4);
+		sick = (seg) => (seg.startsWith('seg') ? 'slow' : 'ok');
+		const retry = ask(2, 4, { fresh: true });
+		const plain = ask(2, 4);
+		expect(plain.id).toBe(retry.id);
+		expect(clips.clipJobs(true).map((j) => j.id)).toEqual([retry.id]);
+		expect(clips.clipJobs(true).map((j) => j.id)).not.toContain(failed.id);
+		await finished(retry.id);
+		expect(stand.fresh).toEqual([false, true]);
 	}, 60_000);
 
 	it('a second retry while the first runs is the job already going', async () => {
