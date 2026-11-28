@@ -245,6 +245,16 @@ colours (`.cstart` in `TextReader.svelte`):
   between it and the first column (logical sides, `border-block-end`).
 - **Both themes and DIM** by the page's own colours (`--ink`, `--mut`); on a
   TV it is no stop of the pad's, since it is not a control.
+- **END follows the page's colours in both layouts**, as this band does.
+  PAGED's END (`.band`) and SCROLL's (`.sband`) draw their rules and title in
+  `--ink`, their row, NEXT and minutes in `--mut`, and CONTINUE in the accent,
+  with no ground of their own: they sit on the page's. SCROLL's inner rule,
+  between the row and NEXT, is the page's own line (`--pl1`), which in DARK is
+  the same graphite as before. So PAPER's END is ink on paper, not a dark
+  block, and DARK's END band sits on the page's true black, where it once
+  painted the app's own `--surface-page` (`--graphite-950`) block across the
+  page. The copy of SCROLL's END kept above the next chapter after a crossing
+  ("Pages") is the same element, so it paints the same.
 
 Tested in `tests/text-reader-flow.e2e.ts` ("the band at a chapter's start":
 a book whose chapters have the title as heading, no heading, another
@@ -252,7 +262,10 @@ heading, a `Chapter 4:` prefix, a full-page illustration first, and
 `Chapter 6` over a second heading that is the title, in PAGED
 and SCROLL, with a saved place reopened on its words; and the rule's
 side in a vertical book, computed and drawn, and END's colours in DARK, PAPER
-and under DIM).
+and under DIM). SCROLL's END is tested too, by computed value in DARK and
+PAPER: its rules, row, title and minutes against the start band's, its inner
+rule against the page's line, the ground it sits on against the page's, and
+the copy kept above the next chapter after a crossing).
 
 ## Position
 

@@ -1298,10 +1298,56 @@ const bandColours = (page: Page) =>
 		};
 	});
 
+/**
+ * SCROLL's END band beside the start band above it, by computed value: the
+ * band's rules, its row, its title and its minutes, its inner rule beside the
+ * page's own line (`--pl1`, read off a probe so the two are in one format), and
+ * the ground it sits on beside the page's. `within` reads a copy of the band
+ * kept above a chapter once SCROLL has crossed into it.
+ */
+const sbandColours = (page: Page, within = '.flow > .sband') =>
+	page.evaluate((within) => {
+		const at = (sel: string) => document.querySelector<HTMLElement>(sel)!;
+		const css = (sel: string) => getComputedStyle(at(sel));
+		const reader = at('.text-reader');
+		const probe = document.createElement('div');
+		probe.style.background = 'var(--pl1)';
+		reader.append(probe);
+		const line = getComputedStyle(probe).backgroundColor;
+		probe.remove();
+		// What shows behind the band: the first ancestor, itself included, that paints.
+		const clear = (c: string) => c === 'transparent' || c === 'rgba(0, 0, 0, 0)';
+		let under: HTMLElement | null = at(within);
+		while (under && clear(getComputedStyle(under).backgroundColor)) under = under.parentElement;
+		return {
+			start: {
+				rule: css('.flow > .cstart').borderBlockEndColor,
+				row: css('.flow > .cstart .ab').color,
+				title: css('.flow > .cstart .t').color,
+				minutes: css('.flow > .cstart .m').color
+			},
+			end: {
+				rule: css(within).borderTopColor,
+				row: css(`${within} .ab`).color,
+				title: css(`${within} .nx .t`).color,
+				minutes: css(`${within} .nx .m`).color
+			},
+			closing: css(within).borderBottomColor,
+			inner: css(`${within} .rule`).backgroundColor,
+			line,
+			under: under === reader,
+			ground: getComputedStyle(reader).backgroundColor
+		};
+	}, within);
+
 /** Open the reading sheet, do `then` in it, and close it. */
-async function inReadingSheet(page: Page, then: (sheet: Locator) => Promise<void>) {
+async function inReadingSheet(
+	page: Page,
+	then: (sheet: Locator) => Promise<void>,
+	layout: 'PAGED' | 'SCROLL' = 'PAGED'
+) {
 	await middle(page);
-	await page.getByRole('button', { name: /^PAGED · / }).click();
+	await page.getByRole('button', { name: new RegExp(`^${layout} · `) }).click();
 	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
 	await then(sheet);
 	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
@@ -1478,6 +1524,71 @@ test.describe("the band at a chapter's start", () => {
 		await expect(page.locator('.text-reader')).not.toHaveClass(/\bpaper\b/);
 		await expect(overlay).toHaveCSS('opacity', '0.2');
 		expect(await bandColours(page)).toEqual(dark);
+	});
+
+	// SCROLL's END is END too: the page's colours, as PAGED's band and the
+	// start band take, on the page's own ground, and its copy kept above the
+	// next chapter after a crossing paints the same.
+	test("SCROLL: END paints with the start band's colours, on the page's ground, by computed value", async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		await page.evaluate(() =>
+			localStorage.setItem('tsundoku.text.speed', JSON.stringify({ chars: 300000, ms: 900000 }))
+		);
+		await page.reload();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		await inReadingSheet(page, (sheet) => sheet.getByRole('radio', { name: 'SCROLL' }).click());
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		await openFromContents(page, 'Vol. 2');
+		await expect(page.locator('.flow > .cstart .t').first()).toHaveText('Vol. 2');
+		await expect(page.locator('.flow > .cstart .m').first()).toHaveText(/^ABOUT \d+ MIN$/);
+		await expect(page.locator('.flow > .sband .nx .m')).toHaveText(/^ABOUT \d+ MIN$/);
+
+		const dark = await sbandColours(page);
+		expect(dark.end).toEqual(dark.start);
+		expect(dark.closing).toBe(dark.end.rule);
+		expect(dark.inner).toBe(dark.line);
+		expect(dark.under).toBe(true);
+
+		await inReadingSheet(
+			page,
+			(sheet) => sheet.getByRole('radio', { name: 'PAPER' }).click(),
+			'SCROLL'
+		);
+		await expect(page.locator('.text-reader')).toHaveClass(/\bpaper\b/);
+		const paper = await sbandColours(page);
+		expect(paper.end).toEqual(paper.start);
+		expect(paper.closing).toBe(paper.end.rule);
+		expect(paper.inner).toBe(paper.line);
+		expect(paper.under).toBe(true);
+		// Equal is only worth saying if PAPER moved them: a band stuck on one
+		// colour would match a start band stuck on it too.
+		for (const part of ['rule', 'row', 'title', 'minutes'] as const)
+			expect(paper.end[part], part).not.toBe(dark.end[part]);
+		expect(paper.inner).not.toBe(dark.inner);
+		expect(paper.ground).not.toBe(dark.ground);
+
+		// Across the band: its copy kept above Vol. 3 is the same band.
+		await expect(page.locator('.blocks.next > *').first()).toHaveText('Interlude');
+		expect((await crossOnce(page)).heading).toBe('Interlude');
+		await expect(page.locator('.kept > .sband')).toHaveCount(1);
+		await expect(page.locator('.flow > .cstart .t').first()).toHaveText('Vol. 3');
+		await expect(page.locator('.kept > .sband .nx .m')).toHaveText(/^ABOUT \d+ MIN$/);
+		const kept = await sbandColours(page, '.kept > .sband');
+		expect(kept.end).toEqual(paper.start);
+		expect(kept.closing).toBe(paper.end.rule);
+		expect(kept.inner).toBe(paper.line);
+		expect(kept.under).toBe(true);
+
+		await inReadingSheet(
+			page,
+			(sheet) => sheet.getByRole('radio', { name: 'DARK' }).click(),
+			'SCROLL'
+		);
+		await expect(page.locator('.text-reader')).not.toHaveClass(/\bpaper\b/);
+		expect((await sbandColours(page, '.kept > .sband')).end).toEqual(dark.start);
+		expect(await sbandColours(page)).toEqual(dark);
 	});
 
 	test('PAGED: a saved place opens on the same words, the band before it or not', async ({
