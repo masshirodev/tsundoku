@@ -17,7 +17,7 @@
 	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
-	import { onDestroy, onMount, tick, untrack } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { leavingReader } from '$lib/reader/leaving';
 	import { backLink, goBackTo } from '$lib/back';
@@ -719,24 +719,26 @@
 		if (at.matches('.track, [data-clip-keep]')) return true;
 		return !at.matches('button, a[href], input, select, textarea, summary, [role="button"]');
 	};
-	// KEEP takes the pad once there's a range to keep (A9).
-	$effect(() => {
-		if (!tv.current || !hasRange) return;
-		const keep = untrack(() => root?.querySelector<HTMLElement>('[data-clip-keep]') ?? null);
-		keep?.focus({ preventScroll: true });
-	});
+	/**
+	 * A TV marks nothing: its bar is eight cells (▶❚❚, the minute and 10 s
+	 * pairs, ← EP., the stream, EP. →), and MARK IN and MARK OUT beside them do
+	 * not fit 960 px with the stream's label whole (doc/HIGHLIGHTS.md, "Limits").
+	 * It shows the kept ranges and the clips, and makes none; I, O and ENTER
+	 * are not its keys, as the KEYS list says.
+	 */
+	const marksHere = $derived(!tv.current);
 	function markInNow() {
-		if (clipRefused) return;
+		if (clipRefused || !marksHere) return;
 		clips.markIn(time);
 		showChrome();
 	}
 	function markOutNow() {
-		if (clipRefused || !clips.mark) return;
+		if (clipRefused || !marksHere || !clips.mark) return;
 		clips.markOut(time);
 		showChrome();
 	}
 	function keepRange() {
-		if (clipRefused || !hasRange) return;
+		if (clipRefused || !marksHere || !hasRange) return;
 		void clips.keep(time, clipTracks);
 		showChrome();
 	}
@@ -2080,18 +2082,15 @@
 				>KEEP {clock(clipRange$?.length ?? 0)}</button
 			>
 		{/if}
-		<!-- On a TV the row stays eight cells: BACK is the drop (A9). -->
-		{#if !tv.current}
-			<button
-				type="button"
-				class="cell clipcell"
-				aria-label="Drop the range"
-				onclick={() => {
-					clips.drop();
-					showChrome();
-				}}>✕</button
-			>
-		{/if}
+		<button
+			type="button"
+			class="cell clipcell"
+			aria-label="Drop the range"
+			onclick={() => {
+				clips.drop();
+				showChrome();
+			}}>✕</button
+		>
 	{:else}
 		<button
 			type="button"
@@ -2610,11 +2609,9 @@
 					aria-label="On a minute"
 					onclick={() => (seek(60), showChrome())}>+1m</button
 				>
-				{#if !(tv.current && hasRange)}
-					<button type="button" class="cell" disabled={!prev} onclick={playPrev}
-						>{prev ? `← ${epShort(prev)}` : '←'}</button
-					>
-				{/if}
+				<button type="button" class="cell" disabled={!prev} onclick={playPrev}
+					>{prev ? `← ${epShort(prev)}` : '←'}</button
+				>
 				<!-- VOL: the label mutes; hovering or clicking it opens
 				     the slider above it, and the wheel over either steps 5 %. -->
 				<div
@@ -2654,7 +2651,7 @@
 						</div>
 					</div>
 				</div>
-				{@render clipCells()}
+				{#if marksHere}{@render clipCells()}{/if}
 				<button type="button" class="cell grow" onclick={() => (sheet = true)}>{playing}</button>
 				{#if pipable}
 					<button
@@ -2695,16 +2692,9 @@
 				</div>
 				<div class="when">PLAYS WHEN THIS ONE ENDS · IN {clock(Math.max(0, duration - time))}</div>
 				<div class="two">
-					<!-- ↓ goes to the bar's line: with MARK IN in the row the pad's nearest
-					     stop down-left would otherwise be a mark cell (c704). -->
-					<button type="button" data-focus-down=".scrubrow .track" onclick={stayHere}>STAY</button>
-					<button
-						type="button"
-						class="acc"
-						data-focus-down=".scrubrow .track"
-						data-player-play
-						data-focus-start
-						onclick={playNext}>PLAY NOW →</button
+					<button type="button" onclick={stayHere}>STAY</button>
+					<button type="button" class="acc" data-player-play data-focus-start onclick={playNext}
+						>PLAY NOW →</button
 					>
 				</div>
 			</div>

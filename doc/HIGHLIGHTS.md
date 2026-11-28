@@ -587,8 +587,8 @@ the player's URL (`wayBackHref` writes it, `startSecond` reads it, both in
 
 ## Clips
 
-MARK IN, MARK OUT and KEEP in the player's bar (I, O, ENTER; on a TV, two cells
-after +10 and KEEP takes the pad). The range follows the playhead with its
+MARK IN, MARK OUT and KEEP in the player's bar (I, O, ENTER), on a desktop,
+a tablet and a phone; a TV makes none ("Limits"). The range follows the playhead with its
 length, stops at 3:00 (`3:00 · AT MOST · OUT m:ss`), and an out before the in
 swaps them (`clipRange`). A range past 3:00 asked of the server is cut at 3:00,
 and an out before the in is put in order (`clipAsk`). Kept ranges are boxes above
@@ -659,8 +659,8 @@ made is lost to a restart without a word: the owner marks it again.
   another job says nothing about that KEEP.
 - **ENTER is KEEP only when no other control has focus** (nothing focused, the
   track, or KEEP itself). A focused ✕, TRY AGAIN or transport cell keeps its own
-  Enter. A TV is unaffected: the focus layer takes OK first, and a kept box is no
-  stop for it (`data-focus-skip`), so ↑ from the cells lands on the track.
+  Enter. A kept box is no stop for a TV's pad (`data-focus-skip`), so ↑ from
+  the cells lands on the track there.
 - **The 3:00 is measured from the IN**, on whichever side the out went, so a range
   always contains the point the viewer marked (`clipRange`).
 - **A second KEEP** of the range already being cut is that job; of another range
@@ -671,6 +671,18 @@ made is lost to a restart without a word: the owner marks it again.
 
 ## Limits
 
+- **A TV makes no clip.** Its bar is eight cells (▶❚❚, −1m, −10, +10, +1m,
+  ← EP., the stream, EP. →), and MARK IN and MARK OUT beside them do not fit
+  its 960 px inside the 28 px safe margin. Measured in the `tv` project, the
+  row is 864 px; with no range, ten cells want 938 px with the stream reading
+  `JA · EN SUBS · 1080P · 1.25×` (187 px) and 988 px with `JA · SUBS IN THE
+PICTURE · 1080P · 1.25×` (237 px), so the stream cell is cut to 110 px.
+  With a range (`IN · 1:23:45` 131 px, `OUT · 1:26:45` 140 px, `KEEP 3:00`
+  107 px, ← EP. giving way) they want 1035 and 1085 px. The handoff's A9 drew
+  MARK IN and MARK OUT over the six-cell bar the minute cells have since
+  grown to eight. So a TV shows the kept ranges on its scrubber and the clips
+  on `/highlights`, has no MARK cells, and I, O and ENTER are not its keys
+  (its KEYS list leaves them out). Its layout is the owner's to choose.
 - **No MP4 with a track burned in.** SAVE CLIP saves the MKV. The clip lane
   ("Clips") is where an export would be made, and it is not built.
 - **No NOTE on CLIP KEPT's band** (Anime A7). OPEN → goes to the clip on

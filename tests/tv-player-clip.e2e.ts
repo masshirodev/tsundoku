@@ -5,11 +5,13 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
- * The clip cells on a TV's bar (c704; Anime.dc.html A9): MARK IN and MARK OUT
- * after +10, KEEP takes the pad once there's a range, the row stays eight cells
- * because ← EP. gives way, BACK drops the range before it closes the bar, and a
- * remote's seek keys still seek. On the browse server's anime, in the `tv`
- * project, with its own episode's rows removed after each case.
+ * Clips on a TV: it shows the kept ranges and makes none. Its bar stays the
+ * eight cells it was (MARK IN and MARK OUT beside them do not fit 960 px with
+ * the stream's label whole, doc/HIGHLIGHTS.md "Limits"), I, O and ENTER mark
+ * nothing, a kept clip's box is on the scrubber and is no stop for the pad,
+ * and a remote's seek keys still seek. Runs in `tv` (`tv-*.e2e.ts`, 960x540,
+ * no pointer), on the browse server's anime with its own episode, whose clip
+ * rows are removed after each case.
  */
 const BROWSE = `http://localhost:${process.env.PLAYWRIGHT_BROWSE_PORT ?? '4194'}`;
 test.use({ baseURL: BROWSE, serviceWorkers: 'block' });
@@ -21,26 +23,38 @@ function dbPath() {
 	if (!file) throw new Error(`no browse database in ${dir}`);
 	return join(dir, file);
 }
-function episodeId(): number {
+function episode(): { id: number; series: number } {
 	const db = new Database(dbPath(), { readonly: true });
 	try {
-		return (
-			db
-				.prepare(
-					`SELECT e.id FROM entries e JOIN series s ON s.id = e.series_id
-					WHERE s.title = 'Tsukiakari no Ryokōsha' AND e.season = 2 AND e.episode_number = 3`
-				)
-				.get() as { id: number }
-		).id;
+		return db
+			.prepare(
+				`SELECT e.id, e.series_id AS series FROM entries e JOIN series s ON s.id = e.series_id
+				WHERE s.title = 'Tsukiakari no Ryokōsha' AND e.season = 2 AND e.episode_number = 3`
+			)
+			.get() as { id: number; series: number };
 	} finally {
 		db.close();
 	}
 }
 // In a hook, not at load: `--list` collects this file with no browse world up.
 let entry = 0;
+let series = 0;
 test.beforeAll(() => {
-	entry = episodeId();
+	({ id: entry, series } = episode());
 });
+/** A clip kept on another device: its row, as the lane writes one. */
+function keptClip(from: number, to: number) {
+	const db = new Database(dbPath());
+	try {
+		db.prepare(
+			`INSERT INTO highlights (kind, series_id, entry_id, number, season, clip_in, clip_out,
+				series_title, series_kind, entry_label, made_at)
+			VALUES ('clip', ?, ?, 3, 2, ?, ?, 'Tsukiakari no Ryokōsha', 'anime', 'Ep. 3', ?)`
+		).run(series, entry, from, to, Date.now());
+	} finally {
+		db.close();
+	}
+}
 test.afterEach(() => {
 	const db = new Database(dbPath());
 	try {
@@ -73,40 +87,23 @@ async function at(page: Page, seconds: number) {
 	await expect(page.locator('.player')).toHaveClass(/chrome/);
 }
 
-test('MARK IN and MARK OUT sit after +10, and KEEP takes the pad once there’s a range: eight cells', async ({
+test('the bar keeps its eight cells and offers no MARK IN, and I, O and ENTER mark nothing', async ({
 	page
 }) => {
 	await open(page);
-	const before = await cells(page).allTextContents();
-	expect(before.slice(0, 6).map((t) => t.trim())).toEqual([
-		expect.anything(),
-		'−10',
-		'+10',
-		expect.stringMatching(/^← EP/),
-		'MARK IN',
-		'MARK OUT'
-	]);
-	await at(page, 1);
-	await page.locator('.cells .cell', { hasText: 'MARK IN' }).click();
-	await at(page, 3);
-	await expect(page.locator('[data-clip-keep]')).toBeFocused();
-	await expect(cells(page)).toHaveCount(8);
-	const after = (await cells(page).allTextContents()).map((t) => t.trim());
-	expect(after).not.toContain('✕');
-	expect(after.some((t) => t.startsWith('← EP'))).toBe(false);
-	expect(after).toContain('KEEP 0:02');
-});
-
-test('BACK drops the range before it closes the bar', async ({ page }) => {
-	await open(page);
-	await at(page, 1);
-	await page.locator('.cells .cell', { hasText: 'MARK IN' }).click();
-	await at(page, 2);
-	await page.keyboard.press('Escape');
-	await expect(page.locator('.cells .cell', { hasText: 'MARK IN' })).toBeVisible();
-	await expect(page.locator('.scrubrow .track .mr')).toHaveCount(0);
-	await expect(page).toHaveURL(new RegExp(`/read/${entry}$`));
-	await expect(page.locator('.player')).toHaveClass(/chrome/);
+	const row = (await cells(page).allTextContents()).map((t) => t.trim());
+	expect(row).toHaveLength(8);
+	expect(row.slice(1, 6)).toEqual(['−1m', '−10', '+10', '+1m', expect.stringMatching(/^← EP/)]);
+	expect(row.some((t) => /MARK|KEEP|^IN ·/.test(t))).toBe(false);
+	// The keys a desktop marks with, from the picture's own handler: M after
+	// them shows the handler took the letters, and nothing was marked.
+	await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+	for (const key of ['i', 'o', 'Enter']) await page.keyboard.press(key);
+	await page.keyboard.press('m');
+	await expect(page.locator('video')).toHaveJSProperty('muted', true);
+	await expect(page.locator('.scrubrow .track .in-mark, .scrubrow .track .mr')).toHaveCount(0);
+	await expect(page.locator('.clipband')).toHaveCount(0);
+	await page.keyboard.press('m');
 });
 
 test('a remote’s ⏪ ⏩ still seek, and do not mark', async ({ page }) => {
@@ -120,23 +117,17 @@ test('a remote’s ⏪ ⏩ still seek, and do not mark', async ({ page }) => {
 	await expect
 		.poll(() => page.evaluate(() => document.querySelector('video')!.currentTime))
 		.toBeGreaterThan(5);
-	await expect(page.locator('.cells .cell', { hasText: 'MARK IN' })).toBeVisible();
-	await expect(page.locator('.scrubrow .track .mr')).toHaveCount(0);
+	await expect(page.locator('.scrubrow .track .in-mark, .scrubrow .track .mr')).toHaveCount(0);
 });
 
-test('a kept clip is no stop: ↑ lands on the track, and ← → still seek over its box', async ({
+test('a clip kept elsewhere shows on the scrubber, is no stop: ↑ lands on the track, and ← → still seek over its box', async ({
 	page
 }) => {
+	keptClip(1, 3);
 	await open(page);
-	await at(page, 1);
-	await page.locator('.cells .cell', { hasText: 'MARK IN' }).click();
-	await at(page, 3);
-	await expect(page.locator('[data-clip-keep]')).toBeFocused();
-	await page.keyboard.press('Enter');
-	await expect(page.locator('.scrubrow .track .kr:not(.dash)')).toHaveCount(1, { timeout: 60_000 });
-
+	await expect(page.locator('.scrubrow .track .kr:not(.dash)')).toHaveCount(1);
 	await at(page, 2);
-	await page.locator('.cells .cell', { hasText: 'MARK IN' }).focus();
+	await page.locator('.cells .cell', { hasText: /^← EP/ }).focus();
 	const track = page.locator('.scrubrow .track');
 	await page.keyboard.press('ArrowUp');
 	await expect(track).toBeFocused();
