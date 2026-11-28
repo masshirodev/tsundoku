@@ -670,7 +670,10 @@ screen but the video, and the subtitles, until a tap.
   them itself. Releasing the key ends the pace, so the next press moves a
   minute however soon it comes. ← → stay 10 s on every device, and on a TV,
   SKIP INTRO, SKIP ENDING and the next-episode card's PLAY NOW → take focus
-  when they are offered, so OK presses them.
+  when they are offered, so OK presses them. I, O and ENTER are MARK IN,
+  MARK OUT and KEEP for a clip ([`HIGHLIGHTS.md`](HIGHLIGHTS.md), "Clips"),
+  ENTER only while no other control has focus; a TV makes no clip, so they
+  are not its keys and its KEYS list leaves them out.
 - **The settings sheet**, the middle cell ("JA · EN SUBS · 1080P · 1×"): a
   520px side sheet with the picture playing beside it. QUALITY (this
   server's), SERVER (the hosters by name, the one playing and the ones that
