@@ -319,6 +319,14 @@
 	.lane.wider {
 		overflow-x: auto;
 	}
+	/* `overflow-x: auto` makes the lane a scroller both ways, though it never
+	   overflows downwards, and the app's `overscroll-behavior: none` on every
+	   element (base.css) then kept a vertical drag from passing to the page:
+	   zoomed, the strip scrolled only sideways (c1162). Down the page the lane
+	   hands the scroll on; the page's own `none` still stops the rubber band. */
+	:global(html[data-app]) .lane.wider {
+		overscroll-behavior-y: auto !important;
+	}
 	.lane.wider .strip {
 		max-width: none;
 	}
