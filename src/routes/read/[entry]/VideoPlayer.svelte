@@ -4398,8 +4398,9 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		/* Under the picture and the 44px scrubber with its 1px rule. */
-		top: calc(56px + 100vw * 9 / 16 + 45px);
+		/* Under the picture, the 44px scrubber and the 56px marking row, each
+		   with its 1px rule. */
+		top: calc(56px + 100vw * 9 / 16 + 45px + 57px);
 		bottom: 0;
 		overflow-y: auto;
 		background: var(--surface-page);
@@ -4657,9 +4658,16 @@
 		text-decoration: none;
 		cursor: pointer;
 	}
+	/* Under the scrubber (A10), placed as the rows around it are: in the flow
+	   it would sit at the top, over the bar and its FULL. */
 	.pmarks {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: calc(56px + 100vw * 9 / 16 + 45px);
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
+		background: var(--surface-page);
 		border-bottom: var(--hairline);
 	}
 	.pmarks button {

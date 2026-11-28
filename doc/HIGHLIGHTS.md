@@ -588,7 +588,9 @@ the player's URL (`wayBackHref` writes it, `startSecond` reads it, both in
 ## Clips
 
 MARK IN, MARK OUT and KEEP in the player's bar (I, O, ENTER), on a desktop,
-a tablet and a phone; a TV makes none ("Limits"). The range follows the playhead with its
+a tablet and a phone; a TV makes none ("Limits"). On a phone held upright they
+are a row of their own, three cells under the scrubber and above what scrolls
+(A10), and ✕ is the IN cell pressed again. The range follows the playhead with its
 length, stops at 3:00 (`3:00 · AT MOST · OUT m:ss`), and an out before the in
 swaps them (`clipRange`). A range past 3:00 asked of the server is cut at 3:00,
 and an out before the in is put in order (`clipAsk`). Kept ranges are boxes above

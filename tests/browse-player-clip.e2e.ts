@@ -729,3 +729,69 @@ test('a kept clip’s copy and still are served from the page’s own door', asy
 	for (const file of ['copy', 'still'])
 		expect((await page.request.get(`/api/highlights/${id}/${file}`)).status(), file).toBe(200);
 });
+
+/**
+ * A phone held upright (A10): the marking row is a row of its own under the
+ * scrubber, above what scrolls, and leaves the bar above the picture, FULL
+ * included, to its own presses. Measured by what the browser drew.
+ */
+test.describe('on a phone held upright', () => {
+	test.use({
+		viewport: { width: 390, height: 844 },
+		userAgent: devices['Pixel 7'].userAgent,
+		hasTouch: true,
+		isMobile: true
+	});
+
+	test('the marking row sits under the scrubber, FULL stays pressable, and its cells mark', async ({
+		page
+	}) => {
+		await page.goto(`/read/${entry}`);
+		await page.waitForFunction(
+			() => {
+				const v = document.querySelector('video');
+				return !!v && v.duration > 7 && v.readyState >= 2;
+			},
+			undefined,
+			{ timeout: 30_000 }
+		);
+		await page.evaluate(() => document.querySelector('video')!.pause());
+		const box = (sel: string) =>
+			page.locator(sel).evaluate((n) => {
+				const r = n.getBoundingClientRect();
+				return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+			});
+		const [bar, scrub, marks, body] = await Promise.all(
+			['.pbar', '.pscrub', '.pmarks', '.pbody'].map(box)
+		);
+		// In A10's order, each row starting where the one above ends.
+		expect(marks.top).toBeCloseTo(scrub.bottom, 0);
+		expect(body.top).toBeCloseTo(marks.bottom, 0);
+		expect(marks.top).toBeGreaterThan(bar.bottom);
+		// The bar's cells are its own: the point under FULL is FULL.
+		const full = page
+			.getByRole('region', { name: 'Controls' })
+			.getByRole('button', { name: 'FULL' });
+		const f = (await full.boundingBox())!;
+		expect(
+			await page.evaluate(
+				([x, y]) => document.elementFromPoint(x, y)?.textContent?.trim() ?? '',
+				[f.x + f.width / 2, f.y + f.height / 2]
+			)
+		).toBe('FULL');
+
+		const row = page.locator('.pmarks');
+		await page.evaluate(() => (document.querySelector('video')!.currentTime = 1));
+		await expect(page.locator('.pscrub')).toContainText('0:01');
+		await row.getByRole('button', { name: 'MARK IN' }).tap();
+		await expect(row.getByRole('button', { name: 'Drop the range' })).toHaveText('IN · 0:01');
+		await page.evaluate(() => (document.querySelector('video')!.currentTime = 3));
+		await expect(page.locator('.pscrub')).toContainText('0:03');
+		await row.getByRole('button', { name: 'MARK OUT' }).tap();
+		await expect(row.getByRole('button', { name: /^KEEP/ })).toHaveText('KEEP 0:02');
+		await expect(row.getByRole('button', { name: /^KEEP/ })).toBeEnabled();
+		// ✕ is the IN cell pressed again.
+		await row.getByRole('button', { name: 'Drop the range' }).tap();
+		await expect(row.getByRole('button', { name: 'MARK IN' })).toBeVisible();
+	});
+});
