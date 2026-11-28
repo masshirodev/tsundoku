@@ -120,9 +120,11 @@ NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
   resolved) is not a move, since the promise is about a known height. The
   BUFFERING panel names no lower step and the manual SERVER n NOW → and the
   sheet's own rows are still the way by hand. A fatal error asks the source's
-  list afresh once and re-attaches only where the kept height plays; with
-  none, the no-server panel says "NOTHING KEEPS THE QUALITY" with CHOOSE and
-  TRY AGAIN, and never attaches a lower quality. Off, a stall is as it was:
+  list afresh once and re-attaches only where the quality QUALITY's cap
+  chooses keeps the height; with none, the no-server panel says "NOTHING
+  KEEPS THE QUALITY" with CHOOSE (the player's sheet, over the panel, where a
+  choice by hand plays) and TRY AGAIN (which asks for the same height again),
+  and never attaches a lower quality by itself. Off, a stall is as it was:
   the next server, then one quality down ([`ANIME.md`](ANIME.md), "Servers
   fail all the time").
 - **SPEED**, **DIM** and **VOLUME** are listed with no control. VOLUME

@@ -216,6 +216,38 @@ export const keptHeight = (wanted: number | null, playing: number | null) =>
 	wanted !== null && playing !== null ? Math.min(wanted, playing) : (wanted ?? playing);
 
 /**
+ * The quality a device starts a server on: the first height at or below its
+ * [cap] (the device's QUALITY, or 720 on a phone), else the lowest listed; with
+ * no cap, the best. [heights] are the server's qualities, best first.
+ */
+export function capIndex(heights: (number | null)[], cap: number | null): number {
+	if (cap === null) return 0;
+	const i = heights.findIndex((h) => h !== null && h <= cap);
+	return i >= 0 ? i : heights.length - 1;
+}
+
+/**
+ * Where NEVER LOWER re-attaches from a fresh list: the first server, in the
+ * source's order, on which the quality the device's [cap] would choose
+ * (`capIndex`, as any start) is at least [kept]. A server's top quality is not
+ * the pick, or a device capped at 720 would come back at 1080; and a server
+ * whose capped pick is lower is not one either, since the cap is the device's
+ * own rule. Null when none keeps it: the no-server panel says so.
+ */
+export function keepPick(
+	servers: ServerSizes[],
+	cap: number | null,
+	kept: number
+): { n: number; i: number } | null {
+	for (const s of servers) {
+		const i = capIndex(s.heights, cap);
+		const h = s.heights[i];
+		if (h !== null && h !== undefined && h >= kept) return { n: s.n, i };
+	}
+	return null;
+}
+
+/**
  * A double-tap on a side third seeks 10 s, and each further tap within the
  * burst adds 10: [taps] is the count in the burst, from 2.
  */

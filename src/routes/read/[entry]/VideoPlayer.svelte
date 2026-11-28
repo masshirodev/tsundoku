@@ -59,6 +59,8 @@
 		stallStep,
 		keepServer,
 		keptHeight,
+		capIndex,
+		keepPick,
 		type StallStep,
 		SUB_SIZES,
 		cleanVolume,
@@ -270,9 +272,13 @@
 	/** The height NEVER LOWER keeps: what the device asked for, or what plays now. */
 	const chosenHeight = $derived(keptHeight(wantedQuality, quality?.height ?? null));
 	/**
-	 * The height a fresh list was asked to keep, until it plays: the list it
-	 * comes back with can be lower, which would leave `chosenHeight` reading the
-	 * lower one while the panel is still saying what it waits for.
+	 * The height NEVER LOWER is waiting at while nothing plays it. Written by
+	 * `start` from the height a fresh list was asked to keep, and left standing
+	 * when that list is refused, so the panel and TRY AGAIN keep naming it;
+	 * cleared when a list plays (`start`), by a choice made by hand
+	 * (`byHand`), and by any `start` asked to keep nothing (TRY AGAIN with the
+	 * setting off, the next episode's). Left set, it only ever names a height
+	 * the next TRY AGAIN asks for, which is what the panel says it waits at.
 	 */
 	let keptAt = $state<number | null>(null);
 	/** The height the words name: the one being kept, or the one playing. */
@@ -689,20 +695,25 @@
 		failed.clear();
 		failedAt = {};
 		holdTried.clear();
-		// NEVER LOWER's fresh ask after a fatal error: re-attach only to a height
-		// that keeps what was playing. A fresh list that offers less is said out
-		// loud below, never attached behind the setting's back.
+		// NEVER LOWER's fresh ask after a fatal error: re-attach only where the
+		// quality the device's cap chooses (as any start) keeps the height. A
+		// fresh list that offers less is said out loud below, never attached
+		// behind the setting's back.
 		let pick = { n: got.servers[0].n, i: startIndex(got.servers[0]) };
 		if (keepAtLeast !== null) {
-			const keeps = got.servers
-				.map((s) => ({
-					n: s.n,
-					i: s.qualities.findIndex((q) => q.height !== null && q.height >= keepAtLeast)
-				}))
-				.find((x) => x.i >= 0);
+			const keeps = keepPick(
+				got.servers.map((s) => ({ n: s.n, heights: s.qualities.map((q) => q.height) })),
+				deviceCap(),
+				keepAtLeast
+			);
 			if (!keeps) {
-				serverN = pick.n;
-				qualityIndex = pick.i;
+				// Refused: nothing is current, so no lower quality reads as the one
+				// chosen (`chosenHeight` would then name it, and TRY AGAIN keep it).
+				// The list stays for CHOOSE's sheet, and the second it stopped at
+				// for a choice made there.
+				serverN = got.servers[0].n;
+				qualityIndex = -1;
+				if (at !== undefined) reloadingTo = at;
 				phase = 'noServer';
 				return;
 			}
@@ -731,14 +742,19 @@
 		if (open?.resumed && linked === null) showResumed(open.at);
 	}
 
-	/** The quality this device starts on: its own choice, else the best, 720 on a phone. */
-	function startIndex(s: Server): number {
+	/** This device's cap on a stream's height: its own choice, else 720 on a phone, else none. */
+	function deviceCap(): number | null {
 		const want = load<number | null>('tsundoku:anime:quality', null);
 		const phone = matchMedia('(max-width: 599px), (max-height: 499px)').matches;
-		const cap = want ?? (phone ? 720 : null);
-		if (cap === null) return 0;
-		const i = s.qualities.findIndex((q) => q.height !== null && q.height <= cap);
-		return i >= 0 ? i : s.qualities.length - 1;
+		return want ?? (phone ? 720 : null);
+	}
+
+	/** The quality this device starts on: its own choice, else the best, 720 on a phone. */
+	function startIndex(s: Server): number {
+		return capIndex(
+			s.qualities.map((q) => q.height),
+			deviceCap()
+		);
 	}
 
 	// ---- playing -----------------------------------------------------------------------------------
@@ -827,7 +843,7 @@
 			detach();
 			if (!freshTried) {
 				freshTried = true;
-				await start(true, at, chosenHeight);
+				await start(true, at, keeping);
 				return;
 			}
 			phase = 'noServer';
@@ -847,16 +863,28 @@
 		const s = streams?.servers.find((x) => x.n === n);
 		if (!s) return;
 		const height = quality?.height ?? null;
+		// Nothing current (a list NEVER LOWER refused): the device's own start.
+		const same = quality ? s.qualities.findIndex((q) => q.height === height) : -1;
 		serverN = n;
-		const same = s.qualities.findIndex((q) => q.height === height);
-		qualityIndex = same >= 0 ? same : 0;
+		qualityIndex = same >= 0 ? same : quality ? 0 : startIndex(s);
 		onStall('reset');
 		void tick().then(() => attach(at));
 	}
 
-	/** A server picked by hand: the outage it was in is over, so the tried list is too. */
-	function chooseServer(n: number) {
+	/**
+	 * A server or a quality picked by hand: the outage it was in is over, so
+	 * the tried list is too, and so is any wait NEVER LOWER was holding. From
+	 * the no-server panel it is the way out: the stream attaches, and the
+	 * player plays it rather than drawing the panel over it.
+	 */
+	function byHand() {
 		holdTried.clear();
+		keptAt = null;
+		if (phase === 'noServer') phase = 'playing';
+	}
+
+	function chooseServer(n: number) {
+		byHand();
 		switchServer(n);
 	}
 
@@ -904,7 +932,7 @@
 		qualityIndex = i;
 		// What the sheet picked is this device's choice now, as `startIndex` reads
 		// it; NEVER LOWER keeps that height. A choice by hand ends the outage.
-		holdTried.clear();
+		byHand();
 		wantedQuality = server?.qualities[i]?.height ?? null;
 		save('tsundoku:anime:quality', wantedQuality);
 		void tick().then(() => attach(position()));
@@ -2515,196 +2543,10 @@
 		</section>
 	{/if}
 
-	{#if sheet && streams}
-		<button
-			type="button"
-			class="scrim appear"
-			out:leave
-			aria-label="Close the settings"
-			onclick={() => (sheet = false)}
-		></button>
-		<div
-			class="sheet rise rise-right"
-			out:leave={'right'}
-			role="dialog"
-			aria-label="Playback settings"
-			use:focusScope
-		>
-			<div class="shead">
-				<div>PLAYBACK · {epShort(ep)}</div>
-				<button type="button" aria-label="Close" onclick={() => (sheet = false)}>✕</button>
-			</div>
-			<div class="srows">
-				<div class="srow2">
-					<div class="lab">QUALITY</div>
-					<div class="val">
-						<div class="seg">
-							{#each server?.qualities ?? [] as q, i (q.src)}
-								<button
-									type="button"
-									class:on={i === qualityIndex}
-									data-focus-start={i === 0 ? '' : undefined}
-									onclick={() => setQuality(i)}>{qualityName(q)}</button
-								>
-							{/each}
-						</div>
-						<div class="note">
-							THIS SERVER'S {server?.qualities.length} · THIS DEVICE REMEMBERS ITS OWN
-						</div>
-					</div>
-				</div>
-				<div class="srow2">
-					<div class="lab">NEVER LOWER</div>
-					<div class="val">
-						<div class="seg">
-							<button type="button" class:on={!keepQuality} onclick={() => setKeepQuality(false)}
-								>OFF</button
-							>
-							<button type="button" class:on={keepQuality} onclick={() => setKeepQuality(true)}
-								>ON</button
-							>
-						</div>
-						<div class="note">
-							A STALL WAITS · ON MOVES ONLY TO A SERVER WITH THIS QUALITY OR BETTER
-						</div>
-					</div>
-				</div>
-				<div class="srow2">
-					<div class="lab">SERVER</div>
-					<div class="val">
-						{#each streams.servers as s (s.n)}
-							<button
-								type="button"
-								class="li"
-								class:on={s.n === serverN}
-								class:off={failed.has(s.n)}
-								onclick={() => chooseServer(s.n)}
-							>
-								<span>{(s.name || `SERVER ${s.n}`).toUpperCase()}</span>
-								<span class="r"
-									>{s.n === serverN
-										? `● PLAYING · ${qualitiesLine(s.qualities)}`
-										: failed.has(s.n)
-											? `STOPPED ${clock(failedAt[s.n] ?? 0)}`
-											: qualitiesLine(s.qualities)}</span
-								>
-							</button>
-						{/each}
-						<div class="note">
-							STALLS FOR {STALL_S} S → THE NEXT{keepQuality ? ' THAT KEEPS IT' : ''}, BY ITSELF
-						</div>
-					</div>
-				</div>
-				{#if quality && quality.audio.length > 1}
-					<div class="srow2">
-						<div class="lab">AUDIO</div>
-						<div class="val">
-							{@render langGrid('audio', quality.audio, audioRow, audioOn, (l) => l && setAudio(l))}
-						</div>
-					</div>
-				{/if}
-				<div class="srow2">
-					<div class="lab">SUBTITLES</div>
-					<div class="val">
-						{#if quality && quality.subtitles.length}
-							{@render langGrid('subs', quality.subtitles, subRow, subOn, setSub)}
-							<div class="seg">
-								{#each SUB_SIZES as z (z)}
-									<button type="button" class:on={subSize === z} onclick={() => setSubSize(z)}
-										>{z}</button
-									>
-								{/each}
-							</div>
-						{:else}
-							<div class="note">IN THE PICTURE · NOTHING TO SWITCH</div>
-						{/if}
-					</div>
-				</div>
-				<div class="srow2">
-					<div class="lab">SPEED</div>
-					<div class="val">
-						<div class="seg">
-							{#each SPEEDS as s (s)}
-								<button type="button" class:on={speed === s} onclick={() => setSpeed(s)}
-									>{s === 1 ? '1×' : s}</button
-								>
-							{/each}
-						</div>
-					</div>
-				</div>
-				<div class="srow2">
-					<div class="lab">DIM</div>
-					<div class="val">
-						<div class="dimrow">
-							<input
-								type="range"
-								min="0"
-								max="0.8"
-								step="0.05"
-								value={dim}
-								aria-label="Dim"
-								oninput={(e) => setDim(Number((e.currentTarget as HTMLInputElement).value))}
-							/>
-							<div>{Math.round(dim * 100)}%</div>
-						</div>
-					</div>
-				</div>
-			</div>
-			<div class="sfoot">
-				AUDIO AND SUBTITLES CARRY TO EVERY EPISODE OF THE SERIES · SPEED TO THIS ONE · QUALITY AND
-				NEVER LOWER TO THIS DEVICE
-			</div>
-			<!-- ALL SETTINGS →: the page, at WATCHING (readerSheet). -->
-			<a class="all-settings" href="{resolve('/settings')}?section=watching"
-				><span>ALL SETTINGS →</span><span class="n">DEFAULTS, AND WHAT EACH ROW KEEPS</span></a
-			>
-		</div>
-	{/if}
-
-	{#if keysOpen}
-		<button
-			type="button"
-			class="scrim keys-scrim appear"
-			out:leave
-			aria-label="Close the keys"
-			onclick={() => (keysOpen = false)}
-		></button>
-		<!-- The rows scroll under a head that stays, as the settings sheet's do:
-		     eleven 56px rows and the head are 672px, past a TV's 540px panel and a
-		     short window's. Each row is a stop, so the pad walks to the
-		     last and the layer scrolls it into view; the scope keeps the pad in
-		     the sheet while it is open. -->
-		<div
-			class="sheet keys rise rise-right"
-			out:leave={'right'}
-			role="dialog"
-			aria-label="Keys"
-			use:focusScope
-		>
-			<div class="shead">
-				<div>KEYS</div>
-				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>
-			</div>
-			<div class="krows">
-				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['<< >>', 'Back or on a minute'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
-					<!-- A row is read, not pressed: the stop is there so a pad can scroll to it. -->
-					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-					<div
-						class="krow"
-						tabindex="0"
-						data-focus-mark="in"
-						data-focus-start={i === 0 ? '' : undefined}
-					>
-						<div class="k">{k}</div>
-						<div class="a">{a}</div>
-					</div>
-				{/each}
-			</div>
-		</div>
-	{/if}
-
 	{#if phase !== 'playing'}
-		<!-- Waits and ends are the reader's end-of-chapter page (Player Waiting, "Interstitials"). -->
+		<!-- Waits and ends are the reader's end-of-chapter page (Player Waiting, "Interstitials").
+		     Drawn before the sheets: CHOOSE opens the settings sheet from it, and a
+		     sheet painted under the panel could be neither seen nor pressed. -->
 		<div class="inter" role="status">
 			<div class="imid">
 				<div class="kick">
@@ -2844,14 +2686,19 @@
 						class="icell acc"
 						onclick={() => (
 							(freshTried = false),
-							start(true, undefined, keepQuality ? chosenHeight : null)
+							start(true, undefined, keepQuality ? keeping : null)
 						)}>TRY AGAIN</button
 					>
 				{:else if phase === 'engine'}
+					<!-- A wait NEVER LOWER was holding when the sources stopped answering
+					     is still the wait: the list that comes back is held to it too. -->
 					<button
 						type="button"
 						class="icell acc"
-						onclick={() => ((freshTried = false), start(true))}>TRY AGAIN</button
+						onclick={() => (
+							(freshTried = false),
+							start(true, undefined, keepQuality ? keptAt : null)
+						)}>TRY AGAIN</button
 					>
 				{:else if phase === 'ended' && next && playable(next)}
 					<!-- Reached after STAY (or while the next one opens): STAY is the card's, before the end. -->
@@ -2859,6 +2706,194 @@
 				{:else if phase === 'ended' || phase === 'offline'}
 					<a class="icell bl" href={libraryHref}>LIBRARY</a>
 				{/if}
+			</div>
+		</div>
+	{/if}
+
+	{#if sheet && streams}
+		<button
+			type="button"
+			class="scrim appear"
+			out:leave
+			aria-label="Close the settings"
+			onclick={() => (sheet = false)}
+		></button>
+		<div
+			class="sheet rise rise-right"
+			out:leave={'right'}
+			role="dialog"
+			aria-label="Playback settings"
+			use:focusScope
+		>
+			<div class="shead">
+				<div>PLAYBACK · {epShort(ep)}</div>
+				<button type="button" aria-label="Close" onclick={() => (sheet = false)}>✕</button>
+			</div>
+			<div class="srows">
+				<div class="srow2">
+					<div class="lab">QUALITY</div>
+					<div class="val">
+						<div class="seg">
+							{#each server?.qualities ?? [] as q, i (q.src)}
+								<button
+									type="button"
+									class:on={i === qualityIndex}
+									data-focus-start={i === 0 ? '' : undefined}
+									onclick={() => setQuality(i)}>{qualityName(q)}</button
+								>
+							{/each}
+						</div>
+						<div class="note">
+							THIS SERVER'S {server?.qualities.length} · THIS DEVICE REMEMBERS ITS OWN
+						</div>
+					</div>
+				</div>
+				<div class="srow2">
+					<div class="lab">NEVER LOWER</div>
+					<div class="val">
+						<div class="seg">
+							<button type="button" class:on={!keepQuality} onclick={() => setKeepQuality(false)}
+								>OFF</button
+							>
+							<button type="button" class:on={keepQuality} onclick={() => setKeepQuality(true)}
+								>ON</button
+							>
+						</div>
+						<div class="note">
+							A STALL WAITS · ON MOVES ONLY TO A SERVER WITH THIS QUALITY OR BETTER
+						</div>
+					</div>
+				</div>
+				<div class="srow2">
+					<div class="lab">SERVER</div>
+					<div class="val">
+						{#each streams.servers as s (s.n)}
+							<button
+								type="button"
+								class="li"
+								class:on={s.n === serverN && !!quality}
+								class:off={failed.has(s.n)}
+								onclick={() => chooseServer(s.n)}
+							>
+								<span>{(s.name || `SERVER ${s.n}`).toUpperCase()}</span>
+								<span class="r"
+									>{s.n === serverN && quality
+										? `● PLAYING · ${qualitiesLine(s.qualities)}`
+										: failed.has(s.n)
+											? `STOPPED ${clock(failedAt[s.n] ?? 0)}`
+											: qualitiesLine(s.qualities)}</span
+								>
+							</button>
+						{/each}
+						<div class="note">
+							STALLS FOR {STALL_S} S → THE NEXT{keepQuality ? ' THAT KEEPS IT' : ''}, BY ITSELF
+						</div>
+					</div>
+				</div>
+				{#if quality && quality.audio.length > 1}
+					<div class="srow2">
+						<div class="lab">AUDIO</div>
+						<div class="val">
+							{@render langGrid('audio', quality.audio, audioRow, audioOn, (l) => l && setAudio(l))}
+						</div>
+					</div>
+				{/if}
+				<div class="srow2">
+					<div class="lab">SUBTITLES</div>
+					<div class="val">
+						{#if quality && quality.subtitles.length}
+							{@render langGrid('subs', quality.subtitles, subRow, subOn, setSub)}
+							<div class="seg">
+								{#each SUB_SIZES as z (z)}
+									<button type="button" class:on={subSize === z} onclick={() => setSubSize(z)}
+										>{z}</button
+									>
+								{/each}
+							</div>
+						{:else}
+							<div class="note">IN THE PICTURE · NOTHING TO SWITCH</div>
+						{/if}
+					</div>
+				</div>
+				<div class="srow2">
+					<div class="lab">SPEED</div>
+					<div class="val">
+						<div class="seg">
+							{#each SPEEDS as s (s)}
+								<button type="button" class:on={speed === s} onclick={() => setSpeed(s)}
+									>{s === 1 ? '1×' : s}</button
+								>
+							{/each}
+						</div>
+					</div>
+				</div>
+				<div class="srow2">
+					<div class="lab">DIM</div>
+					<div class="val">
+						<div class="dimrow">
+							<input
+								type="range"
+								min="0"
+								max="0.8"
+								step="0.05"
+								value={dim}
+								aria-label="Dim"
+								oninput={(e) => setDim(Number((e.currentTarget as HTMLInputElement).value))}
+							/>
+							<div>{Math.round(dim * 100)}%</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="sfoot">
+				AUDIO AND SUBTITLES CARRY TO EVERY EPISODE OF THE SERIES · SPEED TO THIS ONE · QUALITY AND
+				NEVER LOWER TO THIS DEVICE
+			</div>
+			<!-- ALL SETTINGS →: the page, at WATCHING (readerSheet). -->
+			<a class="all-settings" href="{resolve('/settings')}?section=watching"
+				><span>ALL SETTINGS →</span><span class="n">DEFAULTS, AND WHAT EACH ROW KEEPS</span></a
+			>
+		</div>
+	{/if}
+
+	{#if keysOpen}
+		<button
+			type="button"
+			class="scrim keys-scrim appear"
+			out:leave
+			aria-label="Close the keys"
+			onclick={() => (keysOpen = false)}
+		></button>
+		<!-- The rows scroll under a head that stays, as the settings sheet's do:
+		     eleven 56px rows and the head are 672px, past a TV's 540px panel and a
+		     short window's. Each row is a stop, so the pad walks to the
+		     last and the layer scrolls it into view; the scope keeps the pad in
+		     the sheet while it is open. -->
+		<div
+			class="sheet keys rise rise-right"
+			out:leave={'right'}
+			role="dialog"
+			aria-label="Keys"
+			use:focusScope
+		>
+			<div class="shead">
+				<div>KEYS</div>
+				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>
+			</div>
+			<div class="krows">
+				{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['<< >>', 'Back or on a minute'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a], i (k)}
+					<!-- A row is read, not pressed: the stop is there so a pad can scroll to it. -->
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+					<div
+						class="krow"
+						tabindex="0"
+						data-focus-mark="in"
+						data-focus-start={i === 0 ? '' : undefined}
+					>
+						<div class="k">{k}</div>
+						<div class="a">{a}</div>
+					</div>
+				{/each}
 			</div>
 		</div>
 	{/if}

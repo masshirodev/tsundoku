@@ -16,6 +16,8 @@ import {
 	nextServer,
 	keepServer,
 	keptHeight,
+	capIndex,
+	keepPick,
 	offerNextAt,
 	openAt,
 	parseVtt,
@@ -174,6 +176,38 @@ describe('servers', () => {
 		expect(keptHeight(null, null)).toBeNull();
 		expect(keepServer([1, 2], 1, new Set(), servers, keptHeight(1080, 720))).toBe(2);
 		expect(keepServer([1, 5], 1, new Set(), servers, keptHeight(1080, 720))).toBeNull();
+	});
+
+	it('start a server under the device’s cap, and re-attach a kept height by the same rule', () => {
+		// The cap: the first height at or below it, else the lowest; none is the best.
+		expect(capIndex([1080, 720, 360], null)).toBe(0);
+		expect(capIndex([1080, 720, 360], 720)).toBe(1);
+		expect(capIndex([1080, 720, 360], 1080)).toBe(0);
+		expect(capIndex([1080, 720, 360], 480)).toBe(2);
+		expect(capIndex([1080, 720], 240)).toBe(1);
+		expect(capIndex([null, 720], 1080)).toBe(1);
+		// A device capped at 720 keeping 720 comes back at 720, not the server's top.
+		expect(keepPick([{ n: 1, heights: [1080, 720] }], 720, 720)).toEqual({ n: 1, i: 1 });
+		// No cap keeps what was playing at the best, which is at least it.
+		expect(keepPick([{ n: 1, heights: [1080, 720] }], null, 1080)).toEqual({ n: 1, i: 0 });
+		// A server whose capped pick is below the kept height is passed over.
+		expect(
+			keepPick(
+				[
+					{ n: 1, heights: [720, 480] },
+					{ n: 2, heights: [1080, 720] }
+				],
+				null,
+				1080
+			)
+		).toEqual({ n: 2, i: 0 });
+		// Nothing keeps it: a lower list, an unsized one, an empty one.
+		expect(keepPick([{ n: 1, heights: [720] }], null, 1080)).toBeNull();
+		expect(keepPick([{ n: 1, heights: [null] }], null, 720)).toBeNull();
+		expect(keepPick([{ n: 1, heights: [] }], null, 720)).toBeNull();
+		expect(keepPick([], null, 720)).toBeNull();
+		// The cap under the kept height keeps nothing: the cap is the device's rule.
+		expect(keepPick([{ n: 1, heights: [1080, 720] }], 720, 1080)).toBeNull();
 	});
 
 	it('draw the challenge’s known range, never a fill toward an end', () => {

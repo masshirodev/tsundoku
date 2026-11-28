@@ -842,11 +842,19 @@ screen but the video, and the subtitles, until a tap.
   one is not. With HIGHEST chosen the chosen height is the one playing; a
   server with no known quality is not a move, since moving to it could be the
   drop the setting refuses. A fatal error is filtered the same way, and asks
-  the source's list afresh once: it re-attaches only where the kept height
-  plays, and with nowhere it ends on the no-server panel — "NOTHING KEEPS THE
-  QUALITY", the height it waits at, CHOOSE and TRY AGAIN — rather than a dead
-  picture or a lower quality. With the setting off, `stallStep` is exactly as
-  above.
+  the source's list afresh once: it re-attaches on the first server where the
+  quality the device's cap chooses (`capIndex`, the rule every start uses, so
+  a device on 720 or a phone comes back at 720, not at a server's 1080) is at
+  least the kept height (`keepPick`). With nowhere it ends on the no-server
+  panel — "NOTHING KEEPS THE QUALITY", the height it waits at, CHOOSE and TRY
+  AGAIN — rather than a dead picture or a lower quality. The refused list
+  leaves nothing current, so the height being waited at outlives the refusal:
+  TRY AGAIN asks for that height again (and stays on the panel while the list
+  still lacks it), as does the engine's TRY AGAIN when the sources stop
+  answering mid-wait. CHOOSE opens the player's sheet over the panel, and a
+  server or a quality picked there is the way out: it attaches, at the second
+  it stopped at, and the panel goes. With the setting off, `stallStep` is
+  exactly as above.
 - **What counts as a stall** (`stallClock` in `src/lib/library/player.ts`).
   The 15 s clock runs only while the player is trying to play from a settled
   position. A seek isn't a stall, however it is made (a held ← or →, the
