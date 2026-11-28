@@ -929,7 +929,9 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   clipped. Both tracks measure the one the pointer is on (the hidden one is 0
   wide), and the scrubber goes by the video's own length from its
   `durationchange`, not the episode's stored length, so a seek before ▶ lands
-  against the file's real end.
+  against the file's real end. Under the scrubber, also fixed, is the
+  clip's marking row: MARK IN, MARK OUT and KEEP, three cells
+  ([`HIGHLIGHTS.md`](HIGHLIGHTS.md), "Clips"); what scrolls starts below it.
 - **Watching is reading.** The player sends the reader's events
   (`/api/reading`): `page` is seconds into the episode, and `length` its
   length as the player measured it, which is how an episode learns its length
