@@ -386,7 +386,9 @@ Pages bigger than the fit, and a size that stays.
   `align-items: safe center` (`.screen.shrunk`): centred while it is shorter
   than the screen, at the top once it is taller.
 - **Vertical:** the strip's width is SIDES' width times the zoom. Past 100%
-  it scrolls sideways inside its lane; under it, it narrows as SIDES does,
+  it scrolls sideways inside its lane, and a drag down the lane still
+  scrolls the page, the Android app's no-overscroll rule included (c1162);
+  under it, it narrows as SIDES does,
   centred in the lane (at 20% a phone's strip is 82px of 412). The page under
   the middle stays there (Strip's own width-change anchor), unless the zoom
   has a point of its own (below). A chapter's band is words, not art, so it
