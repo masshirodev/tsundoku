@@ -830,11 +830,18 @@ screen but the video, and the subtitles, until a tap.
   a label of 4.58 Mbps): a link that can't carry it stalls there on every
   try. A fatal error still moves servers, never quality: that's a server
   broken, not a link too thin.
-- **NEVER LOWER** (`keepServer` in `src/lib/library/player.ts`): the
+- **NEVER LOWER** (`keepServer`, `keepPick` and their one rule `keptIndex` in
+  `src/lib/library/player.ts`): the
   device setting beside QUALITY, also a row in the player's sheet, makes a
   stall keep the quality. It keeps buffering, the panel keeps counting and
   naming what it waits on and no lower step, and it tries once a window for a
-  server that offers the chosen height or better; with none, it stays and the
+  server that keeps the chosen height under the device's cap: the quality this
+  device would start on there (`capIndex`, the rule of every start) must be at
+  least that height, and the move plays that quality. So a server is judged by
+  what this device would play on it, not by its best: a phone (720) or a
+  QUALITY of 720P is never moved onto a server's 1080, and a server of 1080
+  and 480 plays 480 under that cap, so it keeps no 720 and is no move. With
+  none, it stays and the
   panel's SERVER n NOW → and the sheet's SERVER and QUALITY rows are the way
   by hand. The servers this outage has already moved to are left for its
   length — two slow ones used to take turns, each move throwing away what the

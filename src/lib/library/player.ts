@@ -173,10 +173,13 @@ export function stallStep(
 export type ServerSizes = { n: number; heights: (number | null)[] };
 
 /**
- * Where a stall may go with NEVER LOWER on: the next server in the source's
- * order that hasn't failed this time and offers the chosen height or better.
- * It never answers a quality: keeping the quality means waiting instead of
- * stepping down.
+ * Where a stall or a fatal error may go with NEVER LOWER on: the next server in
+ * the source's order that hasn't failed this time and keeps the chosen height
+ * under the device's [cap] (`keptIndex`, the rule a fresh re-attach uses too),
+ * with the quality that rule picks there. A server is judged by what this
+ * device would play on it, not by its best: under a 720 cap [1080, 480] plays
+ * 480, so it keeps no 720, and its 1080 is never attached. It never steps down
+ * on the same server: keeping the quality means waiting instead.
  *
  * [chosen] is the height the device asked for, or the one playing under
  * HIGHEST. A server with no known height -- nothing resolved yet, or qualities
@@ -190,18 +193,19 @@ export function keepServer(
 	current: number,
 	failed: Set<number>,
 	servers: ServerSizes[],
-	chosen: number | null
-): number | null {
+	chosen: number | null,
+	cap: number | null
+): { n: number; i: number } | null {
 	if (chosen === null) return null;
-	const i = order.indexOf(current);
-	const rest = [...order.slice(i + 1), ...order.slice(0, Math.max(0, i))];
-	return (
-		rest.find((n) => {
-			if (failed.has(n)) return false;
-			const s = servers.find((x) => x.n === n);
-			return !!s && s.heights.some((h) => h !== null && h >= chosen);
-		}) ?? null
-	);
+	const at = order.indexOf(current);
+	const rest = [...order.slice(at + 1), ...order.slice(0, Math.max(0, at))];
+	for (const n of rest) {
+		if (failed.has(n)) continue;
+		const s = servers.find((x) => x.n === n);
+		const i = s ? keptIndex(s.heights, cap, chosen) : null;
+		if (i !== null) return { n, i };
+	}
+	return null;
 }
 
 /**
@@ -227,6 +231,21 @@ export function capIndex(heights: (number | null)[], cap: number | null): number
 }
 
 /**
+ * NEVER LOWER's one rule for a server: the quality the device's [cap] picks on
+ * it (`capIndex`, as any start), when that quality is at least [kept]; else
+ * null. Both a move (`keepServer`) and a fresh re-attach (`keepPick`) ask it.
+ */
+export function keptIndex(
+	heights: (number | null)[],
+	cap: number | null,
+	kept: number
+): number | null {
+	const i = capIndex(heights, cap);
+	const h = heights[i];
+	return h !== null && h !== undefined && h >= kept ? i : null;
+}
+
+/**
  * Where NEVER LOWER re-attaches from a fresh list: the first server, in the
  * source's order, on which the quality the device's [cap] would choose
  * (`capIndex`, as any start) is at least [kept]. A server's top quality is not
@@ -240,9 +259,8 @@ export function keepPick(
 	kept: number
 ): { n: number; i: number } | null {
 	for (const s of servers) {
-		const i = capIndex(s.heights, cap);
-		const h = s.heights[i];
-		if (h !== null && h !== undefined && h >= kept) return { n: s.n, i };
+		const i = keptIndex(s.heights, cap, kept);
+		if (i !== null) return { n: s.n, i };
 	}
 	return null;
 }

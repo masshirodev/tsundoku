@@ -112,7 +112,9 @@ NOVEL · CHOSEN IN THE READER`, `src/routes/settings/mode-line.ts`). ✕ and
 - **NEVER LOWER** (`tsundoku:anime:keep`, off) is the device's too, and
   the player's sheet has the same row. On, a stall never drops the quality: it
   keeps buffering and says so, and a move to another server only counts if
-  that server has the chosen quality or better — with QUALITY on HIGHEST, the
+  the quality QUALITY's cap picks on that server is the chosen one or better,
+  and the move plays that quality, by the same rule as a start and a fresh
+  re-attach — with QUALITY on HIGHEST, the
   one playing is the chosen one, and since QUALITY is a cap, what is really
   playing is the height kept. Servers this outage already moved to are left
   until the picture plays again or a choice is made by hand, so two slow ones

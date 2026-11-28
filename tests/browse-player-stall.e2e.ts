@@ -809,6 +809,82 @@ test.describe('on a touch tablet', () => {
 test.describe('on a phone', () => {
 	test.use({ ...touch('Pixel 5'), serviceWorkers: 'block' });
 
+	test('NEVER LOWER: a stall on 720 is no move to a server whose cap pick is lower, and never plays its 1080', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		// The phone plays 720 on HIGHEST (its cap). Server 2 offers 1080 and 480:
+		// under the cap it would play 480, so it does not keep 720, and its 1080
+		// is above the cap.
+		await answerServers(page, [{ heights: [720], stall: true }, { heights: [1080, 480] }]);
+		const srcs = await attaches(page);
+		await samplePanels(page);
+		await settingsNeverLower(page, true);
+		await openPlaying(page);
+		expect((await srcs()).at(-1)).toMatch(/s=1&.*#720$/);
+		// Past the full 15 s and on: the stall's step has run, and it stayed.
+		await expect
+			.poll(
+				async () =>
+					Math.max(
+						0,
+						...(await panels(page)).map((x) =>
+							Number(/BUFFERING\s*(\d+) S/.exec(x.panel ?? '')?.[1] ?? 0)
+						)
+					),
+				{ timeout: STALL_MS + 12_000 }
+			)
+			.toBeGreaterThanOrEqual(17);
+		const attached = await srcs();
+		expect(attached.filter((x) => /#1080$/.test(x))).toEqual([]);
+		expect(attached.filter((x) => /s=2&/.test(x))).toEqual([]);
+		const panel = page.locator('.panel.buffer');
+		await expect(panel).toContainText('WAITING ON THE SERVER · SERVER 1 OF 2');
+		await expect(panel).not.toContainText('MOVES TO');
+	});
+
+	test('NEVER LOWER: a stall below the cap moves at the quality the cap picks, not at the server’s 1080', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		// Server 1 tops out at 480, so the phone keeps 480 under its 720 cap.
+		// Server 2 has no 480: the cap picks its 720, which keeps 480, and that
+		// is what plays, not its first quality.
+		await answerServers(page, [{ heights: [480], stall: true }, { heights: [1080, 720] }]);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlaying(page);
+		expect((await srcs()).at(-1)).toMatch(/s=1&.*#480$/);
+		await expect
+			.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentSrc), {
+				timeout: STALL_MS + 10_000
+			})
+			.toMatch(/s=2&/);
+		expect(await page.locator('video').evaluate((v: HTMLVideoElement) => v.currentSrc)).toMatch(
+			/#720$/
+		);
+		expect((await srcs()).filter((x) => /#1080$/.test(x))).toEqual([]);
+	});
+
+	test('NEVER LOWER: a stall on 720 moves to a server whose cap pick keeps it, and plays its 720', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		await answerServers(page, [{ heights: [720], stall: true }, { heights: [1080, 720] }]);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlaying(page);
+		await expect
+			.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentSrc), {
+				timeout: STALL_MS + 10_000
+			})
+			.toMatch(/s=2&.*#720$/);
+		await expect
+			.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime))
+			.toBeGreaterThan(3);
+		expect((await srcs()).filter((x) => /#1080$/.test(x))).toEqual([]);
+	});
+
 	test("a fresh re-attach keeps the phone's 720 though the server tops out at 1080", async ({
 		page
 	}) => {

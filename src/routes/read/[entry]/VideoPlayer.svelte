@@ -906,15 +906,15 @@
 		const at = position();
 		failed.add(serverN);
 		failedAt = { ...failedAt, [serverN]: at };
-		// NEVER LOWER: only a server that can keep the quality is a move; a lower
-		// one would be the fall-back the setting refuses.
-		const to = keepQuality
-			? keepServer(order, serverN, triedNow(), serverSizes, chosenHeight)
-			: nextServer(order, serverN, failed);
+		// NEVER LOWER: only a server that can keep the quality is a move, at the
+		// quality the device's cap picks there; a lower one would be the
+		// fall-back the setting refuses.
+		const keep = keepQuality ? keepTo() : null;
+		const to = keepQuality ? (keep?.n ?? null) : nextServer(order, serverN, failed);
 		if (to !== null) {
 			serverNotice = { from: serverN, at };
 			setTimeout(() => (serverNotice = null), 4000);
-			switchServer(to, at);
+			switchServer(to, at, keep?.i);
 			return;
 		}
 		if (keepQuality) {
@@ -941,14 +941,19 @@
 		phase = 'noServer';
 	}
 
-	function switchServer(n: number, at = position()) {
+	/**
+	 * Onto server [n] at the same second. [index] is the quality NEVER LOWER's
+	 * rule chose there (`keepTo`); without one, the height playing now, else
+	 * the server's first, as a failover always took.
+	 */
+	function switchServer(n: number, at = position(), index?: number) {
 		const s = streams?.servers.find((x) => x.n === n);
 		if (!s) return;
 		const height = quality?.height ?? null;
 		// Nothing current (a list NEVER LOWER refused): the device's own start.
 		const same = quality ? s.qualities.findIndex((q) => q.height === height) : -1;
 		serverN = n;
-		qualityIndex = same >= 0 ? same : quality ? 0 : startIndex(s);
+		qualityIndex = index ?? (same >= 0 ? same : quality ? 0 : startIndex(s));
 		onStall('reset');
 		void tick().then(() => attach(at));
 	}
@@ -965,9 +970,9 @@
 		if (phase === 'noServer') phase = 'playing';
 	}
 
-	function chooseServer(n: number) {
+	function chooseServer(n: number, index?: number) {
 		byHand();
-		switchServer(n);
+		switchServer(n, position(), index);
 	}
 
 	/**
@@ -1006,9 +1011,13 @@
 				(server?.qualities ?? []).map((q) => q.height),
 				qualityIndex
 			);
-		const to = keepServer(order, serverN, triedNow(), serverSizes, chosenHeight);
-		return to === null ? null : { server: to };
+		const to = keepTo();
+		return to === null ? null : { server: to.n };
 	};
+
+	/** Where NEVER LOWER may move now, and at which quality: the device's cap decides. */
+	const keepTo = () =>
+		keepServer(order, serverN, triedNow(), serverSizes, chosenHeight, deviceCap());
 
 	function setQuality(i: number) {
 		qualityIndex = i;
@@ -1066,10 +1075,10 @@
 				// two slow ones cannot take turns.
 				if (Date.now() - stallTried < STALL_S * 1000) return;
 				stallTried = Date.now();
-				const to = keepServer(order, serverN, triedNow(), serverSizes, chosenHeight);
+				const to = keepTo();
 				if (to !== null) {
 					holdTried.add(serverN);
-					switchServer(to, position());
+					switchServer(to.n, position(), to.i);
 				}
 				return;
 			}
@@ -2390,6 +2399,7 @@
 			{@const down = step && 'quality' in step ? server?.qualities[step.quality] : undefined}
 			<!-- NEVER LOWER names no lower step, but the next server is still a
 			     press away (the existing choice by hand). -->
+			{@const keepAt = keepQuality ? keepTo() : null}
 			{@const manual =
 				to ?? (keepQuality ? nextServer(order, serverN, new Set([...failed, serverN])) : null)}
 			<div class="panel buffer" role="status">
@@ -2411,7 +2421,11 @@
 					</div>
 				</div>
 				{#if manual !== null}
-					<button type="button" onclick={() => chooseServer(manual)}>SERVER {manual} NOW →</button>
+					<button
+						type="button"
+						onclick={() => chooseServer(manual, keepAt?.n === manual ? keepAt.i : undefined)}
+						>SERVER {manual} NOW →</button
+					>
 				{:else if down && step && 'quality' in step}
 					{@const i = step.quality}
 					<button type="button" onclick={() => stepDown(i)}>{qualityName(down)} NOW →</button>
