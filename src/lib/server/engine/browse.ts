@@ -3,7 +3,7 @@ import { sourceUse } from '../library-sources.ts';
 import { mostlyHidden } from '../../library/downloads.ts';
 import type { SourceFamily, SourceKind } from '../../library/kinds.ts';
 import { familyOfKind } from './repo-index.ts';
-import { sourcesWith } from './source-flags.ts';
+import { pinnedSources, sourcesWith } from './source-flags.ts';
 import { cleanSchema, toEngine, type FilterField } from '../../library/browse-filters.ts';
 import type { SearchHit } from '../download-types.ts';
 import { asHits, callSource, type EngineManga } from './backend.ts';
@@ -213,10 +213,14 @@ export type BrowseRow = BrowseSource & {
 	browsedAt: number | null;
 	/** Its site has made the engine pass a browser check: a first visit waits for it. */
 	check: boolean;
+	/** PINNED: a search asks it by default (c1142, `pinnedSources`). */
+	pinned: boolean;
 };
 
 export type BrowseList = {
-	/** The last four browsed, any kind: nothing to pin or manage. */
+	/** The pinned, any kind, in the list's order: 01 — PINNED (c1142). */
+	pinned: BrowseRow[];
+	/** The last four browsed, any kind. */
 	recent: BrowseRow[];
 	manga: BrowseRow[];
 	anime: BrowseRow[];
@@ -264,6 +268,7 @@ export function browseList(reveal: boolean): BrowseList {
 		).map((r) => [r.source_id, r.browsed_at])
 	);
 	const checked = checkedSites();
+	const pins = pinnedSources();
 	const plugins = installedPlugins();
 	const bases = new Map(
 		(
@@ -279,11 +284,13 @@ export function browseList(reveal: boolean): BrowseList {
 		...s,
 		label: (perPkg.get(s.pkg) ?? 0) > 1 ? `${s.name} · ${s.lang.toUpperCase()}` : s.name,
 		browsedAt: at.get(s.id) ?? null,
-		check: checked.some((h) => sameSite(h, bases.get(s.id) ?? ''))
+		check: checked.some((h) => sameSite(h, bases.get(s.id) ?? '')),
+		pinned: pins.has(s.id)
 	}));
 	const visiblePkgs = new Set(shown.map((s) => s.pkg));
 	const ofFamily = (family: SourceFamily) => rows.filter((r) => r.family === family);
 	return {
+		pinned: rows.filter((r) => r.pinned),
 		recent: rows
 			.filter((r) => r.browsedAt !== null)
 			.sort((a, b) => b.browsedAt! - a.browsedAt!)
@@ -299,6 +306,25 @@ export function browseList(reveal: boolean): BrowseList {
 			plugins.filter((p) => p.update && visiblePkgs.has(`ln:${p.id}`)).length
 	};
 }
+
+/**
+ * Every browsed source's id, most recent first, any kind: what a search with
+ * nothing pinned asks (c1142, `planAsks`). RECENT shows four of these.
+ */
+export const browsedOrder = (): string[] =>
+	(
+		getDb().prepare(`SELECT source_id FROM browse_recent ORDER BY browsed_at DESC`).all() as {
+			source_id: string;
+		}[]
+	).map((r) => r.source_id);
+
+/** The sources the library reads from (a series this viewer may see is from it): the band's offer. */
+export const readFromSources = (reveal: boolean): Set<string> =>
+	new Set(
+		browseSources(reveal)
+			.filter((s) => s.series > 0)
+			.map((s) => s.id)
+	);
 
 /** A source's page was opened: it moves to the top of RECENT. */
 export function noteBrowsed(sourceId: string, at = Date.now()): void {

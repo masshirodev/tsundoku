@@ -619,3 +619,28 @@ test('under FILTER’s scrim: the mark is drawn over it', async ({ page }) => {
 	expect(await focusedTile(page), 'the pad is on a tile').toBe(true);
 	await expectMark(page);
 });
+
+test('PIN on BROWSE: a row is two stops, → reaches PIN, OK toggles it (c1142)', async ({
+	page
+}) => {
+	await page.goto(`${world.base}/browse`);
+	// The source may be in RECENT too: the row walked is the first one listing it.
+	const row = page.locator('.pin-row', { hasText: SOURCE.name }).first();
+	await row.locator('a.row').focus();
+	// A real key, as the remote sends: → from the row's link is its own PIN cell.
+	await page.keyboard.press('ArrowRight');
+	await expect(row.getByRole('button', { name: `Pin ${SOURCE.name}` })).toBeFocused();
+	await page.keyboard.press('Enter');
+	// Pinned: 01 — PINNED leads BROWSE, and the remote is still on that PIN.
+	await expect(page.locator('.label').first()).toContainText('01 — PINNED');
+	const pinned = page.getByRole('button', { name: `Pinned ${SOURCE.name}` });
+	await expect(pinned.first()).toBeVisible();
+	await expect
+		.poll(() => page.evaluate(() => document.activeElement?.getAttribute('aria-label')))
+		.toBe(`Pinned ${SOURCE.name}`);
+	// And OK on PINNED unpins it.
+	await pinned.first().focus();
+	await page.keyboard.press('Enter');
+	await expect(pinned).toHaveCount(0);
+	await expect(page.getByText('01 — PINNED')).toHaveCount(0);
+});

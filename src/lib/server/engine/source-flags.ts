@@ -389,3 +389,37 @@ export function ofSource(ids: number[], sourceId: string, db = getDb()): number[
 			.all({ ids: JSON.stringify(ids), source: sourceId }) as { id: number }[]
 	).map((r) => r.id);
 }
+
+// ---- PIN (c1142; doc/DOWNLOADS.md, "Which of them a search asks first") ----------------------------
+
+/**
+ * A pinned source is one a search asks by default; the rest are asked only on
+ * ASK THEM. Kept as the switches above are (`source.pinned:<id>` = '1' in
+ * `settings`, off is no row), so every device that reads the library agrees.
+ * Not one of `SOURCE_FLAGS`: those are a source's settings, offered in bulk by
+ * EXTENSIONS' SELECT, and the pin is drawn on BROWSE's rows instead.
+ */
+const PINNED = 'source.pinned:';
+
+/** Every pinned source's id, any kind. */
+export function pinnedSources(db = getDb()): Set<string> {
+	return new Set(
+		(
+			db
+				.prepare(`SELECT substr(key, ?) AS id FROM settings WHERE key LIKE ? AND value = '1'`)
+				.all(PINNED.length + 1, `${PINNED}%`) as { id: string }[]
+		).map((r) => r.id)
+	);
+}
+
+/** Pins or unpins sources, in one transaction (the band's PIN THE N … pins several). */
+export function setPinned(sourceIds: readonly string[], on: boolean, db = getDb()): void {
+	const put = db.prepare(
+		`INSERT INTO settings (key, value) VALUES (?, '1')
+		ON CONFLICT (key) DO UPDATE SET value = excluded.value`
+	);
+	const drop = db.prepare(`DELETE FROM settings WHERE key = ?`);
+	db.transaction(() => {
+		for (const id of new Set(sourceIds)) (on ? put : drop).run(`${PINNED}${id}`);
+	})();
+}

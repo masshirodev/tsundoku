@@ -8,7 +8,9 @@ import { parseSearch } from '$lib/library/search';
 import { showRowFacts } from '$lib/server/season-facts';
 import { configured, searchSources } from '$lib/server/downloads';
 import { downloadsBackend } from '$lib/server/engine/run';
-import { browseList } from '$lib/server/engine/browse';
+import { browseList, browsedOrder, readFromSources } from '$lib/server/engine/browse';
+import { pinnedSources } from '$lib/server/engine/source-flags';
+import { planAsks } from '$lib/library/search-asks';
 import { kindOfSource } from '../downloads/search/kinds.server';
 import { kindAsked, kindsServed, sourcesOfKind } from '../downloads/search/source-kinds';
 
@@ -24,8 +26,11 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 			input.type === 'empty' && downloadsBackend() === 'engine'
 				? browseList(isRevealed(cookies))
 				: null;
+		// BROWSE A SOURCE offers the first three pinned, else RECENT (c1142).
 		const browse = list && {
-			recent: list.recent.slice(0, 3),
+			pinned: list.pinned.length > 0,
+			pins: list.pinned.length,
+			recent: (list.pinned.length ? list.pinned : list.recent).slice(0, 3),
 			total: list.manga.length + list.anime.length + list.novels.length
 		};
 		return { q, result: null, sources: null, browse, now: Date.now() };
@@ -39,7 +44,15 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 				(all) => {
 					const kinded = all.map((s) => ({ ...s, kind: kindOfSource(s.id) }));
 					const kind = kindAsked(url.searchParams.get('kind'), kindsServed(kinded));
-					return { n: sourcesOfKind(kinded, kind).length, kind };
+					// What SEARCH THE SOURCES will ask first (`planAsks`), and how it chose.
+					const plan = planAsks(
+						sourcesOfKind(kinded, kind),
+						pinnedSources(),
+						browsedOrder(),
+						readFromSources(reveal),
+						false
+					);
+					return { n: plan.first.length, mode: plan.mode, kind };
 				},
 				() => null
 			)
@@ -55,6 +68,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		result,
 		groupFacts: showRowFacts(ids, reveal),
 		sources: asking?.n ?? null,
+		sourcesMode: asking?.mode ?? null,
 		sourcesKind: asking?.kind ?? null,
 		browse: null,
 		now: Date.now()

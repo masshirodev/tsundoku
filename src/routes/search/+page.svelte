@@ -39,6 +39,8 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { wholeBand, type HideFacts, type ShowFacts, type WholeAnswer } from '$lib/library/works';
 	import { count, kindLabel } from '$lib/library/labels';
+	import { KIND_TAB } from '../downloads/search/source-kinds';
+	import type { Kind } from '$lib/library/kinds';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { coverSrc, searchHref, shelfHref, tagHref } from '$lib/library/links';
@@ -90,6 +92,16 @@
 	beforeNavigate(() => clearTimeout(timer));
 
 	const query = $derived(parseSearch(data.q).type === 'query' ? data.q.trim() : '');
+	/**
+	 * What SEARCH THE SOURCES will ask first (c1142): "4 PINNED MANGA SOURCES",
+	 * "THE 4 LAST BROWSED", or every source when none is pinned or browsed.
+	 */
+	const sourcesLine = (n: number, mode: string | null, kind: Kind | null) => {
+		const what = `${kind ? `${KIND_TAB[kind]} ` : ''}SOURCE${n === 1 ? '' : 'S'}`;
+		if (mode === 'pinned') return `${n} PINNED ${what}`;
+		if (mode === 'recent') return `THE ${n} LAST BROWSED`;
+		return `${n} ${what}`;
+	};
 
 	// ---- SELECT on the search (doc/LIBRARY.md, "What ends SELECT") ----
 	/*
@@ -780,7 +792,7 @@
 			<span class="text">
 				<span class="ts-t">SEARCH THE SOURCES</span>
 				<span class="ts-m"
-					>{data.sources} SOURCE{data.sources === 1 ? '' : 'S'} · RESULTS ARRIVE ONE BY ONE</span
+					>{sourcesLine(data.sources, data.sourcesMode, data.sourcesKind)} · RESULTS ARRIVE ONE BY ONE</span
 				>
 			</span>
 			<span class="ts-go" aria-hidden="true">→</span>
@@ -790,7 +802,7 @@
 	<!-- BROWSE first in the empty search. -->
 	<div class="label first">
 		<div>BROWSE A SOURCE</div>
-		<div>RECENT</div>
+		<div>{data.browse.pinned ? 'PINNED' : 'RECENT'}</div>
 	</div>
 	{#if data.browse.recent.length}
 		<div class="b-rows">
@@ -809,11 +821,17 @@
 		</div>
 	{/if}
 	<a class="to-sources all" href={resolve('/browse')}>
-		<span class="text"><span class="ts-t">ALL SOURCES · BROWSE</span></span>
+		<span class="text"
+			><span class="ts-t">ALL SOURCES · BROWSE</span>{#if data.browse.pinned}<span class="ts-m"
+					>{data.browse.pins} PINNED · {data.browse.total} IN ALL</span
+				>{/if}</span
+		>
 		<span class="ts-go">{data.browse.total} →</span>
 	</a>
 	<p class="b-note">
-		Type to search the library. SEARCH THE SOURCES follows the titles, as before.
+		Type to search the library. SEARCH THE SOURCES follows the titles{data.browse.pinned
+			? ` and asks the ${data.browse.pins} pinned.`
+			: ', as before.'}
 	</p>
 {/if}
 

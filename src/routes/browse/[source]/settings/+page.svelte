@@ -147,8 +147,26 @@
 	     above the extension's: the same rows, in a form of their own each. -->
 	<div class="label">
 		<span>01 — IN TSUNDOKU</span>
-		<span>{OWN.length} SWITCHES · THIS SOURCE, NOT ITS EXTENSION</span>
+		<span>{OWN.length + 1} SWITCHES · THIS SOURCE, NOT ITS EXTENSION</span>
 	</div>
+	<!-- PINNED first (c1142): what a search of the sources asks by default. -->
+	<form
+		method="POST"
+		action={act('pin')}
+		class="pinned-own"
+		class:saved={form && 'saved' in form && form.saved === 'pin'}
+		use:enhance={keep}
+	>
+		<div class="what">
+			<div class="t">Pinned</div>
+			<div class="s">
+				A search of the sources asks it by default; the rest only when asked. {count(data.pins)} pinned.
+			</div>
+		</div>
+		<div class="ctl">
+			<Switch checked={data.pinned} name="value" value={String(!data.pinned)} />
+		</div>
+	</form>
 	{#each OWN as o (o.flag)}
 		<form
 			method="POST"
@@ -422,6 +440,7 @@
 	}
 	.set,
 	.own,
+	.pinned-own,
 	.own-act {
 		flex-shrink: 0;
 		display: flex;
