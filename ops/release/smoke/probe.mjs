@@ -248,8 +248,12 @@ exports.default = {
 			execArgv: [
 				'--permission',
 				`--allow-fs-read=${hostFile}`,
-				// The address guard it requires, as host.ts allows it.
-				`--allow-fs-read=${join(bundle, 'app', 'src', 'lib', 'server', 'net-guard.ts')}`,
+				// The address guard's files, as host.ts's guardFiles() allows them:
+				// net-guard.ts and the public-ip.ts it imports (c1140). Only the
+				// first was here, so 2026.11.28's host was refused its import.
+				...['net-guard.ts', 'public-ip.ts'].map(
+					(f) => `--allow-fs-read=${join(bundle, 'app', 'src', 'lib', 'server', f)}`
+				),
 				`--allow-fs-read=${join(bundle, 'app', 'node_modules')}`,
 				`--allow-fs-read=${store}`
 			],
