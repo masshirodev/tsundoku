@@ -1,6 +1,8 @@
 # Privacy: incognito, leaving the app, and the fingerprint gate
 
 These three extend reveal ([`LIBRARY.md`](LIBRARY.md), "Hidden means hidden").
+The last two sections say what an import reports and what leaves the box for
+AniList on its own.
 
 ## Incognito
 
@@ -128,6 +130,49 @@ An import takes everything in the file or folder whatever the reveal mode,
 hidden series and a hidden root's (Hentoid) included, because a friend can't
 be expected to know to turn hidden mode on first. The screen that says what it
 brought keeps the rule even so: with reveal off, what belongs to hidden series
-is a **count in a section closed by default** (`3 IN HIDDEN SERIES`), never a
+is a **count in a section closed by default** (`3 HIDDEN ITEMS`), never a
 title or a Work's name, and those appear only with reveal on.
 [`IMPORT-BACKUP.md`](IMPORT-BACKUP.md), "The log", has the rule and where it is enforced.
+
+## What leaves the box for AniList
+
+A linked series keeps its relations (OTHER FORMS, the seasons around it)
+fresh by a timer inside the served app, with no import and no command
+([`LINKS.md`](LINKS.md), "How the cache fills"). `init` in
+`src/hooks.server.ts` starts `startRelationsFill` (`relations-fill.ts`), which
+runs `fillRelations` (`catalogue.ts`), which runs `refreshRelations`
+(`relations.ts`) through `anilistPublic`.
+
+- **What is sent: AniList ids, and nothing from the library's own rows.** Each
+  request is a POST to `graphql.anilist.co` whose variables are AniList ids
+  only (`{ "i0": <id>, "i1": <id>, … }`), with a fixed query asking each
+  entry's `id type format status episodes chapters volumes startDate title`
+  and the same of the entries its relations point at (`askEntries` in
+  `relations.ts`). The ids are the series' own links, and for an anime also
+  the entries the walk reaches over its hops (up to `HOPS`, 12, sequel and
+  prequel steps from the linked seasons): AniList ids the library never
+  linked, read from AniList's own earlier answers. No title, path, file name,
+  rating, reading or series id is in the request.
+- **No sign-in.** `anilistPublic` sends no token and no cookie, so AniList
+  cannot tie the request to an account. It comes from the box, though, so
+  AniList sees the box's address, as it does for every other request below.
+- **Hidden series are included, on purpose.** A hidden series' AniList id is
+  asked like any other's, so a hidden series keeps OTHER FORMS when reveal
+  shows it. An import's link pass has always asked it the same way; since the
+  timer, it is also asked without an import. An entry's relations are no
+  more private than its id, and the id is all that is sent.
+- **When.** The first pass comes 60 s after the app starts (`FIRST_FILL_MS`),
+  then one every 10 minutes (`FILL_EVERY_MS`), and a pass asks only for what
+  is due: a link made since the last pass, or a graph reaching seven days. A
+  pass with nothing due sends nothing.
+- **The one switch.** `TSUNDOKU_ANILIST=off` in the app's environment turns
+  the timer off (`fillCadence`): no timer, so no request from it. The same
+  switch also stops every other AniList query, the link search's and
+  tracking's included (`post` in `catalogue.ts` checks it before asking).
+
+The timer is not the only thing that talks to AniList:
+
+- **The link search** sends a series' title to find its entry, and a hidden
+  series is never searched ([`LINKS.md`](LINKS.md), "What's never searched").
+- **Tracking** is signed in, as the account the owner connected
+  ([`TRACKING.md`](TRACKING.md)).

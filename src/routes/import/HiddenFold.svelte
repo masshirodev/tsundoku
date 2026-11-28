@@ -8,10 +8,14 @@
 	 * mode, so its report says so, but hidden means hidden here too: how many,
 	 * closed until asked, and never a title or a Work's name. The fold is the
 	 * series screen's move page's (`.fold`), so it needs nothing new of a reader.
+	 *
+	 * The headline counts items, not series: the hidden series (new and merged)
+	 * and the WORKS lines kept off the list, together, so a hidden series that
+	 * dropped a Work counts 2. The body says which is which.
 	 */
 	let { hidden }: { hidden: HiddenReport } = $props();
 
-	const series = $derived(hidden.fresh + hidden.merged);
+	const items = $derived(hidden.fresh + hidden.merged + hidden.dropped);
 	const parts = $derived(
 		[
 			hidden.fresh ? `${n(hidden.fresh)} NEW` : '',
@@ -26,7 +30,8 @@
 
 <details class="fold">
 	<summary
-		><span>{n(series + hidden.dropped)} IN HIDDEN SERIES</span><span class="ink">↓</span></summary
+		><span>{n(items)} {items === 1 ? 'HIDDEN ITEM' : 'HIDDEN ITEMS'}</span><span class="ink">↓</span
+		></summary
 	>
 	<div class="body">
 		<div>{parts.join(' · ')}</div>

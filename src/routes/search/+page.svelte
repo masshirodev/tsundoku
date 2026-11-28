@@ -19,6 +19,7 @@
 	import SeriesSheet from '../SeriesSheet.svelte';
 	import SelectionSheet from './SelectionSheet.svelte';
 	import SelectionBar from './SelectionBar.svelte';
+	import { plainHideOrUnhide, workAnswer, workBand, type WorkAnswer } from './bar-answers';
 	import type { RefreshBatch } from '$lib/library/types';
 	import {
 		carrySelection,
@@ -235,22 +236,48 @@
 	}
 
 	/**
-	 * HIDE ALL n from a hit's series sheet: the library's band, here. The
-	 * sheet posts the library's `?/hide`, whose answer SvelteKit applies only on
-	 * the library, so the sheet hands it over (`onhid`) and this page draws it
-	 * with the library's own words (`wholeBand`) and UNDO. It belongs to the
-	 * query it was pressed on, as the library's `form` belongs to its page: a
-	 * new query is a new page, and the band goes with the old one.
+	 * HIDE ALL n from a hit's series sheet, a HIDE or UNHIDE that took a Work,
+	 * and GROUP into a Work: the library's band, here. Each posts the library's
+	 * action, whose answer SvelteKit applies only on the library, so the sheet
+	 * or the bar hands it over (`onhid`, `bulkAnswer`, `onhideanswer`,
+	 * `ongrouped`) and this page draws it with the library's own words
+	 * (`wholeBand`, `workBand`) and UNDO. One answer at a time, as the library's
+	 * `form`: the next one replaces it, so a HIDE of a Work's series takes the
+	 * Work's name down with GROUP's band. It belongs to the query it was pressed
+	 * on, as `form` belongs to its page: a new query is a new page, and the band
+	 * goes with the old one. `reveal` is what this page's load said when it was
+	 * kept (`revealed`, read with every query, where the layout's is read once): a
+	 * Work made under reveal names hidden series, so once reveal has ended its
+	 * band is not drawn again, whatever query comes back.
 	 */
-	let hid = $state<{ q: string; answer: WholeAnswer; refused: string } | null>(null);
+	let hid = $state<{
+		q: string;
+		answer: WholeAnswer | WorkAnswer;
+		refused: string;
+		reveal: boolean;
+	} | null>(null);
+	const keep = (answer: WholeAnswer | WorkAnswer) =>
+		(hid = { q: data.q, answer, refused: '', reveal: data.revealed });
 	const hidBand = $derived.by(() => {
 		if (!hid || hid.q !== data.q) return null;
 		const a = hid.answer;
+		if ('made' in a || 'addedWork' in a) {
+			if (hid.reveal && !data.revealed) return null;
+			const band = workBand(a);
+			return {
+				title: band.title,
+				detail: band.detail,
+				action: '/?/undoWork',
+				kind: band.kind as string,
+				facts: band.facts
+			};
+		}
 		if ('hideFacts' in a) {
 			const f = a.hideFacts;
 			return {
 				...wholeBand('HIDDEN', { ids: f.hidden, whole: f.whole, works: f.works }),
 				action: '/?/undoHide',
+				kind: '',
 				facts: JSON.stringify(f)
 			};
 		}
@@ -258,13 +285,15 @@
 		return {
 			...wholeBand('SHOWN', { ids: f.shown, whole: f.whole, works: f.works }),
 			action: '/?/undoShow',
+			kind: '',
 			facts: JSON.stringify(f)
 		};
 	});
 	/**
-	 * UNDO posts the library's own UNDO, whose answer is not this page's either:
-	 * a success takes the band down and re-reads the hits; a refusal (the
-	 * library has moved on since) stays on the band and says why.
+	 * UNDO posts the library's own UNDO (`?/undoHide`, `?/undoShow`,
+	 * `?/undoWork`), whose answer is not this page's either: a success takes the
+	 * band down and re-reads the hits; a refusal (the library has moved on
+	 * since) stays on the band and says why.
 	 */
 	const undoHid: SubmitFunction =
 		() =>
@@ -315,11 +344,13 @@
 	/**
 	 * The bar's forms post the library's actions, whose answer SvelteKit
 	 * applies only on the library (`GroupSheet`'s `ondone`), so it is
-	 * read here. A refusal keeps SELECT and says why; a HIDE or UNHIDE ends it,
-	 * as it does on the library; FAV and a rating leave it on, as on the library.
+	 * read here. A refusal keeps SELECT and says why; a plain HIDE or UNHIDE
+	 * ends it, as it does on the library (`plainHideOrUnhide`), and so does an
+	 * UNHIDE of a Work's part (`?/showAll`); FAV and a rating leave it on, as on
+	 * the library.
 	 */
 	const bulkAnswer: SubmitFunction = ({ submitter }) => {
-		const doing = submitter instanceof HTMLButtonElement ? submitter.value : '';
+		const plain = plainHideOrUnhide(submitter);
 		barRefused = '';
 		batch = null;
 		return async ({ action, result, update }) => {
@@ -335,14 +366,11 @@
 				batch = answer.refreshed as RefreshBatch;
 				return;
 			}
-			if (answer.showFacts)
-				hid = { q: data.q, answer: { showFacts: answer.showFacts as ShowFacts }, refused: '' };
+			if (answer.showFacts) keep({ showFacts: answer.showFacts as ShowFacts });
 			// A plain HIDE that took a Work with it: the ticks said no Work, and the
 			// workstation (`wholeAnswer`) knows better, so the band and UNDO come too.
-			if (answer.hideFacts)
-				hid = { q: data.q, answer: { hideFacts: answer.hideFacts as HideFacts }, refused: '' };
-			if (doing === 'hide' || doing === 'unhide' || action.search.includes('showAll'))
-				stopSelecting();
+			if (answer.hideFacts) keep({ hideFacts: answer.hideFacts as HideFacts });
+			if (plain || action.search.includes('showAll')) stopSelecting();
 		};
 	};
 	/** Which hits are hidden: what a selection noted is only what it noted when ticked. */
@@ -615,6 +643,7 @@
 	>
 		{#snippet action()}
 			<form method="POST" action={hidBand.action} use:enhance={undoHid}>
+				{#if hidBand.kind}<input type="hidden" name="kind" value={hidBand.kind} />{/if}
 				<input type="hidden" name="facts" value={hidBand.facts} />
 				<button type="submit">UNDO</button>
 			</form>
@@ -868,7 +897,10 @@
 	{batch}
 	{bulkAnswer}
 	ondismissBatch={() => (batch = null)}
-	ongrouped={async () => {
+	ongrouped={async (answer) => {
+		// GROUP into a Work: the library's band, from the sheet's own answer.
+		const made = workAnswer(answer);
+		if (made) keep(made);
 		stopSelecting();
 		await invalidateAll();
 	}}
@@ -882,8 +914,7 @@
 		await invalidateAll();
 	}}
 	onhideanswer={(d) => {
-		if (d.hideFacts)
-			hid = { q: data.q, answer: { hideFacts: d.hideFacts as HideFacts }, refused: '' };
+		if (d.hideFacts) keep({ hideFacts: d.hideFacts as HideFacts });
 	}}
 	ondeleted={async () => {
 		stopSelecting();
@@ -896,7 +927,7 @@
 	shelves={data.shelves}
 	onclose={() => (sheetId = null)}
 	onchange={() => invalidateAll()}
-	onhid={(answer) => (hid = { q: data.q, answer, refused: '' })}
+	onhid={keep}
 />
 
 <style>
