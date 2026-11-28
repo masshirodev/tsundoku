@@ -33,7 +33,14 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 			recent: (list.pinned.length ? list.pinned : list.recent).slice(0, 3),
 			total: list.manga.length + list.anime.length + list.novels.length
 		};
-		return { q, result: null, sources: null, browse, now: Date.now() };
+		return {
+			q,
+			result: null,
+			sources: null,
+			browse,
+			now: Date.now(),
+			revealed: isRevealed(cookies)
+		};
 	}
 	const reveal = isRevealed(cookies);
 	// SEARCH THE SOURCES after the titles (Download States 1e): how many it would
@@ -66,6 +73,9 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	return {
 		q,
 		result,
+		// Read with every query, where the layout's `reveal` is read once: what a
+		// band kept under reveal checks before it is drawn again (+page.svelte, `hid`).
+		revealed: reveal,
 		groupFacts: showRowFacts(ids, reveal),
 		sources: asking?.n ?? null,
 		sourcesMode: asking?.mode ?? null,

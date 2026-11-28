@@ -96,6 +96,8 @@ const write = (sql: string, ...args: unknown[]) => {
 	db.prepare(sql).run(...args);
 	db.close();
 };
+const hiddenOf = (seriesId: number) =>
+	row<{ hidden: number }>(`SELECT hidden FROM series WHERE id = ?`, seriesId).hidden;
 const inWork = (seriesId: number) =>
 	row<{ work_id: number } | undefined>(
 		`SELECT work_id FROM work_series WHERE series_id = ?`,
@@ -116,6 +118,42 @@ function makeWork(name: string, titles: string[]): number {
 	return id;
 }
 
+/**
+ * A series of one chapter under a made-up title, for the cases that need
+ * their own: the seed's titles are other cases', and a new case names no real
+ * series. Filed on the seed's open root, as a scan files one.
+ */
+function madeUp(title: string, hidden = 0): number {
+	const db = new Database(dbPath);
+	const root = db.prepare(`SELECT id FROM roots WHERE hidden = 0 ORDER BY id LIMIT 1`).get() as {
+		id: number;
+	};
+	const now = Date.now();
+	const id = Number(
+		db
+			.prepare(
+				`INSERT INTO series (root_id, title, kind, hidden, added_at, indexed_at)
+				VALUES (?, ?, 'manga', ?, ?, ?)`
+			)
+			.run(root.id, title, hidden, now, now).lastInsertRowid
+	);
+	db.prepare(
+		`INSERT INTO entries (series_id, position, label, added_at) VALUES (?, 1, 'Chapter 1', ?)`
+	).run(id, now);
+	db.close();
+	return id;
+}
+
+/** GROUP, A WORK, CREATE WORK: the ticked hits made into a Work by the app's own sheet. */
+async function createWork(page: Page, name: string) {
+	await barCell(page, 'GROUP').click();
+	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill(name);
+	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
+	await expect(sheet).toHaveCount(0);
+}
+
 /** GROUP, A WORK, ADD TO A WORK: the sheet, on the page's own list of Works. */
 async function addToWork(page: Page) {
 	await barCell(page, 'GROUP').click();
@@ -128,6 +166,27 @@ const searchField = (page: Page) =>
 	page.getByRole('searchbox').or(page.locator('.bar input')).first();
 const STALE = 'THAT WORK HAS CHANGED · LOOK AGAIN';
 const hidBand = (page: Page) => page.locator('.band:visible', { hasText: 'HIDDEN' });
+/** GROUP into a Work's band: the library's own words, `m.offer_work_made` and `m.offer_added_to`. */
+const workBand = (page: Page, text: string | RegExp) =>
+	page.locator('.band:visible', { hasText: text });
+
+/** A library tile by its exact title. */
+const libraryTile = (page: Page, title: string) =>
+	page.locator('.grid .tile').filter({
+		has: page.locator('.title', { hasText: new RegExp(`^${title}$`) })
+	});
+
+/** The library by title, SELECT, and this tile ticked: SELECT asserted on before anything ends it. */
+async function selectOnLibrary(page: Page, tile: ReturnType<typeof libraryTile>) {
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	const open = tile.locator('.open');
+	await open.click();
+	await expect(open).toHaveAttribute('aria-pressed', 'true');
+	await expect(count(page)).toHaveText('1 SELECTED');
+	await expect(page.locator('.bulk')).toBeVisible();
+	return open;
+}
 
 /** A search, SELECT on the bar, and these hits ticked: the real way a selection starts here. */
 async function tick(page: Page, q: string, titles: string[]) {
@@ -213,22 +272,43 @@ test('+ SHELF puts the ticked series on the shelf from /search', async ({ page }
 	await expect(count(page)).toHaveText('1 SELECTED');
 });
 
-test('GROUP a Work from two ticked hits: ends SELECT, and ADD TO A WORK posts to the library', async ({
+test('GROUP a Work from two ticked hits: the library’s band with UNDO, SELECT ends, and ADD TO A WORK posts to the library', async ({
 	page
 }) => {
 	const [a, b] = [series('Sousou no Frieren'), series('Yofukashi no Uta')];
+	const workHit = page.locator('.hit.work', { hasText: 'Bulk Work' });
+	const made = workBand(page, 'BULK WORK IS A WORK');
 	await page.goto(`${BASE}/search?q=o`);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await expect(count(page)).toHaveText('0 SELECTED');
+	await hit(page, 'Sousou no Frieren').click();
+	await hit(page, 'Yofukashi no Uta').click();
+	await createWork(page, 'Bulk Work');
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await expect(count(page)).toHaveCount(0);
+	expect(inWork(a.id)).toBeDefined();
+	expect(inWork(b.id)?.work_id).toBe(inWork(a.id)?.work_id);
+	// The library's band, in its words, and the hits read again with the Work in them.
+	await expect(made).toContainText('2 SERIES · EACH KEEPS ITS OWN');
+	await expect(workHit).toBeVisible();
+
+	// UNDO posts the library's `?/undoWork`: the Work goes, and so do the band and the hit.
+	const undone = page.waitForResponse(
+		(r) => r.request().method() === 'POST' && r.url().includes('undoWork')
+	);
+	await made.getByRole('button', { name: 'UNDO', exact: true }).click();
+	expect(new URL((await undone).url()).pathname).toBe('/');
+	await expect(made).toHaveCount(0);
+	await expect(workHit).toHaveCount(0);
+	expect(inWork(a.id)).toBeUndefined();
+	expect(inWork(b.id)).toBeUndefined();
+
+	// Made again, for the add below and the cases after it.
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await hit(page, 'Sousou no Frieren').click();
 	await hit(page, 'Yofukashi no Uta').click();
-	await barCell(page, 'GROUP').click();
-	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
-	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
-	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Bulk Work');
-	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
-	await expect(sheet).toHaveCount(0);
-	await expect(page.locator('.bulk')).toHaveCount(0);
-	expect(inWork(a.id)).toBeDefined();
+	await createWork(page, 'Bulk Work');
+	await expect(made).toBeVisible();
 	expect(inWork(b.id)?.work_id).toBe(inWork(a.id)?.work_id);
 
 	// The trap: ADD TO A WORK's `?/addToWork` was relative, and `/search` has no such action.
@@ -247,6 +327,110 @@ test('GROUP a Work from two ticked hits: ends SELECT, and ADD TO A WORK posts to
 	await add.getByRole('button', { name: /ADD 1 TO THE WORK/ }).click();
 	expect(new URL((await posted).url()).pathname).toBe('/');
 	await expect.poll(() => inWork(c.id)?.work_id).toBe(inWork(a.id)?.work_id);
+	const added = workBand(page, 'ADDED TO BULK WORK');
+	await expect(added).toContainText('1 SERIES · AT THE END OF THE RUN');
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	// The band is the add's: the create's, on another query, is not drawn here.
+	await expect(made).toHaveCount(0);
+
+	await added.getByRole('button', { name: 'UNDO', exact: true }).click();
+	await expect(added).toHaveCount(0);
+	expect(inWork(c.id)).toBeUndefined();
+	expect(inWork(a.id)).toBeDefined();
+});
+
+test('GROUP’s UNDO refused: the band stays and says why', async ({ page }) => {
+	const ids = [madeUp('Paper Lantern Alley'), madeUp('Paper Lantern Ferry')];
+	await tick(page, 'Paper Lantern', ['Paper Lantern Alley', 'Paper Lantern Ferry']);
+	await createWork(page, 'Lantern Run');
+	const band = workBand(page, 'LANTERN RUN');
+	await expect(band).toContainText('LANTERN RUN IS A WORK');
+	// Ended elsewhere: the Work the create made is not the one there now.
+	const work = inWork(ids[0])!.work_id;
+	// This connection keeps no foreign keys, so the members go by hand, as an UNGROUP's would.
+	write(`DELETE FROM work_series WHERE work_id = ?`, work);
+	write(`DELETE FROM works WHERE id = ?`, work);
+
+	const undone = page.waitForResponse(
+		(r) => r.request().method() === 'POST' && r.url().includes('undoWork')
+	);
+	await band.getByRole('button', { name: 'UNDO', exact: true }).click();
+	expect((await undone).status()).toBe(200);
+	await expect(band).toContainText('LANTERN RUN HAS CHANGED SINCE IT WAS MADE');
+	await expect(band.getByRole('button', { name: 'UNDO', exact: true })).toBeVisible();
+	expect(ids.map((id) => inWork(id))).toEqual([undefined, undefined]);
+});
+
+test('GROUP’s band goes with its query and with ✕, and ✕ undoes nothing', async ({ page }) => {
+	const ids = [madeUp('Copper Kettle Dawn'), madeUp('Copper Kettle Dusk')];
+	await tick(page, 'Copper Kettle', ['Copper Kettle Dawn', 'Copper Kettle Dusk']);
+	await createWork(page, 'Kettle Run');
+	const band = workBand(page, 'KETTLE RUN IS A WORK');
+	await expect(band).toBeVisible();
+
+	await searchField(page).fill('Copper Kettle D');
+	await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe('Copper Kettle D');
+	await expect(band).toHaveCount(0);
+	await searchField(page).fill('Copper Kettle');
+	await expect(band).toBeVisible();
+
+	await band.getByRole('button', { name: 'Dismiss this band' }).click();
+	await expect(band).toHaveCount(0);
+	const work = inWork(ids[0])?.work_id;
+	expect(work).toBeDefined();
+	expect(inWork(ids[1])?.work_id).toBe(work);
+});
+
+test('a HIDE of the Work’s series takes GROUP’s band down, and its name is not drawn again', async ({
+	page
+}) => {
+	const ids = [madeUp('Velvet Orchard North'), madeUp('Velvet Orchard South')];
+	await tick(page, 'Velvet Orchard', ['Velvet Orchard North', 'Velvet Orchard South']);
+	await createWork(page, 'Orchard Run');
+	await expect(workBand(page, 'ORCHARD RUN IS A WORK')).toBeVisible();
+
+	// A part of the Work: the bar's HIDE asks, and HIDE ALL hides it whole.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await hit(page, 'Velvet Orchard North').click();
+	await barCell(page, 'HIDE').click();
+	await page
+		.getByRole('dialog', { name: 'Hide' })
+		.getByRole('button', { name: /HIDE ALL/ })
+		.click();
+	await expect(hidBand(page)).toContainText('THE WORK, WHOLE');
+	await expect.poll(() => ids.map(hiddenOf)).toEqual([1, 1]);
+	await expect(page.getByText('ORCHARD RUN')).toHaveCount(0);
+	// Away and back to the query: the HIDE's band, never the GROUP's again.
+	await searchField(page).fill('Velvet Orchard N');
+	await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe('Velvet Orchard N');
+	await searchField(page).fill('Velvet Orchard');
+	await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe('Velvet Orchard');
+	await expect(hidBand(page)).toBeVisible();
+	await expect(page.getByText('ORCHARD RUN')).toHaveCount(0);
+	expect(await page.content()).not.toContain('ORCHARD RUN');
+});
+
+test('a Work made under reveal is not named once reveal has ended, even back on its query', async ({
+	page,
+	context
+}) => {
+	madeUp('Hollow Reed Ember', 1);
+	madeUp('Hollow Reed Frost', 1);
+	await revealOn(context, BASE);
+	await tick(page, 'Hollow Reed', ['Hollow Reed Ember', 'Hollow Reed Frost']);
+	await createWork(page, 'Reed Run');
+	const band = workBand(page, 'REED RUN IS A WORK');
+	await expect(band).toBeVisible();
+
+	// Reveal ends without leaving the page (another tab's HIDE AGAIN, its 12 hours).
+	await context.clearCookies({ name: 'tsundoku_reveal' });
+	await searchField(page).fill('Hollow Reed E');
+	await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe('Hollow Reed E');
+	await searchField(page).fill('Hollow Reed');
+	await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe('Hollow Reed');
+	await expect(hit(page, 'Hollow Reed Ember')).toHaveCount(0);
+	await expect(band).toHaveCount(0);
+	expect(await page.content()).not.toContain('REED RUN');
 });
 
 test('a plain HIDE ends SELECT and takes the hit out of the results', async ({ page }) => {
@@ -256,6 +440,60 @@ test('a plain HIDE ends SELECT and takes the hit out of the results', async ({ p
 	await expect.poll(() => series('Lookism').hidden).toBe(1);
 	await expect(hit(page, 'Lookism')).toHaveCount(0);
 	// A series in no Work is a plain hide: `wholeAnswer` answers no facts, so no band.
+	await expect(hidBand(page)).toHaveCount(0);
+});
+
+test('on the library too, a plain HIDE ends SELECT, FAV does not, and UNHIDE under reveal ends it', async ({
+	page,
+	context
+}) => {
+	const id = madeUp('Aardvark Quiet Harbor');
+	const tile = libraryTile(page, 'Aardvark Quiet Harbor');
+	const ticked = await selectOnLibrary(page, tile);
+	// FAV is not a HIDE: the ticks stay, as on the search.
+	await barCell(page, 'FAV').click();
+	await expect
+		.poll(() => row<{ f: number }>(`SELECT favourite AS f FROM series WHERE id = ?`, id).f)
+		.toBe(1);
+	await expect(count(page)).toHaveText('1 SELECTED');
+	await expect(ticked).toHaveAttribute('aria-pressed', 'true');
+
+	await barCell(page, 'HIDE').click();
+	await expect.poll(() => hiddenOf(id)).toBe(1);
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await expect(count(page)).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toBeVisible();
+	await expect(tile).toHaveCount(0);
+	// A series in no Work is a plain hide: no band.
+	await expect(hidBand(page)).toHaveCount(0);
+
+	await revealOn(context, BASE);
+	await selectOnLibrary(page, tile);
+	await expect(barCell(page, 'HIDE')).toHaveCount(0);
+	await barCell(page, 'UNHIDE').click();
+	await expect.poll(() => hiddenOf(id)).toBe(0);
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await expect(count(page)).toHaveCount(0);
+});
+
+test('on the library, a plain HIDE that took a Work ends SELECT and keeps the band with UNDO', async ({
+	page
+}) => {
+	const ids = [madeUp('Aardwolf Salt Road'), madeUp('Aardwolf Salt Sea')];
+	const tile = libraryTile(page, 'Aardwolf Salt Road');
+	await selectOnLibrary(page, tile);
+	// The tick noted no Work, so the bar's HIDE is the plain one, posted to `?/bulk`,
+	// and the workstation's `wholeAnswer` hides the Work it joined since.
+	makeWork('Salt Run', ['Aardwolf Salt Road', 'Aardwolf Salt Sea']);
+	await barCell(page, 'HIDE').click();
+	await expect(hidBand(page)).toContainText('THE WORK, WHOLE');
+	await expect(page.getByRole('dialog', { name: 'Hide' })).toHaveCount(0);
+	await expect(page.locator('.bulk')).toHaveCount(0);
+	await expect(count(page)).toHaveCount(0);
+	await expect.poll(() => ids.map(hiddenOf)).toEqual([1, 1]);
+
+	await hidBand(page).getByRole('button', { name: 'UNDO', exact: true }).click();
+	await expect.poll(() => ids.map(hiddenOf)).toEqual([0, 0]);
 	await expect(hidBand(page)).toHaveCount(0);
 });
 

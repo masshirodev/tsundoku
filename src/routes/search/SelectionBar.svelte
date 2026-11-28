@@ -70,7 +70,8 @@
 		batch?: RefreshBatch | null;
 		bulkAnswer: SubmitFunction;
 		ondismissBatch: () => void;
-		ongrouped: () => void;
+		/** GROUP into a Work is done, with its answer (`{ made }` or `{ addedWork }`). */
+		ongrouped: (answer?: Record<string, unknown>) => void;
 		/** GROUP's sheet refused and closed; `/search` draws why and reads its lists again. */
 		ongroupstale?: (message: string) => void;
 		onhide: () => void | Promise<void>;
@@ -417,9 +418,9 @@
 	{answers}
 	{noun}
 	absolute
-	ondone={() => {
+	ondone={(answer) => {
 		grouping = false;
-		ongrouped();
+		ongrouped(answer);
 	}}
 	onstale={ongroupstale}
 	onclose={() => (grouping = false)}

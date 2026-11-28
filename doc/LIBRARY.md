@@ -439,30 +439,49 @@ has no such action. GROUP's lists (`existing`, `existingWorks`) come from
 SvelteKit applies an answer only to the page it belongs to (`GroupSheet`'s own
 `ondone`), so the search reads each answer itself:
 
-| Action                        | On the library                                           | On the search                                                                           |
-| ----------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| FAV, RATE                     | `form`, re-read; SELECT stays                            | re-read; SELECT stays                                                                   |
-| + SHELF                       | re-read; SELECT stays                                    | re-read; SELECT stays                                                                   |
-| GROUP, into a Work            | the band's UNDO; SELECT ends                             | hits re-read; SELECT ends, no band (the Work is in the hits)                            |
-| GROUP, into a series          | `?/group` redirects to the new series                    | the same redirect, to the new series; leaving ends SELECT                               |
-| HIDE/UNHIDE (no Work)         | `form`, re-read; SELECT stays (by default)               | re-read; **SELECT ends**, as on any bulk action's success                               |
-| HIDE on a Work's part         | the HIDE sheet; the band with UNDO; SELECT ends          | the same sheet; `/search`'s own band with UNDO; SELECT ends                             |
-| A plain HIDE that took a Work | `?/bulk` answers `hideFacts`; the band with UNDO         | the same answer read here: `/search`'s own band with UNDO; no sheet; SELECT ends        |
-| UNHIDE a Work's part          | `?/showAll`, band                                        | band; SELECT ends                                                                       |
-| FOLD                          | `?/fold` redirects to the review                         | the same redirect                                                                       |
-| REFRESH                       | the band over the bar; SELECT stays                      | the same band; SELECT stays                                                             |
-| DELETE                        | the sheet; SELECT ends                                   | the same sheet; SELECT ends                                                             |
-| DELETE, no success            | `NOT DELETED · …` over the bar; page re-read; ticks stay | the same                                                                                |
-| A refusal                     | `foldMessage` over the bar                               | `foldMessage` over the bar; **the selection is kept**                                   |
-| A stale GROUP (Work gone)     | the sheet closes, the page re-reads its lists            | the sheet hands it to the bar's line; **the ticks stay**; the lists re-read (`onstale`) |
+| Action                        | On the library                                                | On the search                                                                                   |
+| ----------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| FAV, RATE                     | `form`, re-read; SELECT stays                                 | re-read; SELECT stays                                                                           |
+| + SHELF                       | re-read; SELECT stays                                         | re-read; SELECT stays                                                                           |
+| GROUP, into a Work            | the band's UNDO; SELECT ends                                  | the library's band with UNDO (`?/undoWork`), from the sheet's answer; hits re-read; SELECT ends |
+| GROUP, into a series          | `?/group` redirects to the new series                         | the same redirect, to the new series; leaving ends SELECT                                       |
+| HIDE/UNHIDE (no Work)         | `form`, re-read; **SELECT ends**                              | re-read; **SELECT ends**, as on the library                                                     |
+| HIDE on a Work's part         | the HIDE sheet; the band with UNDO; SELECT ends               | the same sheet; `/search`'s own band with UNDO; SELECT ends                                     |
+| A plain HIDE that took a Work | `?/bulk` answers `hideFacts`; the band with UNDO; SELECT ends | the same answer read here: `/search`'s own band with UNDO; no sheet; SELECT ends                |
+| UNHIDE a Work's part          | `?/showAll`, band; SELECT stays                               | band; SELECT ends                                                                               |
+| FOLD                          | `?/fold` redirects to the review                              | the same redirect                                                                               |
+| REFRESH                       | the band over the bar; SELECT stays                           | the same band; SELECT stays                                                                     |
+| DELETE                        | the sheet; SELECT ends                                        | the same sheet; SELECT ends                                                                     |
+| DELETE, no success            | `NOT DELETED · …` over the bar; page re-read; ticks stay      | the same                                                                                        |
+| A refusal                     | `foldMessage` over the bar                                    | `foldMessage` over the bar; **the selection is kept**                                           |
+| A stale GROUP (Work gone)     | the sheet closes, the page re-reads its lists                 | the sheet hands it to the bar's line; **the ticks stay**; the lists re-read (`onstale`)         |
 
 A refusal over the bar on the search lasts until the selection or the query
 changes, the next bulk action, or the end of SELECT.
 
-`hidBand`, GROUP's and DELETE's own sheets carry their own answers, so nothing
-else is drawn for them on the search. ← after an action carries the ids back
-and posts nothing; a selection carried back acts on those same ids
-(`tests/search-bulk-flow.e2e.ts`).
+On the search one band at a time answers the library's actions (`hid`, drawn
+as `hidBand`): HIDE ALL n from a hit's sheet, a HIDE or UNHIDE that took a
+Work, and GROUP into a Work. GROUP's sheet hands its answer to the bar
+(`ondone`, then `ongrouped`), since SvelteKit gives the library's `?/work` and
+`?/addToWork` answers only to the library's `form`; the band says what the
+library's says, in the same words (`workBand` in
+`src/routes/search/bar-answers.ts`, which both pages call), and its UNDO posts
+`/?/undoWork`. A success takes the band down and re-reads the hits; a refusal
+stays on the band and says why. As `form` does on the library, the next answer
+replaces it, so a HIDE of the Work's series takes its name down with it. It
+belongs to the query it was pressed on, drawn only while that query is the
+page's, and goes with ✕ and with leaving. A Work made with reveal on is not
+named again once the page has read reveal off. DELETE's sheet carries its own
+answer.
+
+A plain HIDE or UNHIDE (the bar's own cells, `plainHideOrUnhide`) ends SELECT
+on both pages once it succeeds, and the band a HIDE that took a Work answers
+stays up after it; a refusal keeps the selection. UNHIDE of a Work's part
+(`?/showAll`) ends it on the search and leaves it on the library, where only
+the plain cells end it.
+
+← after an action carries the ids back and posts nothing; a selection carried
+back acts on those same ids (`tests/search-bulk-flow.e2e.ts`).
 
 ### + SHELF and + ADD
 

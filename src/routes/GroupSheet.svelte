@@ -113,9 +113,9 @@
 		noun?: 'BOOKS' | 'VOLUMES' | 'SEASONS';
 		/**
 		 * After a Work is made or added to: the sheet closes and the selection
-		 * ends. On a series screen it is handed the action's answer: `?/work` is
-		 * the library's action, and SvelteKit applies a form only to the page it
-		 * belongs to, so that screen's `form` never sees it.
+		 * ends. It is handed the action's answer: `?/work` is the library's
+		 * action, and SvelteKit applies a form only to the page it belongs to, so
+		 * the series screen's `form` and `/search`'s never see it.
 		 */
 		ondone?: (answer?: Record<string, unknown>) => void;
 		/**
@@ -351,8 +351,13 @@
 				} else {
 					await update();
 					// A Work is made or joined in place: the library stays, with its
-					// band, and the selection it came from ends (W4).
-					if (work) (ondone ?? onclose)();
+					// band, and the selection it came from ends (W4). The answer goes
+					// with it: `/search` draws the band from it, since SvelteKit gives
+					// the library's answer to the library's `form` alone.
+					if (work) {
+						if (ondone) ondone(result.type === 'success' ? result.data : undefined);
+						else onclose();
+					}
 				}
 			};
 		}}

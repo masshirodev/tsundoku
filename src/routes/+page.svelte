@@ -64,6 +64,7 @@
 	import { langCode } from '$lib/library/editions';
 	import SeriesSheet from './SeriesSheet.svelte';
 	import SelectionBar from './search/SelectionBar.svelte';
+	import { plainHideOrUnhide, workAnswer, workBand } from './search/bar-answers';
 	import PersonView from './PersonView.svelte';
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import { tagHref } from '$lib/library/links';
@@ -1080,23 +1081,25 @@
 			if (result.type === 'success') await invalidateAll();
 			else await update();
 		};
-	/** The bar's bulk forms: the answer lands in `form`, and the ticks stay. */
-	const keepAfterBulk: SubmitFunction =
-		() =>
-		async ({ update }) => {
+	/**
+	 * The bar's bulk forms: the answer lands in `form`. A plain HIDE or UNHIDE
+	 * that succeeded ends SELECT, as on `/search` (`plainHideOrUnhide`); the
+	 * band a HIDE that took a Work answers is drawn from `latest`, which ending
+	 * SELECT leaves alone. FAV, a rating and the rest keep the ticks, and so
+	 * does a refusal, drawn over the bar.
+	 */
+	const keepAfterBulk: SubmitFunction = ({ submitter }) => {
+		const plain = plainHideOrUnhide(submitter);
+		return async ({ result, update }) => {
 			await update({ reset: false });
+			if (plain && result.type === 'success') stopSelecting();
 		};
-	/** GROUP AS A WORK's own answer: the Work it made, or what joined one. */
-	const made = $derived(
-		latest && 'made' in latest
-			? (latest.made as { work: { name: string }; members: unknown[] })
-			: null
-	);
-	const addedWork = $derived(
-		latest && 'addedWork' in latest
-			? (latest.addedWork as { workId: number; name: string; facts: unknown[] })
-			: null
-	);
+	};
+	/** GROUP AS A WORK's own answer, in the words `/search` uses too (`workBand`). */
+	const madeBand = $derived.by(() => {
+		const a = workAnswer(latest as Record<string, unknown> | null);
+		return a ? workBand(a) : null;
+	});
 	/** The HIDE answer's facts: shown again, and taken out again, by UNDO. */
 	const hideFacts = $derived(
 		latest && 'hideFacts' in latest
@@ -2102,23 +2105,15 @@
 			{/snippet}
 		</Band>
 	{/if}
-	{#if made || addedWork}
+	{#if madeBand}
 		<!-- A Work's create and add answer here, where the sheet was opened: the Work's
 		     own screen would replace the library being looked at. -->
 		<div class="lib-band">
-			<Band
-				title={made
-					? m.offer_work_made({ name: made.work.name.toUpperCase() })
-					: m.offer_added_to({ name: addedWork!.name.toUpperCase() })}
-				detail={made
-					? `${made.members.length} SERIES · EACH KEEPS ITS OWN`
-					: `${addedWork!.facts.length} SERIES · AT THE END OF THE RUN`}
-				ondismiss={dropAnswer}
-			>
+			<Band title={madeBand.title} detail={madeBand.detail} ondismiss={dropAnswer}>
 				{#snippet action()}
 					<form method="POST" action="?/undoWork" use:enhance={undoAfter}>
-						<input type="hidden" name="kind" value={made ? 'create' : 'add'} />
-						<input type="hidden" name="facts" value={JSON.stringify(made ?? addedWork!.facts)} />
+						<input type="hidden" name="kind" value={madeBand.kind} />
+						<input type="hidden" name="facts" value={madeBand.facts} />
 						<button type="submit">UNDO</button>
 					</form>
 				{/snippet}
