@@ -133,6 +133,9 @@ export const VALUES = {
 	'anime.subsize': { where: 'library', key: 'anime_subsize_default', def: '' },
 	// Null: the highest the server offers.
 	'anime.quality': { where: 'device', key: 'tsundoku:anime:quality', def: null },
+	// A stall never drops to a lower quality; it waits, and only moves to a
+	// server with the chosen one or better.
+	'anime.keep': { where: 'device', key: 'tsundoku:anime:keep', def: false, label: onOff },
 	'anime.dim': { where: 'device', key: 'tsundoku:anime:dim', def: 0, label: pct },
 	// What the next episode starts at: 0 to 1, as a <video>'s volume. Mute
 	// is never kept, so a muted episode can't leave the next one silent.
@@ -675,6 +678,13 @@ export const SECTIONS: SectionDef[] = [
 					]
 				},
 				meta: "WHAT A STREAM STARTS AT · THE PLAYER'S SHEET CHANGES ONE EPISODE"
+			},
+			{
+				id: 'keep-quality',
+				label: 'NEVER LOWER',
+				where: 'device',
+				control: { type: 'seg', groups: [{ value: 'anime.keep', opts: OFF_ON }] },
+				meta: 'A STALL WAITS RATHER THAN DROP · IT MOVES ONLY TO A SERVER WITH THE CHOSEN QUALITY OR BETTER'
 			},
 			{
 				id: 'speed',

@@ -3570,9 +3570,10 @@
 		box-sizing: border-box;
 		margin: 56px calc(var(--side, 72px) * -1);
 		padding: 0 72px;
-		background: var(--surface-page);
-		border-top: 1px solid var(--text-1);
-		border-bottom: 1px solid var(--text-1);
+		/* END's colours are the page's, as PAGED's band takes them: no ground of
+		   its own, so PAPER's END is not a dark block on a paper page. */
+		border-top: 1px solid var(--ink);
+		border-bottom: 1px solid var(--ink);
 		text-align: left;
 	}
 	/* As tall as the screen, so the room's top can reach the middle of it. */
@@ -3581,7 +3582,7 @@
 	}
 	.sband .rule {
 		height: 1px;
-		background: var(--line-1);
+		background: var(--pl1);
 	}
 	.sband .nx {
 		display: flex;
@@ -3590,7 +3591,7 @@
 	}
 	.sband .nx .t {
 		font: 500 34px / 1.2 var(--font-sans);
-		color: var(--text-1);
+		color: var(--ink);
 	}
 	.sband .go {
 		font: 500 14px var(--font-mono);

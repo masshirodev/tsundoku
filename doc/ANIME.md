@@ -670,7 +670,10 @@ screen but the video, and the subtitles, until a tap.
   them itself. Releasing the key ends the pace, so the next press moves a
   minute however soon it comes. ← → stay 10 s on every device, and on a TV,
   SKIP INTRO, SKIP ENDING and the next-episode card's PLAY NOW → take focus
-  when they are offered, so OK presses them.
+  when they are offered, so OK presses them. I, O and ENTER are MARK IN,
+  MARK OUT and KEEP for a clip ([`HIGHLIGHTS.md`](HIGHLIGHTS.md), "Clips"),
+  ENTER only while no other control has focus; a TV makes no clip, so they
+  are not its keys and its KEYS list leaves them out.
 - **The settings sheet**, the middle cell ("JA · EN SUBS · 1080P · 1×"): a
   520px side sheet with the picture playing beside it. QUALITY (this
   server's), SERVER (the hosters by name, the one playing and the ones that
@@ -827,6 +830,41 @@ screen but the video, and the subtitles, until a tap.
   a label of 4.58 Mbps): a link that can't carry it stalls there on every
   try. A fatal error still moves servers, never quality: that's a server
   broken, not a link too thin.
+- **NEVER LOWER** (`keepServer`, `keepPick` and their one rule `keptIndex` in
+  `src/lib/library/player.ts`): the
+  device setting beside QUALITY, also a row in the player's sheet, makes a
+  stall keep the quality. It keeps buffering, the panel keeps counting and
+  naming what it waits on and no lower step, and it tries once a window for a
+  server that keeps the chosen height under the device's cap: the quality this
+  device would start on there (`capIndex`, the rule of every start) must be at
+  least that height, and the move plays that quality. So a server is judged by
+  what this device would play on it, not by its best: a phone (720) or a
+  QUALITY of 720P is never moved onto a server's 1080, and a server of 1080
+  and 480 plays 480 under that cap, so it keeps no 720 and is no move. With
+  none, it stays and the
+  panel's SERVER n NOW → and the sheet's SERVER and QUALITY rows are the way
+  by hand. The servers this outage has already moved to are left for its
+  length — two slow ones used to take turns, each move throwing away what the
+  other had buffered — and the list is forgotten once the picture really plays
+  again, or a server or quality is chosen by hand. The device's QUALITY is a
+  cap, so what is really playing is the height kept: a 1080 choice on a source
+  that tops out at 720 keeps 720, and an equal 720 server is a move where a 480
+  one is not. With HIGHEST chosen the chosen height is the one playing; a
+  server with no known quality is not a move, since moving to it could be the
+  drop the setting refuses. A fatal error is filtered the same way, and asks
+  the source's list afresh once: it re-attaches on the first server where the
+  quality the device's cap chooses (`capIndex`, the rule every start uses, so
+  a device on 720 or a phone comes back at 720, not at a server's 1080) is at
+  least the kept height (`keepPick`). With nowhere it ends on the no-server
+  panel — "NOTHING KEEPS THE QUALITY", the height it waits at, CHOOSE and TRY
+  AGAIN — rather than a dead picture or a lower quality. The refused list
+  leaves nothing current, so the height being waited at outlives the refusal:
+  TRY AGAIN asks for that height again (and stays on the panel while the list
+  still lacks it), as does the engine's TRY AGAIN when the sources stop
+  answering mid-wait. CHOOSE opens the player's sheet over the panel, and a
+  server or a quality picked there is the way out: it attaches, at the second
+  it stopped at, and the panel goes. With the setting off, `stallStep` is
+  exactly as above.
 - **What counts as a stall** (`stallClock` in `src/lib/library/player.ts`).
   The 15 s clock runs only while the player is trying to play from a settled
   position. A seek isn't a stall, however it is made (a held ← or →, the
@@ -898,7 +936,9 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   clipped. Both tracks measure the one the pointer is on (the hidden one is 0
   wide), and the scrubber goes by the video's own length from its
   `durationchange`, not the episode's stored length, so a seek before ▶ lands
-  against the file's real end.
+  against the file's real end. Under the scrubber, also fixed, is the
+  clip's marking row: MARK IN, MARK OUT and KEEP, three cells
+  ([`HIGHLIGHTS.md`](HIGHLIGHTS.md), "Clips"); what scrolls starts below it.
 - **Watching is reading.** The player sends the reader's events
   (`/api/reading`): `page` is seconds into the episode, and `length` its
   length as the player measured it, which is how an episode learns its length

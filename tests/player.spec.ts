@@ -14,6 +14,10 @@ import {
 	leftLabel,
 	movedEnough,
 	nextServer,
+	keepServer,
+	keptHeight,
+	capIndex,
+	keepPick,
 	offerNextAt,
 	openAt,
 	parseVtt,
@@ -140,6 +144,96 @@ describe('servers', () => {
 		expect(stallStep([1], 1, new Set(), [720, 720, 480], 0)).toEqual({ quality: 2 });
 		expect(stallStep([1], 1, new Set(), [null, 480], 0)).toEqual({ quality: 1 });
 		expect(stallStep([1], 1, new Set(), [720, null], 0)).toBeNull();
+	});
+
+	it('keep the quality a stall would drop', () => {
+		const servers = [
+			{ n: 1, heights: [1080, 720, 360] },
+			{ n: 2, heights: [720, 360] },
+			{ n: 3, heights: [1080, 720] },
+			{ n: 4, heights: [] },
+			{ n: 5, heights: [480] }
+		];
+		// The next server that has 1080 or better; a 720-only one is not a move.
+		expect(keepServer([1, 2, 3], 1, new Set(), servers, 1080, null)?.n).toBe(3);
+		expect(keepServer([1, 2], 1, new Set([1]), servers, 1080, null)).toBeNull();
+		// It wraps in the source's order, as nextServer does, and never the current one.
+		expect(keepServer([1, 2, 3], 3, new Set([3]), servers, 720, null)?.n).toBe(1);
+		// A failed server is skipped even when it would keep the height.
+		expect(keepServer([1, 2, 3], 1, new Set([3]), servers, 1080, null)).toBeNull();
+		// Nothing resolved (no qualities) is not a move: it could be the lower one.
+		expect(keepServer([1, 4], 1, new Set(), servers, 360, null)).toBeNull();
+		// No height known at all is not a move either.
+		expect(keepServer([1, 3], 1, new Set(), servers, null, null)).toBeNull();
+		// The height is a cap, so what is really playing is what to keep: 1080
+		// wanted on a source that tops out at 720 keeps 720, and the equal 720
+		// server is a move where a 480 one is not.
+		expect(keptHeight(1080, 720)).toBe(720);
+		expect(keptHeight(1080, 1080)).toBe(1080);
+		expect(keptHeight(720, 1080)).toBe(720);
+		expect(keptHeight(1080, null)).toBe(1080);
+		expect(keptHeight(null, 720)).toBe(720);
+		expect(keptHeight(null, null)).toBeNull();
+		expect(keepServer([1, 2], 1, new Set(), servers, keptHeight(1080, 720), null)?.n).toBe(2);
+		expect(keepServer([1, 5], 1, new Set(), servers, keptHeight(1080, 720), null)).toBeNull();
+		// With no cap the move plays the server's best, which is what keeps it.
+		expect(keepServer([1, 3], 1, new Set(), servers, 1080, null)).toEqual({ n: 3, i: 0 });
+	});
+
+	it('move a stall only where the device’s cap keeps the height, as a start and a re-attach do', () => {
+		const servers = [
+			{ n: 1, heights: [720] },
+			{ n: 2, heights: [1080, 480] },
+			{ n: 3, heights: [1080, 720] }
+		];
+		// Capped at 720 (QUALITY 720P, or a phone on HIGHEST): [1080, 480] would
+		// play 480 under the cap, so it is no move for a kept 720; it is never 1080.
+		expect(keepServer([1, 2], 1, new Set(), servers, 720, 720)).toBeNull();
+		// [1080, 720] is, and at 720, the quality the cap picks.
+		expect(keepServer([1, 2, 3], 1, new Set(), servers, 720, 720)).toEqual({ n: 3, i: 1 });
+		// With no cap, [1080, 480] keeps a 720 at its best, 1080.
+		expect(keepServer([1, 2], 1, new Set(), servers, 720, null)).toEqual({ n: 2, i: 0 });
+		// Below the cap (480 kept on a phone), [1080, 720] keeps it at 720, the cap's pick.
+		expect(keepServer([1, 3], 1, new Set(), servers, 480, 720)).toEqual({ n: 3, i: 1 });
+		// The same answer as the fresh re-attach gives for that list and cap.
+		for (const cap of [null, 1080, 720, 480])
+			for (const kept of [1080, 720, 480])
+				for (const s of servers.slice(1))
+					expect(keepServer([1, s.n], 1, new Set(), servers, kept, cap)).toEqual(
+						keepPick([s], cap, kept)
+					);
+	});
+
+	it('start a server under the device’s cap, and re-attach a kept height by the same rule', () => {
+		// The cap: the first height at or below it, else the lowest; none is the best.
+		expect(capIndex([1080, 720, 360], null)).toBe(0);
+		expect(capIndex([1080, 720, 360], 720)).toBe(1);
+		expect(capIndex([1080, 720, 360], 1080)).toBe(0);
+		expect(capIndex([1080, 720, 360], 480)).toBe(2);
+		expect(capIndex([1080, 720], 240)).toBe(1);
+		expect(capIndex([null, 720], 1080)).toBe(1);
+		// A device capped at 720 keeping 720 comes back at 720, not the server's top.
+		expect(keepPick([{ n: 1, heights: [1080, 720] }], 720, 720)).toEqual({ n: 1, i: 1 });
+		// No cap keeps what was playing at the best, which is at least it.
+		expect(keepPick([{ n: 1, heights: [1080, 720] }], null, 1080)).toEqual({ n: 1, i: 0 });
+		// A server whose capped pick is below the kept height is passed over.
+		expect(
+			keepPick(
+				[
+					{ n: 1, heights: [720, 480] },
+					{ n: 2, heights: [1080, 720] }
+				],
+				null,
+				1080
+			)
+		).toEqual({ n: 2, i: 0 });
+		// Nothing keeps it: a lower list, an unsized one, an empty one.
+		expect(keepPick([{ n: 1, heights: [720] }], null, 1080)).toBeNull();
+		expect(keepPick([{ n: 1, heights: [null] }], null, 720)).toBeNull();
+		expect(keepPick([{ n: 1, heights: [] }], null, 720)).toBeNull();
+		expect(keepPick([], null, 720)).toBeNull();
+		// The cap under the kept height keeps nothing: the cap is the device's rule.
+		expect(keepPick([{ n: 1, heights: [1080, 720] }], 720, 1080)).toBeNull();
 	});
 
 	it('draw the challenge’s known range, never a fill toward an end', () => {

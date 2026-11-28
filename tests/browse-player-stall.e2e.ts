@@ -34,7 +34,7 @@ declare global {
 	}
 }
 
-async function bufferingStream(page: Page) {
+async function bufferingStream(page: Page, withLower = false) {
 	let clip: string | null = null;
 	// Every 100 ms, what the screen shows, and each seek the element announced.
 	await page.addInitScript((dropped) => {
@@ -72,7 +72,20 @@ async function bufferingStream(page: Page) {
 				// A phone starts on 720 (startIndex): it needs somewhere lower to go.
 				{ ...q, label: '480p', height: 480, src: `${q.src}#480` }
 			];
-			await route.fulfill({ response: answer, json: { ...list, servers: [last] } });
+			// A server that offers only the lower quality: with NEVER LOWER on it is
+			// not an automatic move, and the panel's SERVER n NOW → is the way.
+			// The pair is numbered from 1 so the panel's "SERVER n OF 2" reads right.
+			const playing = { ...last, n: 1 };
+			const lower = {
+				...playing,
+				n: 2,
+				name: 'Lower',
+				qualities: [{ ...q, label: '720p', height: 720, src: `${q.src}#lower` }]
+			};
+			await route.fulfill({
+				response: answer,
+				json: { ...list, servers: withLower ? [playing, lower] : [last] }
+			});
 		}
 	);
 	await page.route(
@@ -97,6 +110,19 @@ async function bufferingStream(page: Page) {
 }
 
 async function openPlaying(page: Page) {
+	await openPlayer(page);
+	await page.waitForFunction(
+		() => {
+			const v = document.querySelector('video');
+			return !!v && !v.paused && v.currentTime > 0.3;
+		},
+		undefined,
+		{ timeout: 30_000 }
+	);
+}
+
+/** The episode's player, opened but not yet playing: a broken first stream never is. */
+async function openPlayer(page: Page) {
 	// Incognito, as tests/tv-player.e2e.ts plays: nothing watched here is written
 	// to a database the other browse specs read.
 	await page.context().addCookies([{ name: 'tsundoku_incognito', value: '1', url: BROWSE }]);
@@ -110,17 +136,228 @@ async function openPlaying(page: Page) {
 		.locator('.entry-btn')
 		.click();
 	await expect(page.locator('.player')).toBeVisible();
+}
+
+const timeline = (page: Page) => page.evaluate(() => window.__stall);
+
+/** The player's settings sheet, opened from the bar's cell (its chrome first). */
+async function openSheet(page: Page) {
+	await page.mouse.move(640, 400);
+	await page.mouse.move(700, 400);
+	await page.locator('.cells .grow').click();
+	const sheet = page.getByRole('dialog', { name: 'Playback settings' });
+	await expect(sheet).toBeVisible();
+	return sheet;
+}
+
+/** NEVER LOWER, pressed in the player's sheet as the owner would. */
+async function neverLower(page: Page, on: boolean) {
+	const sheet = await openSheet(page);
+	const row = sheet.locator('.srow2', { hasText: 'NEVER LOWER' });
+	await row.getByRole('button', { name: on ? 'ON' : 'OFF', exact: true }).click();
+	await expect(row.getByRole('button', { name: on ? 'ON' : 'OFF', exact: true })).toHaveClass(/on/);
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(sheet).toHaveCount(0);
+}
+
+/** What the sheet says the setting is now: the value read back, after a reload too. */
+async function neverLowerIs(page: Page, on: boolean) {
+	const sheet = await openSheet(page);
+	const row = sheet.locator('.srow2', { hasText: 'NEVER LOWER' });
+	await expect(row.getByRole('button', { name: on ? 'ON' : 'OFF', exact: true })).toHaveClass(/on/);
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(sheet).toHaveCount(0);
+}
+
+/**
+ * NEVER LOWER pressed in SETTINGS › 03 — WATCHING, before a player is opened:
+ * the same device value, so a case about the player's first attach can have it
+ * on. It also proves the SETTINGS row writes it, which the sheet reads.
+ */
+async function settingsNeverLower(page: Page, on: boolean) {
+	await page.goto('/settings?section=watching');
+	const row = page.locator('.row', {
+		has: page.locator('.label', { hasText: /^NEVER LOWER$/ })
+	});
+	await row.getByRole('button', { name: on ? 'ON' : 'OFF', exact: true }).click();
+	await expect(row.getByRole('button', { name: on ? 'ON' : 'OFF', exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	// Reloaded: the row comes back on, so the device value was really kept.
+	await page.reload();
+	await expect(row.getByRole('button', { name: on ? 'ON' : 'OFF', exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+}
+
+/** QUALITY pressed in SETTINGS › 03 — WATCHING: the device's cap, as `startIndex` reads it. */
+async function settingsQuality(page: Page, label: string) {
+	await page.goto('/settings?section=watching');
+	const row = page.locator('.row', { has: page.locator('.label', { hasText: /^QUALITY$/ }) });
+	await row.getByRole('button', { name: label, exact: true }).click();
+	await expect(row.getByRole('button', { name: label, exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+}
+
+/** Playing again: the interstitial gone, and the picture moving. */
+async function playsAgain(page: Page) {
+	await expect(page.locator('.inter')).toHaveCount(0, { timeout: 15_000 });
 	await page.waitForFunction(
 		() => {
 			const v = document.querySelector('video');
-			return !!v && !v.paused && v.currentTime > 0.3;
+			return !!v && !v.paused && v.currentTime > 0.3 && v.readyState >= 3;
 		},
 		undefined,
 		{ timeout: 30_000 }
 	);
 }
 
-const timeline = (page: Page) => page.evaluate(() => window.__stall);
+/**
+ * NOTHING KEEPS THE QUALITY's CHOOSE, and a row of the sheet it opens pressed
+ * where the eye sees it: the point under the row's middle must be the row
+ * (the sheet on top of the panel, not under it), and the press goes to that
+ * point, not to the element, so a panel painted over it would take it.
+ */
+async function chooseFromPanel(page: Page, row: string, press: 'mouse' | 'tap') {
+	const panel = page.locator('.inter');
+	await panel.getByRole('button', { name: 'CHOOSE' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Playback settings' });
+	await expect(sheet).toBeVisible();
+	const target = sheet.getByRole('button', { name: row, exact: true });
+	await expect(target).toBeVisible();
+	// The refusal left nothing current: no quality on, no server PLAYING, so
+	// no lower one reads as the chosen one.
+	await expect(sheet.locator('.seg button.on', { hasText: /^\d+P$/ })).toHaveCount(0);
+	await expect(sheet.getByText(/● PLAYING/)).toHaveCount(0);
+	// Measured where it lands, not mid-rise: the sheet slides in from the side.
+	await sheet.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+	const box = (await target.boundingBox())!;
+	const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+	const hit = await page.evaluate(
+		([x, y]) => {
+			const at = document.elementFromPoint(x, y);
+			return { inSheet: !!at?.closest('.sheet'), text: at?.textContent?.trim() ?? '' };
+		},
+		[x, y]
+	);
+	expect(hit).toEqual({ inSheet: true, text: row });
+	if (press === 'tap') await page.touchscreen.tap(x, y);
+	else await page.mouse.click(x, y);
+}
+
+/**
+ * The BUFFERING panel's words, every 100 ms, from the page's own clock: a hold
+ * of two servers that took turns would show it as SERVER 1 again.
+ */
+async function samplePanels(page: Page) {
+	await page.addInitScript(() => {
+		const w = window as unknown as { __panels: { t: number; panel: string | null }[] };
+		w.__panels = [];
+		setInterval(() => {
+			w.__panels.push({
+				t: performance.now(),
+				panel: document.querySelector('.panel.buffer')?.textContent ?? null
+			});
+		}, 100);
+	});
+}
+
+const panels = (page: Page) =>
+	page.evaluate(
+		() => (window as unknown as { __panels: { t: number; panel: string | null }[] }).__panels
+	);
+
+type ServerSpec = { heights: number[]; stall?: boolean; broken?: boolean };
+
+/**
+ * The episode's list, made of the servers a case names: `heights` each, a
+ * `stall` one answering only `KEPT` bytes and leaving the rest hanging, and a
+ * `broken` one at an address that cannot answer. `fresh` is the same source's answer
+ * to a `?fresh=1` ask, or a function of the ask's number (1 first), so a case
+ * can bring a height back between two TRY AGAINs. A segment that stalls says so
+ * in its own query, so a healthy server beside it is served whole.
+ */
+async function answerServers(
+	page: Page,
+	servers: ServerSpec[],
+	fresh?: ServerSpec[] | ((ask: number) => ServerSpec[])
+) {
+	let freshAsks = 0;
+	let clip: string | null = null;
+	await page.route('**/api/anime/episode/*/videos*', async (route) => {
+		const answer = await route.fetch();
+		const list = await answer.json();
+		const last = list.servers[list.servers.length - 1];
+		const q = last.qualities[0];
+		clip = new URL(q.src, page.url()).pathname;
+		const asked = new URL(route.request().url()).searchParams.has('fresh');
+		if (asked) freshAsks += 1;
+		const freshList = typeof fresh === 'function' ? fresh(freshAsks) : fresh;
+		const out = ((asked ? freshList : undefined) ?? servers).map((s, i) => ({
+			n: i + 1,
+			name: `Server ${i + 1}`,
+			qualities: s.heights.map((h) => ({
+				...q,
+				label: `${h}p`,
+				height: h,
+				src: s.broken
+					? 'http://127.0.0.1:1/lost.webm'
+					: `${q.src}?s=${i + 1}&stall=${s.stall ? 1 : 0}#${h}`
+			}))
+		}));
+		await route.fulfill({
+			response: answer,
+			json: { ...list, intro: null, ending: null, servers: out }
+		});
+	});
+	await page.route(
+		(u) => u.searchParams.get('stall') === '1',
+		async (route) => {
+			const from = Number(/bytes=(\d+)-/.exec(route.request().headers().range ?? '')?.[1] ?? 0);
+			// Left hanging, not refused: this is a server that stopped sending.
+			if (from >= KEPT) return;
+			const whole = await route.fetch({ headers: { range: '' } });
+			const body = await whole.body();
+			await route.fulfill({
+				status: 206,
+				headers: {
+					'content-type': 'video/webm',
+					'accept-ranges': 'bytes',
+					'content-range': `bytes ${from}-${KEPT - 1}/${body.length}`
+				},
+				body: body.subarray(from, KEPT)
+			});
+		}
+	);
+	return { freshAsks: () => freshAsks, clip: () => clip };
+}
+
+/** Every `<video>` the page attached, and whether it was at a height: the silent drop would show here. */
+async function attaches(page: Page) {
+	await page.addInitScript(() => {
+		const w = window as unknown as { __srcs: string[] };
+		w.__srcs = [];
+		document.addEventListener(
+			'loadstart',
+			(e) => {
+				const v = e.target;
+				if (v instanceof HTMLVideoElement) w.__srcs.push(v.currentSrc);
+			},
+			true
+		);
+	});
+	return () => page.evaluate(() => (window as unknown as { __srcs: string[] }).__srcs);
+}
+
+/** The server the BUFFERING panel names, or null when no panel is up. */
+function panelServer(panel: string | null): number | null {
+	const m = /SERVER (\d+) OF/.exec(panel ?? '');
+	return m ? Number(m[1]) : null;
+}
 
 /** ← or → held down: a press and its auto-repeat, as a keyboard sends it. */
 async function holdKey(page: Page, key: string, ms: number) {
@@ -179,6 +416,271 @@ const DESKTOP = {
 
 test.describe('on a desktop', () => {
 	test.use(DESKTOP);
+
+	test('NEVER LOWER: a stall waits at 1080 past 15 s and offers no drop', async ({ page }) => {
+		// A second server, but only at 720: not an automatic move with the setting on.
+		await bufferingStream(page, true);
+		await openPlaying(page);
+		// The device setting, pressed in the player's own sheet (not written into
+		// storage behind the app's back), and read back after a reload.
+		await neverLower(page, true);
+		await page.reload();
+		await page.waitForFunction(
+			() => {
+				const v = document.querySelector('video');
+				return !!v && !v.paused && v.currentTime > 0.3;
+			},
+			undefined,
+			{ timeout: 30_000 }
+		);
+		await neverLowerIs(page, true);
+		const cell = page.locator('.cells .grow');
+		await expect(cell).toContainText('1080P');
+		// Past a full 15 s: the clock's own samples say so, and it is still 1080.
+		await expect
+			.poll(async () => (await timeline(page)).samples.at(-1)!.panel, {
+				timeout: STALL_MS + 10_000
+			})
+			.toMatch(/BUFFERING\s*1[5-9] S/);
+		const { samples } = await timeline(page);
+		// The clock really ran: the panel's own seconds reached 15, not a step at 14.
+		const seconds = samples.map((s) => Number(/BUFFERING\s*(\d+) S/.exec(s.panel ?? '')?.[1] ?? 0));
+		expect(Math.max(...seconds)).toBeGreaterThanOrEqual(15);
+		expect(samples.filter((s) => s.dropped)).toEqual([]);
+		for (const s of samples) expect(s.panel ?? '').not.toMatch(/DROPS TO|COULDN'T KEEP UP/);
+		await expect(cell).toContainText('1080P');
+		// It says it waits, and the lower server is still a press away by hand.
+		const panel = page.locator('.panel.buffer');
+		await expect(panel).toContainText('WAITING ON THE SERVER');
+		await expect(panel.getByRole('button')).toContainText('SERVER');
+	});
+
+	test('with NEVER LOWER on, a fatal error re-asks once and plays on at 1080', async ({ page }) => {
+		test.setTimeout(120_000);
+		// One server at 1080 whose address is gone: the source's fresh answer
+		// (`?fresh=1`) has the same height at a working address.
+		const server = await answerServers(
+			page,
+			[{ heights: [1080], broken: true }],
+			[{ heights: [1080] }]
+		);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlayer(page);
+		// The broken address is fatal and the kept height is on the fresh list:
+		// the player asks once and re-attaches there, instead of freezing.
+		await page.waitForFunction(
+			() => {
+				const v = document.querySelector('video');
+				return !!v && !v.paused && v.currentTime > 0.3;
+			},
+			undefined,
+			{ timeout: 30_000 }
+		);
+		expect(server.freshAsks()).toBe(1);
+		await expect(page.locator('.cells .grow')).toContainText('1080P');
+		// It really was the dead address first, and never a lower quality.
+		const attached = await srcs();
+		expect(attached.some((s) => s.includes('lost.webm'))).toBe(true);
+		expect(attached.filter((s) => /#720$/.test(s))).toEqual([]);
+	});
+
+	test('with nothing acceptable, it says so and still says so past 4 s', async ({ page }) => {
+		test.setTimeout(120_000);
+		// The fresh list has only 720, and NEVER LOWER keeps 1080: no lower
+		// quality may be attached by itself, and the screen must say why for
+		// longer than the old 4 s notice.
+		const server = await answerServers(
+			page,
+			[{ heights: [1080], broken: true }],
+			[{ heights: [720] }]
+		);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlayer(page);
+		const panel = page.locator('.inter');
+		await expect(panel).toContainText('NOTHING KEEPS THE QUALITY', { timeout: 30_000 });
+		await expect(panel).toContainText('NEVER LOWER');
+		await expect(panel).toContainText('1080P');
+		expect(server.freshAsks()).toBe(1);
+		// Past the 4 s the server notice lived for.
+		await page.waitForTimeout(5_000);
+		await expect(panel).toContainText('NOTHING KEEPS THE QUALITY');
+		await expect(panel).toContainText('NEVER LOWER');
+		// A way to choose by hand, and the fresh ask is not repeated.
+		await expect(panel.getByRole('button', { name: 'CHOOSE' })).toBeVisible();
+		expect(server.freshAsks()).toBe(1);
+		// No lower quality was attached behind the setting's back.
+		const attached = await srcs();
+		expect(attached.filter((s) => /#720$/.test(s))).toEqual([]);
+	});
+
+	test('two slow servers do not take turns: one move, then it stays and counts', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		// Two servers, both 1080, both running dry: without a record of what this
+		// hold already left, they alternated for ever.
+		await answerServers(page, [
+			{ heights: [1080, 720, 480], stall: true },
+			{ heights: [1080, 720, 480], stall: true }
+		]);
+		await samplePanels(page);
+		await settingsNeverLower(page, true);
+		await openPlaying(page);
+		const last = async () => (await panels(page)).map((s) => panelServer(s.panel)).at(-1) ?? null;
+		// The first outage moves to server 2 at its full 15 s.
+		await expect.poll(last, { timeout: STALL_MS + 10_000 }).toBe(2);
+		const after = (await panels(page)).length;
+		// The second window runs its own full 15 s on server 2 and keeps counting
+		// past it (a move at 15 would take the clock back to zero).
+		await expect
+			.poll(
+				async () => {
+					const seen = (await panels(page)).slice(after);
+					return Math.max(
+						0,
+						...seen.map((s) => Number(/BUFFERING\s*(\d+) S/.exec(s.panel ?? '')?.[1] ?? 0))
+					);
+				},
+				{ timeout: STALL_MS + 12_000 }
+			)
+			.toBeGreaterThanOrEqual(16);
+		const names = (await panels(page)).map((s) => panelServer(s.panel));
+		const moved = names.indexOf(2);
+		expect(moved).toBeGreaterThan(-1);
+		// At most one automatic move: nothing after it names server 1 again.
+		expect(names.slice(moved).filter((n) => n === 1)).toEqual([]);
+	});
+
+	test('the move to a good 1080 server is taken', async ({ page }) => {
+		test.setTimeout(120_000);
+		// The second server keeps 1080 and answers: the stall must actually move
+		// here, which the 720-only server of the wait case never does.
+		await answerServers(page, [
+			{ heights: [1080, 720, 480], stall: true },
+			{ heights: [1080, 720, 480] }
+		]);
+		await samplePanels(page);
+		await settingsNeverLower(page, true);
+		await openPlaying(page);
+		const at = () => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime);
+		// The stall moved by itself, to the second server's own stream: the
+		// panel resets on a move and may never paint there, so the element's
+		// own address is the record.
+		await expect
+			.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentSrc), {
+				timeout: STALL_MS + 10_000
+			})
+			.toContain('s=2');
+		// It plays on from the same second at the same height: the picture moved
+		// past where the first server ran dry (~2.7 s of this clip).
+		await expect(page.locator('.cells .grow')).toContainText('1080P');
+		await expect.poll(at).toBeGreaterThan(3);
+	});
+
+	test('TRY AGAIN waits at the height the panel names, and attaches the lower one never', async ({
+		page
+	}) => {
+		test.setTimeout(150_000);
+		// 1080 plays, then the stream dies: a fatal error mid-episode. The
+		// source's fresh list has only 720 for the first two asks, and 1080 again
+		// from the third.
+		const server = await answerServers(page, [{ heights: [1080] }], (ask) =>
+			ask >= 3 ? [{ heights: [1080] }] : [{ heights: [720] }]
+		);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlaying(page);
+		await expect(page.locator('.cells .grow')).toContainText('1080P');
+		expect((await srcs()).at(-1)).toMatch(/s=1&.*#1080$/);
+		// A plain file that dies says so by the element's own `error` (Chrome reads
+		// a refused range as a stall, so a route cannot make it): told to the
+		// player as the element tells it, with the picture stopped as a dead one is.
+		await page.locator('video').evaluate((v: HTMLVideoElement) => {
+			v.pause();
+			v.dispatchEvent(new Event('error'));
+		});
+
+		const panel = page.locator('.inter');
+		await expect(panel).toContainText('NOTHING KEEPS THE QUALITY', { timeout: 30_000 });
+		await expect(panel).toContainText('waits at 1080P');
+		expect(server.freshAsks()).toBe(1);
+		const refused = (await srcs()).length;
+
+		// TRY AGAIN with the list still at 720: it asks, and stays.
+		const asked = page.waitForResponse(
+			(r) => /\/videos/.test(r.url()) && new URL(r.url()).searchParams.has('fresh')
+		);
+		await panel.getByRole('button', { name: 'TRY AGAIN' }).click();
+		await asked;
+		expect(server.freshAsks()).toBe(2);
+		// The answer is in; an attach would follow it within a tick and a dynamic
+		// import, so a second is room enough for one to show.
+		await page.waitForTimeout(1_500);
+		await expect(panel).toContainText('NOTHING KEEPS THE QUALITY');
+		await expect(panel).toContainText('waits at 1080P');
+		expect((await srcs()).slice(refused)).toEqual([]);
+
+		// 1080 back on the list: TRY AGAIN plays it.
+		await panel.getByRole('button', { name: 'TRY AGAIN' }).click();
+		await playsAgain(page);
+		expect(server.freshAsks()).toBe(3);
+		expect((await srcs()).slice(refused)).toEqual([expect.stringMatching(/s=1&.*#1080$/)]);
+		await expect(page.locator('.cells .grow')).toContainText('1080P');
+	});
+
+	test('CHOOSE opens the sheet over the panel, and a quality chosen there plays', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		const server = await answerServers(
+			page,
+			[{ heights: [1080], broken: true }],
+			[{ heights: [720] }]
+		);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlayer(page);
+		await expect(page.locator('.inter')).toContainText('NOTHING KEEPS THE QUALITY', {
+			timeout: 30_000
+		});
+		expect(server.freshAsks()).toBe(1);
+		const episode = page.url();
+		await chooseFromPanel(page, '720P', 'mouse');
+		// A choice by hand is the way out: it attaches, and the panel goes. On
+		// this episode, from this list: a panel left up would let the clip run
+		// out underneath it and the next episode play, from an ask of its own.
+		await playsAgain(page);
+		expect(page.url()).toBe(episode);
+		expect(server.freshAsks()).toBe(1);
+		expect((await srcs()).at(-1)).toMatch(/s=1&.*#720$/);
+		await expect(page.locator('.cells .grow')).toContainText('720P');
+	});
+
+	test("a fresh re-attach keeps the device's cap: 720 chosen, 720 played though 1080 keeps it too", async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		// QUALITY 720 caps the device; the fresh list offers 1080 and 720. What
+		// keeps 720 and is what the cap chooses is 720, not the server's top.
+		const server = await answerServers(
+			page,
+			[{ heights: [1080, 720], broken: true }],
+			[{ heights: [1080, 720] }]
+		);
+		const srcs = await attaches(page);
+		await settingsQuality(page, '720P');
+		await settingsNeverLower(page, true);
+		await openPlayer(page);
+		await playsAgain(page);
+		expect(server.freshAsks()).toBe(1);
+		const attached = await srcs();
+		expect(attached.some((s) => s.includes('lost.webm'))).toBe(true);
+		expect(attached.at(-1)).toMatch(/s=1&.*#720$/);
+		expect(attached.filter((s) => /#1080$/.test(s))).toEqual([]);
+		await expect(page.locator('.cells .grow')).toContainText('720P');
+	});
 
 	test('a key held 12 s leaves the full 15 s after the release', async ({ page }) => {
 		await holdLeavesFullClock(page, 12_000);
@@ -306,6 +808,126 @@ test.describe('on a touch tablet', () => {
 
 test.describe('on a phone', () => {
 	test.use({ ...touch('Pixel 5'), serviceWorkers: 'block' });
+
+	test('NEVER LOWER: a stall on 720 is no move to a server whose cap pick is lower, and never plays its 1080', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		// The phone plays 720 on HIGHEST (its cap). Server 2 offers 1080 and 480:
+		// under the cap it would play 480, so it does not keep 720, and its 1080
+		// is above the cap.
+		await answerServers(page, [{ heights: [720], stall: true }, { heights: [1080, 480] }]);
+		const srcs = await attaches(page);
+		await samplePanels(page);
+		await settingsNeverLower(page, true);
+		await openPlaying(page);
+		expect((await srcs()).at(-1)).toMatch(/s=1&.*#720$/);
+		// Past the full 15 s and on: the stall's step has run, and it stayed.
+		await expect
+			.poll(
+				async () =>
+					Math.max(
+						0,
+						...(await panels(page)).map((x) =>
+							Number(/BUFFERING\s*(\d+) S/.exec(x.panel ?? '')?.[1] ?? 0)
+						)
+					),
+				{ timeout: STALL_MS + 12_000 }
+			)
+			.toBeGreaterThanOrEqual(17);
+		const attached = await srcs();
+		expect(attached.filter((x) => /#1080$/.test(x))).toEqual([]);
+		expect(attached.filter((x) => /s=2&/.test(x))).toEqual([]);
+		const panel = page.locator('.panel.buffer');
+		await expect(panel).toContainText('WAITING ON THE SERVER · SERVER 1 OF 2');
+		await expect(panel).not.toContainText('MOVES TO');
+	});
+
+	test('NEVER LOWER: a stall below the cap moves at the quality the cap picks, not at the server’s 1080', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		// Server 1 tops out at 480, so the phone keeps 480 under its 720 cap.
+		// Server 2 has no 480: the cap picks its 720, which keeps 480, and that
+		// is what plays, not its first quality.
+		await answerServers(page, [{ heights: [480], stall: true }, { heights: [1080, 720] }]);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlaying(page);
+		expect((await srcs()).at(-1)).toMatch(/s=1&.*#480$/);
+		await expect
+			.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentSrc), {
+				timeout: STALL_MS + 10_000
+			})
+			.toMatch(/s=2&/);
+		expect(await page.locator('video').evaluate((v: HTMLVideoElement) => v.currentSrc)).toMatch(
+			/#720$/
+		);
+		expect((await srcs()).filter((x) => /#1080$/.test(x))).toEqual([]);
+	});
+
+	test('NEVER LOWER: a stall on 720 moves to a server whose cap pick keeps it, and plays its 720', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		await answerServers(page, [{ heights: [720], stall: true }, { heights: [1080, 720] }]);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlaying(page);
+		await expect
+			.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentSrc), {
+				timeout: STALL_MS + 10_000
+			})
+			.toMatch(/s=2&.*#720$/);
+		await expect
+			.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime))
+			.toBeGreaterThan(3);
+		expect((await srcs()).filter((x) => /#1080$/.test(x))).toEqual([]);
+	});
+
+	test("a fresh re-attach keeps the phone's 720 though the server tops out at 1080", async ({
+		page
+	}) => {
+		// A phone starts at 720 with QUALITY on HIGHEST (startIndex): that cap holds
+		// for the re-attach after a fatal error too.
+		const server = await answerServers(
+			page,
+			[{ heights: [1080, 720], broken: true }],
+			[{ heights: [1080, 720] }]
+		);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlayer(page);
+		await playsAgain(page);
+		expect(server.freshAsks()).toBe(1);
+		const attached = await srcs();
+		expect(attached.some((s) => s.includes('lost.webm'))).toBe(true);
+		expect(attached.at(-1)).toMatch(/s=1&.*#720$/);
+		expect(attached.filter((s) => /#1080$/.test(s))).toEqual([]);
+	});
+
+	test('CHOOSE opens the sheet over the panel, and a quality tapped there plays', async ({
+		page
+	}) => {
+		const server = await answerServers(
+			page,
+			[{ heights: [1080], broken: true }],
+			[{ heights: [720] }]
+		);
+		const srcs = await attaches(page);
+		await settingsNeverLower(page, true);
+		await openPlayer(page);
+		await expect(page.locator('.inter')).toContainText('NOTHING KEEPS THE QUALITY', {
+			timeout: 30_000
+		});
+		expect(server.freshAsks()).toBe(1);
+		const episode = page.url();
+		await chooseFromPanel(page, '720P', 'tap');
+		await playsAgain(page);
+		expect(page.url()).toBe(episode);
+		expect(server.freshAsks()).toBe(1);
+		expect((await srcs()).at(-1)).toMatch(/s=1&.*#720$/);
+	});
 
 	test('a double-tap run leaves the full 15 s after its last tap', async ({ page }) => {
 		await bufferingStream(page);

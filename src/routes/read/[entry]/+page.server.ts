@@ -25,6 +25,7 @@ import { moveOpens, noVideoLine, staleSource } from '$lib/server/move';
 import { workEndOf } from '$lib/server/works';
 import { pageHighlights } from '$lib/server/highlights/pages';
 import { quoteHighlights } from '$lib/server/highlights/quotes';
+import { keptClipRanges } from '$lib/server/highlights/clips';
 import { parseTextDirection } from '$lib/reader/text';
 import { setTextDirection, takesTextDirection, textDirectionOf } from './text-direction.server';
 
@@ -129,6 +130,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			incognito: isIncognito(cookies),
 			// What it starts in: the series', SETTINGS', the last choice.
 			player: playerStart(series.id),
+			clips: keptClipRanges(entry.id, isRevealed(cookies)),
 			// Not just this episode (doc/MOVE.md): the same NO SERVER on others.
 			failures: isIncognito(cookies) ? null : await noVideoLine(series.id),
 			// NO SERVER's ANOTHER SOURCE →, only where MOVE opens: never on a

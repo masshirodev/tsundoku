@@ -1587,3 +1587,89 @@ test('a held → leaves the full 15 s after the release on a TV', async ({ page 
 	expect(after.drop[0] - last).toBeGreaterThanOrEqual(15_000);
 	await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
+
+/**
+ * NEVER LOWER's no-server panel on a TV: the pad reaches CHOOSE, the sheet it
+ * opens is the top layer (the point under a row is that row) and holds the
+ * pad, and a server chosen there is the way out: it attaches and the panel
+ * goes. tests/browse-player-stall.e2e.ts has the same on a desktop and a phone.
+ * The setting is put in this browser's storage before the page loads: the
+ * stall spec presses it in SETTINGS and the player's sheet.
+ */
+test.describe('NEVER LOWER on a TV', () => {
+	// The service worker answers a page it controls itself, past page.route.
+	test.use({ serviceWorkers: 'block' });
+
+	test('NOTHING KEEPS THE QUALITY: the pad reaches CHOOSE, and a server chosen on top of the panel plays', async ({
+		page
+	}) => {
+		let freshAsks = 0;
+		await page.addInitScript(() => localStorage.setItem('tsundoku:anime:keep', 'true'));
+		// 1080 at an address that cannot answer, and a fresh list with only 720.
+		await page.route('**/api/anime/episode/*/videos**', async (route) => {
+			const response = await route.fetch();
+			const body = await response.json();
+			const q = body.servers[body.servers.length - 1].qualities[0];
+			const fresh = new URL(route.request().url()).searchParams.has('fresh');
+			if (fresh) freshAsks += 1;
+			body.intro = null;
+			body.ending = null;
+			body.servers = [
+				{
+					n: 1,
+					name: 'Server 1',
+					qualities: [
+						fresh
+							? { ...q, label: '720p', height: 720, src: `${q.src}#720` }
+							: { ...q, label: '1080p', height: 1080, src: 'http://127.0.0.1:1/lost.webm' }
+					]
+				}
+			];
+			await route.fulfill({ response, json: body });
+		});
+		await openEpisode(page);
+		const episode = page.url();
+		const inter = page.locator('.inter');
+		await expect(inter).toContainText('NOTHING KEEPS THE QUALITY', { timeout: 30_000 });
+		await expect(inter).toContainText('waits at 1080P');
+		expect(freshAsks).toBe(1);
+
+		const choose = inter.getByRole('button', { name: 'CHOOSE' });
+		const focused = (l: typeof choose) => l.evaluate((n) => n === document.activeElement);
+		for (let i = 0; i < 8 && !(await focused(choose)); i++) await page.keyboard.press('ArrowRight');
+		await expect(choose).toBeFocused();
+		await page.keyboard.press('Enter');
+
+		const sheet = page.getByRole('dialog', { name: 'Playback settings' });
+		await expect(sheet).toBeVisible();
+		await sheet.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+		// It opens on its first row, as from the bar, and the pad walks to SERVER.
+		await expect(sheet.locator('.srow2').first().locator('button').first()).toBeFocused();
+		const row = sheet
+			.locator('.srow2', { has: page.locator('.lab', { hasText: /^SERVER$/ }) })
+			.locator('button.li')
+			.first();
+		for (let i = 0; i < 6 && !(await focused(row)); i++) await page.keyboard.press('ArrowDown');
+		await expect(row).toBeFocused();
+		const box = (await row.boundingBox())!;
+		const hit = await page.evaluate(
+			([x, y]) => {
+				const at = document.elementFromPoint(x, y);
+				return { inSheet: !!at?.closest('.sheet'), row: !!at?.closest('button.li') };
+			},
+			[box.x + box.width / 2, box.y + box.height / 2]
+		);
+		expect(hit).toEqual({ inSheet: true, row: true });
+
+		await page.keyboard.press('Enter');
+		await expect(inter).toHaveCount(0, { timeout: 15_000 });
+		await expect
+			.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentSrc))
+			.toMatch(/#720$/);
+		await expect
+			.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => !v.paused))
+			.toBe(true);
+		expect(page.url()).toBe(episode);
+		expect(freshAsks).toBe(1);
+	});
+});

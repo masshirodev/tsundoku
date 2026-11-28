@@ -169,6 +169,102 @@ export function stallStep(
 	return i >= 0 ? { quality: i } : null;
 }
 
+/** A server's sizes, as the kept-quality rule compares them. */
+export type ServerSizes = { n: number; heights: (number | null)[] };
+
+/**
+ * Where a stall or a fatal error may go with NEVER LOWER on: the next server in
+ * the source's order that hasn't failed this time and keeps the chosen height
+ * under the device's [cap] (`keptIndex`, the rule a fresh re-attach uses too),
+ * with the quality that rule picks there. A server is judged by what this
+ * device would play on it, not by its best: under a 720 cap [1080, 480] plays
+ * 480, so it keeps no 720, and its 1080 is never attached. It never steps down
+ * on the same server: keeping the quality means waiting instead.
+ *
+ * [chosen] is the height the device asked for, or the one playing under
+ * HIGHEST. A server with no known height -- nothing resolved yet, or qualities
+ * the source did not size -- is not a move: the promise is about a known
+ * height, and an unverified server could be the lower one. A null [chosen]
+ * (nothing sizes anything) is the same: nothing is provably as good, so it
+ * waits, and the settings sheet's QUALITY and SERVER rows are the way by hand.
+ */
+export function keepServer(
+	order: number[],
+	current: number,
+	failed: Set<number>,
+	servers: ServerSizes[],
+	chosen: number | null,
+	cap: number | null
+): { n: number; i: number } | null {
+	if (chosen === null) return null;
+	const at = order.indexOf(current);
+	const rest = [...order.slice(at + 1), ...order.slice(0, Math.max(0, at))];
+	for (const n of rest) {
+		if (failed.has(n)) continue;
+		const s = servers.find((x) => x.n === n);
+		const i = s ? keptIndex(s.heights, cap, chosen) : null;
+		if (i !== null) return { n, i };
+	}
+	return null;
+}
+
+/**
+ * The height NEVER LOWER keeps: the device's own choice when it made one,
+ * else the height playing now -- with HIGHEST chosen, what is on screen is the
+ * defensible reading of "the chosen quality". The device's choice is a cap,
+ * not a floor (`startIndex` takes the first height at or below it), so a source
+ * that tops out below it plays the lower one; what is *really* playing is then
+ * the height to keep, or an equal 720 server could never be a move.
+ */
+export const keptHeight = (wanted: number | null, playing: number | null) =>
+	wanted !== null && playing !== null ? Math.min(wanted, playing) : (wanted ?? playing);
+
+/**
+ * The quality a device starts a server on: the first height at or below its
+ * [cap] (the device's QUALITY, or 720 on a phone), else the lowest listed; with
+ * no cap, the best. [heights] are the server's qualities, best first.
+ */
+export function capIndex(heights: (number | null)[], cap: number | null): number {
+	if (cap === null) return 0;
+	const i = heights.findIndex((h) => h !== null && h <= cap);
+	return i >= 0 ? i : heights.length - 1;
+}
+
+/**
+ * NEVER LOWER's one rule for a server: the quality the device's [cap] picks on
+ * it (`capIndex`, as any start), when that quality is at least [kept]; else
+ * null. Both a move (`keepServer`) and a fresh re-attach (`keepPick`) ask it.
+ */
+export function keptIndex(
+	heights: (number | null)[],
+	cap: number | null,
+	kept: number
+): number | null {
+	const i = capIndex(heights, cap);
+	const h = heights[i];
+	return h !== null && h !== undefined && h >= kept ? i : null;
+}
+
+/**
+ * Where NEVER LOWER re-attaches from a fresh list: the first server, in the
+ * source's order, on which the quality the device's [cap] would choose
+ * (`capIndex`, as any start) is at least [kept]. A server's top quality is not
+ * the pick, or a device capped at 720 would come back at 1080; and a server
+ * whose capped pick is lower is not one either, since the cap is the device's
+ * own rule. Null when none keeps it: the no-server panel says so.
+ */
+export function keepPick(
+	servers: ServerSizes[],
+	cap: number | null,
+	kept: number
+): { n: number; i: number } | null {
+	for (const s of servers) {
+		const i = keptIndex(s.heights, cap, kept);
+		if (i !== null) return { n: s.n, i };
+	}
+	return null;
+}
+
 /**
  * A double-tap on a side third seeks 10 s, and each further tap within the
  * burst adds 10: [taps] is the count in the burst, from 2.
